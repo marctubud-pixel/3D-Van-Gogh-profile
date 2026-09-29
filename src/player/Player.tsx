@@ -57,7 +57,9 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
   const colliders = useMemo(
     () => [
       ...anchors.map((a) => ({ at: a.building, r: BUILDING_RADIUS })),
-      ...townLots(locations).map((l) => ({ at: l.up, r: LOT_RADIUS })),
+      ...townLots(locations)
+        .filter((l) => l.kind !== 'garden')
+        .map((l) => ({ at: l.up, r: LOT_RADIUS })),
     ],
     [anchors, locations],
   )
@@ -68,7 +70,12 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
   const steer = useRef(0)
   const walkSpeed = useRef(0)
   const transition = useRef(0)
-  const look = useRef({ yaw: 0, pitch: 0.2, dragging: false })
+  const look = useRef<{ yaw: number; pitch: number; dragging: boolean; lastDrag: number }>({
+    yaw: 0,
+    pitch: CAMERA.walking.pitch,
+    dragging: false,
+    lastDrag: 0,
+  })
   const noParkHinted = useRef(false)
   const lastLatLon = useRef(0)
   const bikeGroup = useRef<THREE.Group>(null)
@@ -98,8 +105,11 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     const pu = () => (look.current.dragging = false)
     const pm = (e: PointerEvent) => {
       if (!look.current.dragging || inputLocked()) return
-      look.current.yaw -= e.movementX * 0.005
-      look.current.pitch = THREE.MathUtils.clamp(look.current.pitch + e.movementY * 0.004, 0.05, 1.1)
+      look.current.lastDrag = performance.now()
+      const riding = useGame.getState().player === 'RIDING'
+      const k = riding ? 0.5 : 1
+      look.current.yaw -= e.movementX * 0.005 * k
+      look.current.pitch += e.movementY * 0.004 * k
     }
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
@@ -141,7 +151,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
       transition.current = TRANSITION_S
       const r = rider.current
       r.up.copy(spot.parking)
-      r.fwd.copy(spot.facing).applyAxisAngle(spot.parking, Math.PI / 2).projectOnPlane(r.up).normalize()
+      r.fwd.copy(spot.facing).projectOnPlane(r.up).normalize()
     } else if (g.player === 'WALKING') {
       const door = nearestDoor()
       if (door) {
@@ -252,15 +262,36 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
       avatarGroup.current.quaternion.copy(surfaceQuaternion(w.up, w.fwd))
     }
 
-    // camera
+    // camera: riding = small look-around around the heading; walking = free orbit that auto-returns behind
     const riding = mode === 'ride'
-    if (!look.current.dragging && riding) look.current.yaw = THREE.MathUtils.damp(look.current.yaw, 0, 2.5, dt)
-    if (riding) look.current.yaw = THREE.MathUtils.clamp(look.current.yaw, -1.0, 1.0)
     const cfg = riding ? CAMERA.riding : CAMERA.walking
-    const pitch = riding ? cfg.pitch : look.current.pitch
-    const back = w.fwd.clone().applyAxisAngle(w.up, look.current.yaw).multiplyScalar(-Math.cos(pitch) * cfg.distance)
+    const lk = look.current
+    if (riding) {
+      lk.yaw = THREE.MathUtils.clamp(lk.yaw, -cfg.maxYaw, cfg.maxYaw)
+      lk.pitch = THREE.MathUtils.clamp(lk.pitch, cfg.pitch - cfg.maxPitch, cfg.pitch + cfg.maxPitch)
+    } else {
+      lk.pitch = THREE.MathUtils.clamp(lk.pitch, 0.05, 1.1)
+    }
+    const idle = performance.now() - lk.lastDrag > CAMERA.recenterDelay * 1000
+    const moving = riding ? Math.abs(speed.current) > 0.3 : Math.abs(walkSpeed.current) > 0.3 || turn !== 0
+    if (!lk.dragging && (riding || idle || moving)) {
+      const rate = riding ? 3 : moving ? 2.2 : 1.2
+      lk.yaw = THREE.MathUtils.damp(lk.yaw, 0, rate, dt)
+      lk.pitch = THREE.MathUtils.damp(lk.pitch, cfg.pitch, rate, dt)
+    }
     const focus = w.up.clone().multiplyScalar(R + cfg.focusHeight)
-    const desired = focus.clone().add(back).add(w.up.clone().multiplyScalar(Math.sin(pitch) * cfg.distance))
+    const dirBack = w.fwd.clone().applyAxisAngle(w.up, lk.yaw)
+    let dist = cfg.distance
+    const desired = new THREE.Vector3()
+    for (let i = 0; i < 6; i++) {
+      desired
+        .copy(focus)
+        .addScaledVector(dirBack, -Math.cos(lk.pitch) * dist)
+        .addScaledVector(w.up, Math.sin(lk.pitch) * dist)
+      const blocked = colliders.some((c) => arcDistance(desired, c.at) < c.r + 0.4)
+      if (!blocked) break
+      dist *= 0.75
+    }
     camera.position.lerp(desired, 1 - Math.exp(-cfg.follow * dt))
     camTarget.current.lerp(focus, 1 - Math.exp(-cfg.follow * 1.5 * dt))
     camera.up.lerp(w.up, 0.1).normalize()

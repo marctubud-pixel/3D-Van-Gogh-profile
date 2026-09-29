@@ -64,7 +64,7 @@ function Bollard() {
   )
 }
 
-function VendingMachine() {
+export function VendingMachine() {
   return (
     <>
       <Toon geometry={geo.box} color="#3f78a8" position={[0, 0.95, 0]} scale={[0.9, 1.9, 0.7]} outline={0.03} />
@@ -148,8 +148,12 @@ export function StreetProps({ locations }: { locations: WorldLocation[] }) {
     locations.forEach((l, i) => {
       const a = locationAnchors(l.lat, l.lon)
       const side = new THREE.Vector3().crossVectors(a.parking, a.facing).normalize()
-      for (let k = 0; k < 2; k++) {
-        const up = a.parking.clone().add(side.clone().multiplyScalar(((k ? 2.6 : -2.8) + (i % 2) * 0.4) / R)).normalize()
+      for (const k of [-1, 1]) {
+        const up = a.parking
+          .clone()
+          .add(a.facing.clone().multiplyScalar((1.7 + (i % 2) * 0.2) / R))
+          .add(side.clone().multiplyScalar((k * 1.1) / R))
+          .normalize()
         cones.push({ up, fwd: a.facing })
       }
     })

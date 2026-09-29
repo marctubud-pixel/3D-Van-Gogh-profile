@@ -62,12 +62,20 @@ export interface LocationAnchors {
 }
 
 export const BUILDING_RADIUS = 3.3
+/** Bike parking sits beside the building (along the road), slightly toward the street. */
+const PARKING_SIDE_OFFSET = 5
+const PARKING_FRONT_OFFSET = 1.4
 
 export function locationAnchors(lat: number, lon: number): LocationAnchors {
   const building = dirFromLatLon(lat, lon)
   const road = nearestRoadDir(building)
-  const parking = moveToward(road, building, 1.4)
   const door = moveToward(building, road, BUILDING_RADIUS + 0.6)
   const facing = road.clone().sub(building).projectOnPlane(building).normalize()
+  const side = new THREE.Vector3().crossVectors(building, facing).normalize()
+  const parking = building
+    .clone()
+    .add(side.multiplyScalar(PARKING_SIDE_OFFSET / R))
+    .add(facing.clone().multiplyScalar(PARKING_FRONT_OFFSET / R))
+    .normalize()
   return { building, road, parking, door, facing }
 }

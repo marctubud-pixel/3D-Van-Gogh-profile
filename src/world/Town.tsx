@@ -2,9 +2,10 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { AcUnit, stripeMaterial } from '../locations/Landmark'
-import { R, surfaceQuaternion } from './sphere'
+import { VendingMachine } from './StreetProps'
+import { R, dirFromLatLon, surfaceQuaternion } from './sphere'
 import { Toon, geo } from './toon'
-import { townLots, type TownLot } from './townLayout'
+import { SPUR_ROADS, townLots, type TownLot } from './townLayout'
 
 const WALLS = ['#ece6d6', '#dfe3dc', '#d5e0da', '#e8dccb', '#cdd7d5', '#efe9dc']
 const ROOFS = ['#4f7f86', '#5a676d', '#a4553f', '#6b8a7a', '#3f6f78']
@@ -75,8 +76,84 @@ function Rail({ y, z, width }: { y: number; z: number; width: number }) {
   )
 }
 
+function StreetTree({ position, s = 1 }: { position: [number, number, number]; s?: number }) {
+  return (
+    <group position={position} scale={s}>
+      <Toon geometry={geo.cyl} color="#6e6660" position={[0, 0.8, 0]} scale={[0.26, 1.6, 0.26]} outline={0.03} />
+      <Toon geometry={geo.ico} color="#4f8f5f" position={[0, 2.1, 0]} scale={[1.8, 1.5, 1.8]} outline={0.05} radial={false} />
+      <Toon geometry={geo.ico} color="#66a56f" position={[0.4, 2.6, 0.2]} scale={[1.1, 0.9, 1.1]} outline={0.04} radial={false} />
+    </group>
+  )
+}
+
+/** Pocket garden between houses: trees, hedge, bench and a roadside vending machine. */
+function Garden({ lot }: { lot: TownLot }) {
+  const { width: w, depth: d, seed } = lot
+  const vend = seed % 2 === 0
+  return (
+    <group>
+      <Toon geometry={geo.box} color="#5e9d6d" position={[0, 0.3, -d / 2 + 0.3]} scale={[w, 0.6, 0.6]} outline={0.03} />
+      <StreetTree position={[-w * 0.25, 0, -0.4]} s={0.9 + (seed % 3) * 0.1} />
+      <StreetTree position={[w * 0.3, 0, -0.9]} s={0.8} />
+      <Toon geometry={geo.ico} color="#4f8f5f" position={[w * 0.35, 0.35, 0.6]} scale={[1, 0.7, 0.9]} outline={0.03} radial={false} />
+      <group position={[0, 0, 0.4]}>
+        <Toon geometry={geo.box} color="#a4553f" position={[0, 0.45, 0]} scale={[1.4, 0.08, 0.4]} outline={0.02} />
+        {[-0.55, 0.55].map((x) => (
+          <Toon key={x} geometry={geo.box} color="#5a676d" position={[x, 0.22, 0]} scale={[0.08, 0.44, 0.36]} outline={0} />
+        ))}
+      </group>
+      {vend && (
+        <group position={[-w * 0.3, 0, d / 2 - 0.5]}>
+          <VendingMachine />
+        </group>
+      )}
+    </group>
+  )
+}
+
+/** Short side street leaving the ring road, built as flat strips hugging the sphere. */
+function SpurRoad({ lon, dir, len }: { lon: number; dir: 1 | -1; len: number }) {
+  const geos = useMemo(() => {
+    const strip = (half: number, lift: number) => {
+      const pos: number[] = []
+      const idx: number[] = []
+      const steps = 24
+      for (let i = 0; i <= steps; i++) {
+        const lat = dir * (2.5 + (len * i) / steps)
+        const c = dirFromLatLon(lat, lon)
+        const east = new THREE.Vector3(Math.cos(THREE.MathUtils.degToRad(lon)), 0, -Math.sin(THREE.MathUtils.degToRad(lon)))
+        for (const sgn of [-1, 1]) {
+          const p = c.clone().addScaledVector(east, (sgn * half) / R).normalize().multiplyScalar(R + lift)
+          pos.push(p.x, p.y, p.z)
+        }
+        if (i < steps) {
+          const a = i * 2
+          idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2)
+        }
+      }
+      const g = new THREE.BufferGeometry()
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+      g.setIndex(idx)
+      g.computeVertexNormals()
+      return g
+    }
+    return { walk: strip(2.4, 0.028), road: strip(1.5, 0.048) }
+  }, [lon, dir, len])
+  return (
+    <group>
+      <mesh geometry={geos.walk} receiveShadow>
+        <meshToonMaterial color="#d5dad1" side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={geos.road} receiveShadow>
+        <meshToonMaterial color="#6f848b" side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  )
+}
+
 function TownBuilding({ lot }: { lot: TownLot }) {
   const { width: w, depth: d, height: h, seed, kind } = lot
+  if (kind === 'garden') return <Garden lot={lot} />
   const wall = pick(WALLS, seed, 1)
   const roof = pick(ROOFS, seed, 2)
   const accent = pick(AWNINGS, seed, 3)
@@ -129,8 +206,30 @@ function TownBuilding({ lot }: { lot: TownLot }) {
 /** Dense low-rise seaside-town blocks lining the MAIN TOWN roads. */
 export function Town({ locations }: { locations: WorldLocation[] }) {
   const lots = useMemo(() => townLots(locations), [locations])
+  const trees = useMemo(
+    () =>
+      SPUR_ROADS.flatMap((sp) =>
+        [-1, 1].flatMap((side) =>
+          [0.35, 0.7, 1].map((k) => {
+            const lat = sp.dir * (3 + sp.len * k)
+            const c = dirFromLatLon(lat, sp.lon)
+            const east = new THREE.Vector3(Math.cos(THREE.MathUtils.degToRad(sp.lon)), 0, -Math.sin(THREE.MathUtils.degToRad(sp.lon)))
+            return c.addScaledVector(east, (side * 3.4) / R).normalize()
+          }),
+        ),
+      ),
+    [],
+  )
   return (
     <group>
+      {SPUR_ROADS.map((sp) => (
+        <SpurRoad key={sp.lon} {...sp} />
+      ))}
+      {trees.map((up, i) => (
+        <group key={`st${i}`} position={up.clone().multiplyScalar(R)} quaternion={surfaceQuaternion(up, new THREE.Vector3(0, 1, 0))}>
+          <StreetTree position={[0, 0, 0]} s={0.85} />
+        </group>
+      ))}
       {lots.map((lot, i) => (
         <group key={i} position={lot.up.clone().multiplyScalar(R)} quaternion={surfaceQuaternion(lot.up, lot.facing)}>
           <TownBuilding lot={lot} />

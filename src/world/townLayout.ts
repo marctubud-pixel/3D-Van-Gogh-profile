@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { R, dirFromLatLon, locationAnchors } from './sphere'
 
-export type TownKind = 'house' | 'shop' | 'apartment' | 'gable'
+export type TownKind = 'house' | 'shop' | 'apartment' | 'gable' | 'garden'
 
 export interface TownLot {
   up: THREE.Vector3
@@ -18,7 +18,25 @@ export interface TownLot {
 /** Collision radius used for filler buildings. */
 export const LOT_RADIUS = 2.6
 const SETBACK = 6.2
-const SPACING = 5.8
+const SPACING = 7.2
+
+/** Side streets branching off the equator road: longitude, direction (+1 north / -1 south), length in degrees of latitude. */
+export const SPUR_ROADS: { lon: number; dir: 1 | -1; len: number }[] = [
+  { lon: 40, dir: 1, len: 16 },
+  { lon: -42, dir: -1, len: 16 },
+  { lon: 76, dir: -1, len: 14 },
+  { lon: -80, dir: 1, len: 14 },
+]
+
+function nearSpur(up: THREE.Vector3) {
+  const lat = THREE.MathUtils.radToDeg(Math.asin(up.y))
+  const lon = THREE.MathUtils.radToDeg(Math.atan2(up.x, up.z))
+  return SPUR_ROADS.some((s) => {
+    const along = lat * s.dir
+    if (along < -1 || along > s.len + 4) return false
+    return Math.abs(lon - s.lon) * (Math.PI / 180) * R * Math.cos(Math.asin(up.y)) < 5.5
+  })
+}
 
 function rng(seed: number) {
   let a = seed
@@ -49,7 +67,8 @@ export function townLots(locations: WorldLocation[]): TownLot[] {
     if (up.angleTo(plaza) * R < 10) return
     if (blockers.some((b) => b.angleTo(up) * R < 7.5)) return
     if (THREE.MathUtils.radToDeg(Math.asin(up.y)) < -30) return
-    const kind = KINDS[Math.floor(rand() * KINDS.length)]
+    if (nearSpur(up)) return
+    const kind = rand() < 0.3 ? 'garden' : KINDS[Math.floor(rand() * KINDS.length)]
     const tall = kind === 'apartment'
     lots.push({
       up,
