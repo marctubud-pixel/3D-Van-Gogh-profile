@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { R, dirFromLatLon, locationAnchors, surfaceQuaternion, tangentNorth } from './sphere'
+import { townLots } from './townLayout'
 import { LINE_COLOR, Toon, geo, outlineMaterial, toonMaterial } from './toon'
 
 const GRASS = '#72b07e'
@@ -129,6 +130,7 @@ function useProps(locations: WorldLocation[]) {
       return [a.building, a.parking, a.door]
     })
     blockers.push(dirFromLatLon(0, 0))
+    const lots = townLots(locations).map((l) => l.up)
     const spots: PropSpot[] = []
     let guard = 0
     while (spots.length < 220 && guard++ < 5000) {
@@ -138,6 +140,7 @@ function useProps(locations: WorldLocation[]) {
       if (Math.abs(d.y) * R < 4.2) continue
       if (Math.abs(d.x) * R < 4.2) continue
       if (blockers.some((b) => b.angleTo(d) * R < 7)) continue
+      if (lots.some((b) => b.angleTo(d) * R < 4.5)) continue
       const beach = lat < SEA_LAT + 5
       const kind: PropSpot['kind'] = beach ? 'rock' : lat > 40 ? (rand() > 0.3 ? 'pine' : 'rock') : rand() > 0.55 ? 'tree' : rand() > 0.4 ? 'bush' : 'pine'
       const yaw = rand() * Math.PI * 2

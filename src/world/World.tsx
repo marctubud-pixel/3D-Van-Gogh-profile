@@ -9,6 +9,7 @@ import { Player } from '../player/Player'
 import { Planet } from './Planet'
 import { Sky } from './Sky'
 import { StreetProps } from './StreetProps'
+import { Town } from './Town'
 
 class WorldBoundary extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {
   state = { failed: false }
@@ -45,8 +46,8 @@ function SunRig() {
       color="#fff6e6"
       castShadow
       shadow-mapSize={[2048, 2048]}
-      shadow-bias={-0.0012}
-      shadow-normalBias={0.08}
+      shadow-bias={-0.0025}
+      shadow-normalBias={0.12}
       shadow-camera-left={-28}
       shadow-camera-right={28}
       shadow-camera-top={28}
@@ -76,6 +77,7 @@ export function World({ locations, onError }: { locations: WorldLocation[]; onEr
         <SunRig />
         <Planet locations={locations} />
         <StreetProps locations={locations} />
+        <Town locations={locations} />
         {locations.map((l) => (
           <Landmark key={l.id} loc={l} active={routeTargetId === l.id} />
         ))}

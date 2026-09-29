@@ -15,6 +15,7 @@ import {
   surfaceQuaternion,
   tangentNorth,
 } from '../world/sphere'
+import { LOT_RADIUS, townLots } from '../world/townLayout'
 import { Avatar } from './Avatar'
 
 const RIDE_MAX = 6
@@ -53,6 +54,13 @@ function advance(b: Body, dist: number, yaw: number) {
 export function Player({ locations }: { locations: WorldLocation[] }) {
   const { camera, gl } = useThree()
   const anchors = useMemo(() => locations.map((l) => ({ loc: l, ...locationAnchors(l.lat, l.lon) })), [locations])
+  const colliders = useMemo(
+    () => [
+      ...anchors.map((a) => ({ at: a.building, r: BUILDING_RADIUS })),
+      ...townLots(locations).map((l) => ({ at: l.up, r: LOT_RADIUS })),
+    ],
+    [anchors, locations],
+  )
 
   const rider = useRef<Body>(spawn())
   const walker = useRef<Body>(spawn())
@@ -149,12 +157,12 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
   }
 
   function collide(b: Body) {
-    for (const a of anchors) {
-      const d = arcDistance(b.up, a.building)
-      if (d < BUILDING_RADIUS) {
-        const away = b.up.clone().sub(a.building).projectOnPlane(b.up).normalize()
+    for (const c of colliders) {
+      const d = arcDistance(b.up, c.at)
+      if (d < c.r) {
+        const away = b.up.clone().sub(c.at).projectOnPlane(b.up).normalize()
         const axis = new THREE.Vector3().crossVectors(b.up, away).normalize()
-        b.up.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, (BUILDING_RADIUS - d) / R)).normalize()
+        b.up.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, (c.r - d) / R)).normalize()
         b.fwd.projectOnPlane(b.up).normalize()
       }
     }

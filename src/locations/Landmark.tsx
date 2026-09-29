@@ -9,9 +9,10 @@ const CREAM = '#e1e1d9'
 const WARM_GRAY = '#b8bdb5'
 const WINDOW = '#2d383d'
 const ROOF_DARK = '#59656b'
+const METAL_LIGHT = '#c9ccc8'
 
 const stripeCache = new Map<string, THREE.MeshToonMaterial>()
-function stripeMaterial(color: string) {
+export function stripeMaterial(color: string) {
   let m = stripeCache.get(color)
   if (!m) {
     const c = document.createElement('canvas')
@@ -32,7 +33,7 @@ function stripeMaterial(color: string) {
 }
 
 /** Wall-mounted air-conditioner unit, a recurring street detail. */
-function AcUnit({ position, rotation }: { position: [number, number, number]; rotation?: [number, number, number] }) {
+export function AcUnit({ position, rotation }: { position: [number, number, number]; rotation?: [number, number, number] }) {
   return (
     <group position={position} rotation={rotation}>
       <Toon geometry={geo.box} color="#eef0ea" scale={[1, 0.7, 0.4]} outline={0.03} />
@@ -111,6 +112,120 @@ function Building({ loc }: { loc: WorldLocation }) {
   )
 }
 
+const cinemaWallGeo = (() => {
+  const sh = new THREE.Shape()
+  sh.moveTo(-3.5, 0)
+  sh.lineTo(3.5, 0)
+  sh.lineTo(3.5, 7.4)
+  sh.lineTo(-3.5, 6.4)
+  sh.closePath()
+  const g = new THREE.ExtrudeGeometry(sh, { depth: 5, bevelEnabled: false })
+  g.translate(0, 0, -2.5)
+  return g
+})()
+
+function paintedLettersTexture(text: string, color: string) {
+  const c = document.createElement('canvas')
+  c.width = 1024
+  c.height = 160
+  const g = c.getContext('2d')!
+  let size = 120
+  g.font = `900 ${size}px "Trebuchet MS", "Arial Black", sans-serif`
+  while (g.measureText(text).width > 980 && size > 40) {
+    size -= 4
+    g.font = `900 ${size}px "Trebuchet MS", "Arial Black", sans-serif`
+  }
+  g.fillStyle = color
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  g.fillText(text, 512, 86)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+function posterTexture(seed: number) {
+  const c = document.createElement('canvas')
+  c.width = 128
+  c.height = 192
+  const g = c.getContext('2d')!
+  g.fillStyle = '#f1ece0'
+  g.fillRect(0, 0, 128, 192)
+  g.fillStyle = seed ? '#e8826a' : '#e8826a'
+  g.beginPath()
+  g.arc(seed ? 96 : 50, seed ? 130 : 70, 38, 0, Math.PI * 2)
+  g.fill()
+  g.fillStyle = '#3f8f8a'
+  g.beginPath()
+  g.moveTo(0, 192)
+  g.quadraticCurveTo(40, seed ? 70 : 100, 90, 130)
+  g.lineTo(128, 192)
+  g.fill()
+  g.fillStyle = '#9cc9a6'
+  g.fillRect(seed ? 0 : 70, 150, 60, 42)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+/** MARC CINEMA: cream facade with sloped roofline, painted lettering, teal canopy over glass doors, poster annex. */
+function Cinema({ name }: { name: string }) {
+  const letters = useMemo(() => paintedLettersTexture(name, '#d9705a'), [name])
+  const posters = useMemo(() => [posterTexture(0), posterTexture(1)], [])
+  const TEAL = '#5f9ea0'
+  const BASE = '#b9c6bf'
+  const ANNEX = '#d5dcd3'
+  const f = 2.53
+  return (
+    <group>
+      <Toon geometry={cinemaWallGeo} color="#f1ecd9" outline={0.07} edges />
+      <Toon geometry={geo.box} color={TEAL} position={[0, 6.95, 0]} rotation={[0, 0, Math.atan2(1, 7)]} scale={[7.3, 0.22, 5.3]} outline={0.04} />
+      <Toon geometry={geo.box} color={BASE} position={[0, 0.25, 0]} scale={[7.1, 0.5, 5.1]} outline={0.03} />
+      <Toon geometry={geo.box} color={BASE} position={[-3.3, 3.2, f - 0.1]} scale={[0.4, 6.4, 0.3]} outline={0.02} />
+      {/* upper windows */}
+      {[
+        [-1.2, 5.3, 2.6],
+        [1.9, 5.5, 1.4],
+      ].map(([x, y, w]) => (
+        <group key={x} position={[x, y, f]}>
+          <Toon geometry={geo.box} color="#9aa7a3" scale={[w + 0.2, 1.3, 0.06]} outline={0} />
+          <Toon geometry={geo.box} color={WINDOW} position={[0, 0, 0.04]} scale={[w, 1.1, 0.04]} outline={0} edges={false} />
+          <Toon geometry={geo.box} color="#9aa7a3" position={[0, -0.7, 0.1]} scale={[w + 0.4, 0.12, 0.25]} outline={0.015} />
+        </group>
+      ))}
+      <mesh position={[0.2, 3.8, f + 0.01]}>
+        <planeGeometry args={[6.4, 1]} />
+        <meshBasicMaterial map={letters} transparent />
+      </mesh>
+      {/* canopy over glass double doors */}
+      <Toon geometry={geo.box} color={TEAL} position={[1, 2.75, f + 0.7]} scale={[4.4, 0.3, 1.5]} outline={0.03} />
+      <Toon geometry={geo.box} color={BASE} position={[1, 1.3, f + 0.02]} scale={[3.8, 2.6, 0.08]} outline={0} />
+      {[-0.1, 1.05].map((x) => (
+        <Toon key={x} geometry={geo.box} color={WINDOW} position={[x + 0.5, 1.2, f + 0.08]} scale={[1.05, 2.2, 0.04]} outline={0} edges={false} />
+      ))}
+      {[0.85, 1.15].map((x) => (
+        <Toon key={x} geometry={geo.box} color={METAL_LIGHT} position={[x, 1.2, f + 0.12]} scale={[0.05, 0.5, 0.05]} outline={0} />
+      ))}
+      {/* poster annex */}
+      <Toon geometry={geo.box} color={ANNEX} position={[-2.2, 1.35, f + 0.4]} scale={[2.6, 2.7, 0.8]} outline={0.04} />
+      <Toon geometry={geo.box} color={TEAL} position={[-2.2, 2.75, f + 0.4]} scale={[2.8, 0.12, 0.95]} outline={0.02} />
+      {posters.map((t, i) => (
+        <group key={i} position={[-2.8 + i * 1.2, 1.4, f + 0.81]}>
+          <Toon geometry={geo.box} color="#46525a" scale={[0.9, 1.35, 0.04]} outline={0} />
+          <mesh position={[0, 0, 0.03]}>
+            <planeGeometry args={[0.75, 1.2]} />
+            <meshBasicMaterial map={t} />
+          </mesh>
+        </group>
+      ))}
+      {/* drainpipe + meter box */}
+      <Toon geometry={geo.cyl} color="#8fa3a0" position={[3.35, 3.5, f]} scale={[0.14, 7, 0.14]} outline={0.015} />
+      <Toon geometry={geo.cyl} color="#8f9893" position={[3.1, 0.55, f + 0.4]} scale={[0.06, 1.1, 0.06]} outline={0} />
+      <Toon geometry={geo.box} color="#e1e1d9" position={[3.1, 1.2, f + 0.42]} scale={[0.45, 0.4, 0.2]} outline={0.015} />
+    </group>
+  )
+}
+
 function BuildingBody({ loc }: { loc: WorldLocation }) {
   const c = loc.color
   switch (loc.id) {
@@ -139,19 +254,7 @@ function BuildingBody({ loc }: { loc: WorldLocation }) {
         </group>
       )
     case 'cinema':
-      return (
-        <group>
-          <Toon geometry={geo.box} color={CREAM} position={[0, 2.8, -0.5]} scale={[6, 5.6, 5]} outline={0.08} />
-          <Toon geometry={geo.box} color={c} position={[0, 0.9, 2.2]} scale={[6.4, 0.25, 1.4]} outline={0.05} />
-          <Toon geometry={geo.box} color={c} position={[0, 6.2, 1.6]} rotation={[-0.08, 0, 0]} scale={[1.2, 3.4, 0.4]} outline={0.05} />
-          <Sign text="MARC CINEMA" color={c} position={[0, 4.2, 2.05]} width={5} />
-          <Windows rows={1} cols={2} w={1.1} h={1.5} y0={2.2} z={2.02} dx={3.6} dy={0} />
-          <Door z={2.02} color={c} />
-          {[-2.2, 2.2].map((x) => (
-            <Toon key={x} geometry={geo.box} color="#f1e3b5" position={[x, 1.6, 2.1]} scale={[0.9, 1.3, 0.1]} outline={0.03} />
-          ))}
-        </group>
-      )
+      return <Cinema name={loc.name} />
     case 'experiment-lab':
       return (
         <group>

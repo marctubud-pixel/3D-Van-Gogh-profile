@@ -1,23 +1,63 @@
 import { useFrame } from '@react-three/fiber'
-import { useRef, type RefObject } from 'react'
-import type * as THREE from 'three'
-import { Toon, geo } from '../world/toon'
+import { useMemo, useRef, type RefObject } from 'react'
+import * as THREE from 'three'
+import { Toon, geo, toonMaterial } from '../world/toon'
 
-const FRAME = '#6f98a3'
-const DARK = '#474f55'
-const METAL = '#9aa3a6'
-const SEAT = '#6b5647'
+const MINT = '#86b8ab'
+const TIRE = '#3a464c'
+const METAL = '#c9ccc8'
+const SEAT = '#7a5641'
+const GRIP = '#8a5e46'
+const WHEEL_R = 0.34
 
 type Vec3 = [number, number, number]
 
-function Tube({ from, to, r = 0.035, color = FRAME }: { from: Vec3; to: Vec3; r?: number; color?: string }) {
-  const dx = to[0] - from[0]
-  const dy = to[1] - from[1]
-  const dz = to[2] - from[2]
-  const len = Math.hypot(dx, dy, dz)
-  const mid: Vec3 = [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2, (from[2] + to[2]) / 2]
-  const pitch = Math.atan2(dz, dy)
-  return <Toon geometry={geo.cyl} color={color} position={mid} rotation={[pitch, 0, 0]} scale={[r * 2, len, r * 2]} outline={0.025} />
+/** Sweep a round tube along a smooth curve through the given points (in the bike's YZ plane unless x set). */
+function CurveTube({ points, r = 0.035, color = MINT }: { points: Vec3[]; r?: number; color?: string }) {
+  const geometry = useMemo(() => {
+    const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)))
+    return new THREE.TubeGeometry(curve, 24, r, 8, false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(points), r])
+  return <Toon geometry={geometry} color={color} outline={0.018} radial={false} edges={false} />
+}
+
+const tireGeo = new THREE.TorusGeometry(WHEEL_R, 0.045, 8, 32)
+const rimGeo = new THREE.TorusGeometry(WHEEL_R - 0.05, 0.012, 6, 32)
+const fenderGeo = new THREE.TorusGeometry(WHEEL_R + 0.07, 0.035, 4, 24, Math.PI * 0.9)
+const spokeGeo = (() => {
+  const pts: number[] = []
+  const n = 16
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2
+    const b = a + 0.5
+    pts.push(0, 0, 0, Math.cos(b) * (WHEEL_R - 0.05), Math.sin(b) * (WHEEL_R - 0.05), 0)
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
+  return g
+})()
+const spokeMat = new THREE.LineBasicMaterial({ color: '#9aa0a0' })
+
+function Wheel() {
+  return (
+    <group rotation={[0, Math.PI / 2, 0]}>
+      <Toon geometry={tireGeo} color={TIRE} outline={0.015} radial={false} />
+      <Toon geometry={rimGeo} color={METAL} outline={0} />
+      <lineSegments geometry={spokeGeo} material={spokeMat} />
+      <Toon geometry={geo.cyl} color={METAL} rotation={[Math.PI / 2, 0, 0]} scale={[0.06, 0.1, 0.06]} outline={0} />
+    </group>
+  )
+}
+
+function Fender({ start }: { start: number }) {
+  return (
+    <group rotation={[0, Math.PI / 2, 0]}>
+      <group rotation={[0, 0, start]}>
+        <Toon geometry={fenderGeo} color={MINT} scale={[1, 1, 1.6]} outline={0.012} radial={false} />
+      </group>
+    </group>
+  )
 }
 
 interface BikeProps {
@@ -26,15 +66,16 @@ interface BikeProps {
   kickstand?: boolean
 }
 
-/** Japanese coastal city bicycle: low step-through frame, no basket, right-side single speed, left kickstand. */
+/** Mint Japanese city bicycle (mamachari): curved step-through frame, full fenders, chain guard, rear carrier, swept-back bars. */
 export function Bike({ speed, steer, kickstand = false }: BikeProps) {
   const front = useRef<THREE.Group>(null)
   const rear = useRef<THREE.Group>(null)
   const fork = useRef<THREE.Group>(null)
   const crank = useRef<THREE.Group>(null)
+  const reflector = useMemo(() => toonMaterial('#d9574a'), [])
 
   useFrame((_, dt) => {
-    const spin = ((speed.current ?? 0) * dt) / 0.34
+    const spin = ((speed.current ?? 0) * dt) / WHEEL_R
     if (front.current) front.current.rotation.x += spin
     if (rear.current) rear.current.rotation.x += spin
     if (crank.current) crank.current.rotation.x += spin * 0.45
@@ -43,43 +84,57 @@ export function Bike({ speed, steer, kickstand = false }: BikeProps) {
 
   return (
     <group>
-      <group ref={rear} position={[0, 0.34, -0.52]}>
-        <Toon geometry={geo.wheel} color={DARK} rotation={[0, Math.PI / 2, 0]} outline={0.02} radial={false} />
-        <Toon geometry={geo.cyl} color={METAL} rotation={[0, 0, Math.PI / 2]} scale={[0.08, 0.1, 0.08]} outline={0} />
-      </group>
-      <group ref={fork} position={[0, 0, 0.52]}>
-        <group ref={front} position={[0, 0.34, 0]}>
-          <Toon geometry={geo.wheel} color={DARK} rotation={[0, Math.PI / 2, 0]} outline={0.02} radial={false} />
+      {/* rear wheel + fender + carrier */}
+      <group position={[0, WHEEL_R, -0.54]}>
+        <group ref={rear}>
+          <Wheel />
         </group>
-        <Tube from={[0, 0.34, 0]} to={[0, 0.95, -0.08]} r={0.028} color={METAL} />
-        <Tube from={[-0.24, 1.02, -0.14]} to={[0.24, 1.02, -0.14]} r={0.022} color={METAL} />
-        <Toon geometry={geo.box} color={DARK} position={[0.27, 1.02, -0.14]} scale={[0.08, 0.05, 0.05]} outline={0.015} />
-        <Toon geometry={geo.box} color={DARK} position={[-0.27, 1.02, -0.14]} scale={[0.08, 0.05, 0.05]} outline={0.015} />
-        <Toon geometry={geo.cyl} color="#e9dfc6" position={[0, 0.88, 0.02]} rotation={[Math.PI / 2, 0, 0]} scale={[0.1, 0.07, 0.1]} outline={0.015} />
-        <Toon geometry={geo.box} color={FRAME} position={[0, 0.62, 0.02]} scale={[0.05, 0.03, 0.26]} outline={0} />
+        <Fender start={Math.PI * 0.05} />
       </group>
-      {/* step-through frame */}
-      <Tube from={[0, 0.34, -0.1]} to={[0, 0.9, 0.44]} />
-      <Tube from={[0, 0.34, -0.1]} to={[0, 0.82, -0.28]} />
-      <Tube from={[0, 0.34, -0.1]} to={[0.06, 0.34, -0.52]} r={0.022} />
-      <Tube from={[0, 0.82, -0.28]} to={[0.06, 0.34, -0.52]} r={0.022} />
-      <Tube from={[0, 0.82, -0.28]} to={[0, 0.95, -0.33]} r={0.022} color={METAL} />
-      <Toon geometry={geo.box} color={SEAT} position={[0, 0.98, -0.34]} scale={[0.16, 0.06, 0.26]} outline={0.02} />
-      {/* rear carrier + mudguards */}
-      <Toon geometry={geo.box} color={METAL} position={[0, 0.74, -0.58]} scale={[0.16, 0.025, 0.36]} outline={0.015} />
-      <Toon geometry={geo.box} color="#e9dfc6" position={[0, 0.72, 0.42]} scale={[0.06, 0.02, 0.2]} outline={0} />
-      {/* right-side single-speed drivetrain */}
-      <group ref={crank} position={[0.08, 0.34, -0.1]}>
-        <Toon geometry={geo.cyl} color={METAL} rotation={[0, 0, Math.PI / 2]} scale={[0.22, 0.02, 0.22]} outline={0.015} />
-        <Toon geometry={geo.box} color={DARK} position={[0.03, 0.1, 0]} scale={[0.02, 0.2, 0.03]} outline={0} />
-        <Toon geometry={geo.box} color={DARK} position={[0.08, 0.2, 0]} scale={[0.1, 0.03, 0.06]} outline={0.01} />
-        <Toon geometry={geo.box} color={DARK} position={[-0.19, -0.1, 0]} scale={[0.02, 0.2, 0.03]} outline={0} />
-        <Toon geometry={geo.box} color={DARK} position={[-0.24, -0.2, 0]} scale={[0.1, 0.03, 0.06]} outline={0.01} />
+      <Toon geometry={geo.box} color={METAL} position={[0, 0.78, -0.6]} scale={[0.2, 0.025, 0.4]} outline={0.012} />
+      {[-0.09, 0.09].map((x) => (
+        <CurveTube key={x} points={[[x, 0.78, -0.78], [x, 0.56, -0.62], [x, WHEEL_R, -0.54]]} r={0.012} color={METAL} />
+      ))}
+      <Toon geometry={geo.box} color="#fff" material={reflector} position={[0, 0.66, -0.96]} scale={[0.06, 0.08, 0.02]} outline={0.01} />
+
+      {/* front: fork, wheel, fender, swept-back handlebar with brown grips */}
+      <group ref={fork} position={[0, 0, 0.54]}>
+        <group position={[0, WHEEL_R, 0]}>
+          <group ref={front}>
+            <Wheel />
+          </group>
+          <Fender start={Math.PI * 0.05} />
+        </group>
+        <CurveTube points={[[0, WHEEL_R, 0], [0, 0.7, -0.07], [0, 1.02, -0.13]]} r={0.026} color={MINT} />
+        <CurveTube points={[[0, 1.02, -0.13], [0, 1.14, -0.16], [0, 1.16, -0.2]]} r={0.02} color={METAL} />
+        <CurveTube points={[[-0.3, 1.14, -0.36], [-0.2, 1.16, -0.24], [0, 1.16, -0.2], [0.2, 1.16, -0.24], [0.3, 1.14, -0.36]]} r={0.016} color={METAL} />
+        {[-0.3, 0.3].map((x) => (
+          <Toon key={x} geometry={geo.cyl} color={GRIP} position={[x * 1.05, 1.14, -0.4]} rotation={[Math.PI / 2, 0, 0]} scale={[0.05, 0.12, 0.05]} outline={0.01} />
+        ))}
+        <Toon geometry={geo.cyl} color="#ecebe4" position={[0, 0.9, 0.0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.1, 0.07, 0.1]} outline={0.012} />
       </group>
-      <Toon geometry={geo.box} color="#5d676c" position={[0.1, 0.34, -0.31]} scale={[0.03, 0.08, 0.42]} outline={0.01} />
+
+      {/* curved U step-through frame */}
+      <CurveTube points={[[0, 1.0, 0.42], [0, 0.72, 0.3], [0, 0.46, 0.08], [0, 0.4, -0.08], [0, 0.46, -0.2]]} r={0.04} />
+      <CurveTube points={[[0, 0.36, -0.1], [0, 0.62, -0.22], [0, 0.88, -0.3]]} r={0.034} />
+      <CurveTube points={[[0.05, WHEEL_R, -0.54], [0.03, 0.35, -0.3], [0, 0.36, -0.1]]} r={0.018} />
+      <CurveTube points={[[0.05, WHEEL_R, -0.54], [0.02, 0.6, -0.42], [0, 0.82, -0.29]]} r={0.018} />
+      <CurveTube points={[[0, 0.86, -0.3], [0, 0.98, -0.34]]} r={0.02} color={METAL} />
+      <Toon geometry={geo.sphere} color={SEAT} position={[0, 1.02, -0.36]} scale={[0.2, 0.08, 0.3]} outline={0.016} radial={false} />
+
+      {/* chain guard + crank */}
+      <Toon geometry={geo.box} color={MINT} position={[0.09, 0.37, -0.32]} scale={[0.03, 0.12, 0.46]} outline={0.012} />
+      <group ref={crank} position={[0.1, 0.36, -0.1]}>
+        <Toon geometry={geo.cyl} color={MINT} rotation={[0, 0, Math.PI / 2]} scale={[0.2, 0.03, 0.2]} outline={0.012} />
+        <Toon geometry={geo.box} color={METAL} position={[0.02, 0.1, 0]} scale={[0.02, 0.2, 0.03]} outline={0} />
+        <Toon geometry={geo.box} color={TIRE} position={[0.07, 0.2, 0]} scale={[0.1, 0.03, 0.07]} outline={0.01} />
+        <Toon geometry={geo.box} color={METAL} position={[-0.21, -0.1, 0]} scale={[0.02, 0.2, 0.03]} outline={0} />
+        <Toon geometry={geo.box} color={TIRE} position={[-0.26, -0.2, 0]} scale={[0.1, 0.03, 0.07]} outline={0.01} />
+      </group>
+
       {/* left kickstand */}
-      <group position={[-0.06, 0.3, -0.32]} rotation={[kickstand ? 0.2 : -1.3, 0, kickstand ? -0.25 : 0]}>
-        <Toon geometry={geo.box} color={METAL} position={[0, -0.15, 0]} scale={[0.025, 0.3, 0.025]} outline={0.01} />
+      <group position={[-0.06, 0.32, -0.36]} rotation={[kickstand ? 0.2 : -1.3, 0, kickstand ? -0.25 : 0]}>
+        <Toon geometry={geo.box} color={METAL} position={[0, -0.16, 0]} scale={[0.025, 0.32, 0.025]} outline={0.01} />
       </group>
     </group>
   )
