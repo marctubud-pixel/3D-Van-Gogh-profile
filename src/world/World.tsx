@@ -7,6 +7,8 @@ import { CAMERA } from '../camera/config'
 import { Landmark } from '../locations/Landmark'
 import { Player } from '../player/Player'
 import { Planet } from './Planet'
+import { Sky } from './Sky'
+import { StreetProps } from './StreetProps'
 
 class WorldBoundary extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {
   state = { failed: false }
@@ -31,11 +33,28 @@ function SunRig() {
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion)
     const back = new THREE.Vector3(0, 0, 1).applyQuaternion(camera.quaternion).projectOnPlane(up).normalize()
     const dir = up.multiplyScalar(1).add(right.multiplyScalar(0.7)).add(back.multiplyScalar(-0.35)).normalize()
-    l.position.copy(camera.position).add(dir.multiplyScalar(60))
-    l.target.position.copy(camera.position)
+    const focus = camera.position.clone().add(new THREE.Vector3(0, 0, -6).applyQuaternion(camera.quaternion))
+    l.position.copy(focus).add(dir.multiplyScalar(50))
+    l.target.position.copy(focus)
     l.target.updateMatrixWorld()
   })
-  return <directionalLight ref={sun} intensity={1.7} color="#fff1dc" />
+  return (
+    <directionalLight
+      ref={sun}
+      intensity={1.9}
+      color="#fff6e6"
+      castShadow
+      shadow-mapSize={[2048, 2048]}
+      shadow-bias={-0.0012}
+      shadow-normalBias={0.08}
+      shadow-camera-left={-28}
+      shadow-camera-right={28}
+      shadow-camera-top={28}
+      shadow-camera-bottom={-28}
+      shadow-camera-near={1}
+      shadow-camera-far={120}
+    />
+  )
 }
 
 export function World({ locations, onError }: { locations: WorldLocation[]; onError: () => void }) {
@@ -43,19 +62,20 @@ export function World({ locations, onError }: { locations: WorldLocation[]; onEr
   return (
     <WorldBoundary onError={onError}>
       <Canvas
-        shadows={false}
+        shadows={{ type: THREE.PCFShadowMap }}
         dpr={[1, 2]}
         camera={{ fov: CAMERA.fov, near: 0.1, far: 400, position: [0, 45, 12] }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         onCreated={({ gl, scene }) => {
           gl.toneMapping = THREE.NoToneMapping
-          scene.background = new THREE.Color('#bfe0e0')
-          scene.fog = new THREE.Fog('#cfe6e2', 40, 110)
+          scene.background = new THREE.Color('#9fdbd2')
         }}
       >
-        <ambientLight intensity={1.15} color="#f4efe4" />
+        <ambientLight intensity={1.2} color="#c9dcdc" />
+        <Sky />
         <SunRig />
         <Planet locations={locations} />
+        <StreetProps locations={locations} />
         {locations.map((l) => (
           <Landmark key={l.id} loc={l} active={routeTargetId === l.id} />
         ))}

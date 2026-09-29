@@ -3,12 +3,43 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { R, locationAnchors, surfaceQuaternion } from '../world/sphere'
-import { Toon, geo } from '../world/toon'
+import { Toon, geo, toonMaterial } from '../world/toon'
 
-const CREAM = '#eee4cf'
-const WARM_GRAY = '#cfc6b4'
-const WINDOW = '#44525e'
-const ROOF_DARK = '#5a6670'
+const CREAM = '#e1e1d9'
+const WARM_GRAY = '#b8bdb5'
+const WINDOW = '#2d383d'
+const ROOF_DARK = '#59656b'
+
+const stripeCache = new Map<string, THREE.MeshToonMaterial>()
+function stripeMaterial(color: string) {
+  let m = stripeCache.get(color)
+  if (!m) {
+    const c = document.createElement('canvas')
+    c.width = 128
+    c.height = 8
+    const g = c.getContext('2d')!
+    for (let i = 0; i < 8; i++) {
+      g.fillStyle = i % 2 ? '#f3f4ee' : color
+      g.fillRect(i * 16, 0, 16, 8)
+    }
+    const t = new THREE.CanvasTexture(c)
+    t.colorSpace = THREE.SRGBColorSpace
+    m = toonMaterial('#ffffff').clone()
+    m.map = t
+    stripeCache.set(color, m)
+  }
+  return m
+}
+
+/** Wall-mounted air-conditioner unit, a recurring street detail. */
+function AcUnit({ position, rotation }: { position: [number, number, number]; rotation?: [number, number, number] }) {
+  return (
+    <group position={position} rotation={rotation}>
+      <Toon geometry={geo.box} color="#eef0ea" scale={[1, 0.7, 0.4]} outline={0.03} />
+      <Toon geometry={geo.cyl} color="#3a4549" position={[-0.15, 0, 0.2]} rotation={[Math.PI / 2, 0, 0]} scale={[0.45, 0.04, 0.45]} outline={0} />
+    </group>
+  )
+}
 
 function signTexture(text: string, bg: string) {
   const c = document.createElement('canvas')
@@ -65,12 +96,22 @@ function Door({ z, color }: { z: number; color: string }) {
   return (
     <>
       <Toon geometry={geo.box} color={WINDOW} position={[0, 0.8, z]} scale={[1.1, 1.6, 0.1]} outline={0.03} />
-      <Toon geometry={geo.box} color={color} position={[0, 1.95, z + 0.35]} rotation={[0.35, 0, 0]} scale={[1.8, 0.08, 0.8]} outline={0.03} />
+      <Toon geometry={geo.box} color={color} material={stripeMaterial(color)} position={[0, 1.95, z + 0.4]} rotation={[0.45, 0, 0]} scale={[2.2, 0.08, 0.9]} outline={0.03} />
     </>
   )
 }
 
 function Building({ loc }: { loc: WorldLocation }) {
+  return (
+    <group>
+      <BuildingBody loc={loc} />
+      <AcUnit position={[2.35, 1.6, 0.6]} rotation={[0, Math.PI / 2, 0]} />
+      <Toon geometry={geo.cyl} color={WARM_GRAY} position={[-2.3, 2, 1.6]} scale={[0.14, 4, 0.14]} outline={0.02} />
+    </group>
+  )
+}
+
+function BuildingBody({ loc }: { loc: WorldLocation }) {
   const c = loc.color
   switch (loc.id) {
     case 'print-house':
@@ -176,7 +217,7 @@ function ParkingSpot({ color }: { color: string }) {
     <group>
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[1.6, 24]} />
-        <meshBasicMaterial color="#d8cfb9" />
+        <meshBasicMaterial color="#8499a0" />
       </mesh>
       <Toon geometry={geo.cyl} color="#5a6670" position={[1.9, 1.1, 0]} scale={[0.08, 2.2, 0.08]} outline={0.02} />
       <Toon geometry={geo.box} color="#4d6fa8" position={[1.9, 2.2, 0]} scale={[0.7, 0.7, 0.06]} outline={0.02} />

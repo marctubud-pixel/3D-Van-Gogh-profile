@@ -1,5 +1,5 @@
 export const CAMERA = {
-  riding: { distance: 7.5, pitch: 0.38, focusHeight: 1.4, follow: 4 },
-  walking: { distance: 5.2, pitch: 0.35, focusHeight: 1.2, follow: 6 },
-  fov: 55,
+  riding: { distance: 5.4, pitch: 0.2, focusHeight: 1.7, follow: 4 },
+  walking: { distance: 4.4, pitch: 0.2, focusHeight: 1.5, follow: 6 },
+  fov: 64,
 } as const

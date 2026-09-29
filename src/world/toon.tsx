@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 
-export const LINE_COLOR = '#3b4348'
+export const LINE_COLOR = '#2c3437'
 
 let gradient: THREE.DataTexture | null = null
 function toonGradient() {
   if (!gradient) {
-    const data = new Uint8Array([120, 120, 120, 255, 255, 255, 255, 255])
+    const data = new Uint8Array([150, 150, 150, 255, 255, 255, 255, 255])
     gradient = new THREE.DataTexture(data, 2, 1, THREE.RGBAFormat)
     gradient.minFilter = THREE.NearestFilter
     gradient.magFilter = THREE.NearestFilter
@@ -20,7 +20,7 @@ const toonCache = new Map<string, THREE.MeshToonMaterial>()
 export function toonMaterial(color: string) {
   let m = toonCache.get(color)
   if (!m) {
-    m = new THREE.MeshToonMaterial({ color, gradientMap: toonGradient() })
+    m = new THREE.MeshToonMaterial({ color, gradientMap: toonGradient(), polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 })
     toonCache.set(color, m)
   }
   return m
@@ -62,6 +62,17 @@ export function outlineMaterial(thickness: number, radial: boolean) {
   return m
 }
 
+const edgeCache = new WeakMap<THREE.BufferGeometry, THREE.EdgesGeometry>()
+function edgesFor(g: THREE.BufferGeometry) {
+  let e = edgeCache.get(g)
+  if (!e) {
+    e = new THREE.EdgesGeometry(g, 35)
+    edgeCache.set(g, e)
+  }
+  return e
+}
+export const edgeMaterial = new THREE.LineBasicMaterial({ color: LINE_COLOR })
+
 type Vec3 = [number, number, number]
 
 interface ToonProps {
@@ -73,16 +84,20 @@ interface ToonProps {
   outline?: number
   radial?: boolean
   material?: THREE.Material
+  edges?: boolean
 }
 
 /** A toon-shaded mesh with an inverted-hull, slightly wobbly charcoal outline. */
-export function Toon({ geometry, color, position, rotation, scale, outline = 0.06, radial = true, material }: ToonProps) {
+export function Toon({ geometry, color, position, rotation, scale, outline = 0.06, radial = true, material, edges }: ToonProps) {
   const mat = useMemo(() => material ?? toonMaterial(color), [material, color])
-  const line = useMemo(() => outlineMaterial(outline, radial), [outline, radial])
+  const hull = outline * 0.55
+  const line = useMemo(() => outlineMaterial(hull, radial), [hull, radial])
+  const showEdges = edges ?? (outline > 0 && CREASED.has(geometry))
   return (
     <group position={position} rotation={rotation} scale={scale}>
       <mesh geometry={geometry} material={mat} castShadow receiveShadow />
       {outline > 0 && <mesh geometry={geometry} material={line} />}
+      {showEdges && <lineSegments geometry={edgesFor(geometry)} material={edgeMaterial} />}
     </group>
   )
 }
@@ -99,3 +114,5 @@ export const geo = {
   torusRack: new THREE.TorusGeometry(0.4, 0.04, 6, 16, Math.PI),
   octa: new THREE.OctahedronGeometry(0.5, 0),
 }
+
+const CREASED = new Set<THREE.BufferGeometry>([geo.box, geo.roof, geo.cyl, geo.cone])

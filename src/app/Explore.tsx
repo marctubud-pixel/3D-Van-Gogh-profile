@@ -53,19 +53,50 @@ export default function Explore() {
         <Link to="/" className="brand">
           MY WORLD
         </Link>
-        <span className="zone">{zoneAt(g.latLon[0], g.latLon[1])}</span>
-        <div className="hud-actions">
-          <button className="btn" onClick={() => g.setMapOpen(true)}>
-            MAP · M
-          </button>
-          <Link className="btn" to="/index">
-            INDEX
-          </Link>
-          <button className="btn" onClick={() => setInfoOpen(true)}>
-            INFO
-          </button>
-        </div>
+        <Link className="icon-btn hud-menu" to="/index" aria-label="INDEX">
+          <svg viewBox="0 0 24 24">
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </Link>
       </div>
+
+      <div className="hud-dock">
+        <button className="icon-btn" onClick={() => g.setMapOpen(true)} aria-label="MAP">
+          <svg viewBox="0 0 24 24">
+            <path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" />
+          </svg>
+          <small>MAP · M</small>
+        </button>
+        <Link className="icon-btn" to="/index" aria-label="INDEX">
+          <svg viewBox="0 0 24 24">
+            <path d="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z" />
+          </svg>
+          <small>INDEX</small>
+        </Link>
+        <button className="icon-btn" onClick={() => setInfoOpen(true)} aria-label="INFO">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 21c1-4 4-6 8-6s7 2 8 6" />
+          </svg>
+          <small>INFO</small>
+        </button>
+        <button className="icon-btn" onClick={() => g.returnToPlaza()} aria-label="PLAZA">
+          <svg viewBox="0 0 24 24">
+            <path d="M3 11l9-7 9 7 M6 9v11h12V9 M10 20v-6h4v6" />
+          </svg>
+          <small>RETURN TO PLAZA</small>
+        </button>
+      </div>
+
+      <h2 className="zone-label">
+        {zoneAt(g.latLon[0], g.latLon[1])
+          .split(' ')
+          .map((w) => (
+            <span key={w} style={{ display: 'block' }}>
+              {w}
+            </span>
+          ))}
+      </h2>
 
       <div className="hud-state">{g.player}</div>
 

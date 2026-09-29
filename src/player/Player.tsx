@@ -60,7 +60,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
   const steer = useRef(0)
   const walkSpeed = useRef(0)
   const transition = useRef(0)
-  const look = useRef({ yaw: 0, pitch: 0.35, dragging: false })
+  const look = useRef({ yaw: 0, pitch: 0.2, dragging: false })
   const noParkHinted = useRef(false)
   const lastLatLon = useRef(0)
   const bikeGroup = useRef<THREE.Group>(null)
@@ -210,7 +210,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     if (player === 'RIDING') {
       const max = inSlowZone ? RIDE_MAX * 0.6 : RIDE_MAX
       const target = fwdKey ? max : backKey ? -0.5 : 0
-      const rate = backKey && speed.current > 0 ? 5 : fwdKey ? 1.2 : 1.1
+      const rate = backKey && speed.current > 0 ? 5 : fwdKey ? 2 : 1.4
       speed.current = THREE.MathUtils.damp(speed.current, target, rate, dt)
       steer.current = THREE.MathUtils.damp(steer.current, turn, 6, dt)
       const yaw = steer.current * dt * 1.5 * THREE.MathUtils.clamp(Math.abs(speed.current) / 3 + 0.25, 0.25, 1) * Math.sign(speed.current || 1)
