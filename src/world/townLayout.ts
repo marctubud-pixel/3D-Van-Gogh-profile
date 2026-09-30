@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { R, dirFromLatLon, locationAnchors } from './sphere'
+import { R, SERVICE_CENTER, dirFromLatLon, locationAnchors } from './sphere'
 
 export type TownKind = 'house' | 'shop' | 'apartment' | 'gable' | 'garden'
 
@@ -59,12 +59,14 @@ export function townLots(locations: WorldLocation[]): TownLot[] {
     return [a.building, a.parking]
   })
   const plaza = dirFromLatLon(0, 0)
+  const service = dirFromLatLon(SERVICE_CENTER.lat, SERVICE_CENTER.lon)
   const lots: TownLot[] = []
   const step = THREE.MathUtils.radToDeg(SPACING / R)
   const off = SETBACK / R
 
   const add = (up: THREE.Vector3, facing: THREE.Vector3) => {
     if (up.angleTo(plaza) * R < 10) return
+    if (up.angleTo(service) * R < 10) return
     if (blockers.some((b) => b.angleTo(up) * R < 7.5)) return
     if (THREE.MathUtils.radToDeg(Math.asin(up.y)) < -30) return
     if (nearSpur(up)) return

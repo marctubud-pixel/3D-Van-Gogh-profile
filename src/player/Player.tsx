@@ -7,6 +7,7 @@ import { Bike } from '../bike/Bike'
 import { CAMERA } from '../camera/config'
 import {
   BUILDING_RADIUS,
+  SERVICE_CENTER,
   R,
   arcDistance,
   dirFromLatLon,
@@ -63,6 +64,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
   const colliders = useMemo(
     () => [
       ...anchors.map((a) => ({ at: a.building, r: BUILDING_RADIUS })),
+      { at: locationAnchors(SERVICE_CENTER.lat, SERVICE_CENTER.lon).building, r: SERVICE_CENTER.radius },
       ...townLots(locations)
         .filter((l) => l.kind !== 'garden')
         .map((l) => ({ at: l.up, r: LOT_RADIUS })),

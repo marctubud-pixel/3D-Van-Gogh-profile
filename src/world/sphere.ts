@@ -62,6 +62,9 @@ export interface LocationAnchors {
 }
 
 export const BUILDING_RADIUS = 3.3
+
+/** Plaza-side ISLAND SERVICE CENTER (static, not CMS-driven). */
+export const SERVICE_CENTER = { lat: -10, lon: -12, radius: 4.4 } as const
 /** Bike parking sits beside the building (along the road), slightly toward the street. */
 const PARKING_SIDE_OFFSET = 5
 const PARKING_FRONT_OFFSET = 1.4

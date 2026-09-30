@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { useGame } from '../app/game'
 import { CAMERA } from '../camera/config'
-import { Landmark } from '../locations/Landmark'
+import { Landmark, ServiceCenterSite } from '../locations/Landmark'
 import { Player } from '../player/Player'
 import { Planet } from './Planet'
 import { Sky } from './Sky'
@@ -81,6 +81,7 @@ export function World({ locations, onError }: { locations: WorldLocation[]; onEr
         {locations.map((l) => (
           <Landmark key={l.id} loc={l} active={routeTargetId === l.id} />
         ))}
+        <ServiceCenterSite />
         <Player locations={locations} />
       </Canvas>
     </WorldBoundary>

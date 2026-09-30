@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { R, dirFromLatLon, locationAnchors, surfaceQuaternion } from './sphere'
+import { R, SERVICE_CENTER, dirFromLatLon, locationAnchors, surfaceQuaternion } from './sphere'
 import { LINE_COLOR, Toon, geo } from './toon'
 
 interface Spot {
@@ -133,6 +133,7 @@ export function StreetProps({ locations }: { locations: WorldLocation[] }) {
       const a = locationAnchors(l.lat, l.lon)
       return [a.building, a.parking]
     })
+    blockers.push(dirFromLatLon(SERVICE_CENTER.lat, SERVICE_CENTER.lon))
     const plaza = dirFromLatLon(0, 0)
     const free = (d: THREE.Vector3, r: number) => d.angleTo(plaza) * R > 9 && blockers.every((b) => b.angleTo(d) * R > r)
     const poles: Spot[] = []

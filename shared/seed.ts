@@ -37,7 +37,7 @@ export const seedContent: SiteContent = {
   },
   locations: [
     loc({
-      id: 'print-house', name: 'PRINT HOUSE', zone: 'main-town', lat: 10, lon: 24,
+      id: 'print-house', name: 'WRITE HOUSE', zone: 'main-town', lat: 10, lon: 24,
       question: '我能不能把东西想清楚、写清楚、讲清楚？',
       description: 'Writing · Editing · Copy · Narrative · Content · World Building',
       action: 'READ', color: '#e0773f', projectIds: ['sample-writing'], parking: true,
