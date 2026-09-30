@@ -132,8 +132,8 @@ function ParkingSpot({ color, up }: { color: string; up: THREE.Vector3 }) {
   })
   return (
     <group>
-      <Toon geometry={geo.cyl} color="#5a6670" position={[1.6, 1.3, 0]} scale={[0.1, 2.6, 0.1]} outline={0.02} />
-      <group ref={sign} position={[1.6, 2.7, 0]}>
+      <Toon geometry={geo.cyl} color="#5a6670" position={[0, 1.3, 0]} scale={[0.1, 2.6, 0.1]} outline={0.02} />
+      <group ref={sign} position={[0, 2.7, 0]}>
         <Toon geometry={geo.box} color={color} scale={[0.9, 0.9, 0.08]} outline={0.025} />
         <mesh position={[0, 0, 0.05]}>
           <planeGeometry args={[0.66, 0.66]} />
@@ -172,7 +172,10 @@ export function Landmark({ loc, active }: LandmarkProps) {
   const buildingQ = useMemo(() => surfaceQuaternion(a.building, a.facing), [a])
   const parkingQ = useMemo(() => surfaceQuaternion(a.parking, a.facing), [a])
   const bPos = surf(a.building)
-  const pPos = surf(a.parking)
+  const pPos = useMemo(() => {
+    const away = a.parking.clone().sub(a.door).projectOnPlane(a.parking).normalize()
+    return surf(a.parking.clone().addScaledVector(away, 1.5 / R).normalize())
+  }, [a])
   return (
     <>
       <group position={bPos} quaternion={buildingQ}>

@@ -12,7 +12,7 @@ interface TownMapProps {
 }
 
 /** Map window (degrees) framing the island and its lettering. */
-const VIEW = { lon0: -40, lon1: 250, lat0: -48, lat1: 50 }
+const VIEW = { lon0: -42, lon1: 318, lat0: -48, lat1: 56 }
 const W = 580
 const H = Math.round((W * (VIEW.lat1 - VIEW.lat0)) / (VIEW.lon1 - VIEW.lon0) * 1.25)
 
@@ -63,10 +63,12 @@ function useIslandImage() {
     }
     const path = (from: number, to: number) => {
       g.beginPath()
+      let lx = 0
       for (let i = from; i <= to; i++) {
         const [x, y] = px(ROUTE[i])
-        if (i === from) g.moveTo(x, y)
+        if (i === from || Math.abs(x - lx) > W / 2) g.moveTo(x, y)
         else g.lineTo(x, y)
+        lx = x
       }
     }
     g.lineCap = 'round'

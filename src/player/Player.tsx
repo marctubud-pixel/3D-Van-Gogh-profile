@@ -12,7 +12,7 @@ import { LOT_RADIUS, townLots } from '../world/townLayout'
 import { Avatar } from './Avatar'
 
 const RIDE_MAX = 6
-const WALK_MAX = 2.2
+const WALK_MAX = 3
 /** Distance from a landmark within which the rider is offered auto-parking. */
 const PARK_OFFER = BUILDING_RADIUS + 11
 const PARK_S = 1.3
@@ -82,6 +82,10 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     lastDrag: 0,
   })
   const uturn = useRef(0)
+  /** Walking camera heading (tangent), independent of where the avatar faces. */
+  const camHead = useRef(new THREE.Vector3())
+  /** Pose at the landmark door the rider walks to after auto-parking. */
+  const doorPose = useRef<Body | null>(null)
   const park = useRef<{ from: Body; to: Body } | null>(null)
   const orbit = useRef({ lat: TITLE_CENTER.lat + 22, lon: TITLE_CENTER.lon - 8 })
   const fly = useRef<{ t: number; pos: THREE.Vector3; up: THREE.Vector3 } | null>(null)
@@ -101,6 +105,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     look.current.yaw = 0
     uturn.current = 0
     park.current = null
+    doorPose.current = null
     transition.current = 0
     snap.current = true
     setMode('ride')
@@ -116,6 +121,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     speed.current = 0
     uturn.current = 0
     park.current = null
+    doorPose.current = null
     transition.current = 0
     look.current.yaw = 0
     snap.current = true
@@ -148,7 +154,8 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
       look.current.lastDrag = performance.now()
       const riding = useGame.getState().player === 'RIDING'
       const k = riding ? 0.5 : 1
-      look.current.yaw -= e.movementX * 0.005 * k
+      if (riding) look.current.yaw -= e.movementX * 0.005 * k
+      else camHead.current.applyAxisAngle(walker.current.up, -e.movementX * 0.005)
       look.current.pitch += e.movementY * 0.004 * k
     }
     window.addEventListener('keydown', down)
@@ -210,6 +217,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
       if (tan.dot(r.fwd) < 0) tan.negate()
       const toFwd = tan.projectOnPlane(spot.parking).normalize()
       park.current = { from: { up: r.up.clone(), fwd: r.fwd.clone() }, to: { up: spot.parking.clone(), fwd: toFwd } }
+      doorPose.current = { up: spot.door.clone(), fwd: spot.facing.clone().negate().projectOnPlane(spot.door).normalize() }
     } else if (g.player === 'WALKING') {
       const door = nearestDoor()
       if (door) {
@@ -270,7 +278,16 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
           speed.current = 0
           g.setPlayer('DISMOUNTING')
           transition.current = TRANSITION_S
+        } else if (g.player === 'DISMOUNTING' && doorPose.current) {
+          const d = doorPose.current
+          walker.current = { up: d.up.clone(), fwd: d.fwd.clone() }
+          camHead.current.copy(d.fwd)
+          doorPose.current = null
+          speed.current = 0
+          setMode('walk')
+          g.setPlayer('WALKING')
         } else if (g.player === 'DISMOUNTING') {
+          camHead.current.copy(rider.current.fwd)
           const side = new THREE.Vector3().crossVectors(rider.current.up, rider.current.fwd).normalize()
           walker.current = { up: rider.current.up.clone(), fwd: rider.current.fwd.clone() }
           advance(walker.current, 0, 0)
@@ -281,6 +298,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
           setMode('walk')
           g.setPlayer('WALKING')
         } else if (g.player === 'MOUNTING') {
+          look.current.yaw = 0
           setMode('ride')
           g.setPlayer('RIDING')
         }
@@ -326,14 +344,14 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
       const moving = mz !== 0 || mx !== 0
       walkSpeed.current = THREE.MathUtils.damp(walkSpeed.current, moving ? WALK_MAX : 0, 8, dt)
       if (moving) {
-        _cf.copy(camTarget.current).sub(camera.position).projectOnPlane(walker.current.up)
+        _cf.copy(camHead.current).projectOnPlane(walker.current.up)
         if (_cf.lengthSq() < 1e-8) _cf.copy(walker.current.fwd)
         else _cf.normalize()
         _cr.crossVectors(_cf, walker.current.up)
         _mv.copy(_cf).multiplyScalar(mz).addScaledVector(_cr, -mx).normalize()
         _sd.crossVectors(walker.current.up, walker.current.fwd)
         const yaw = Math.atan2(_mv.dot(_sd), _mv.dot(walker.current.fwd))
-        walker.current.fwd.applyAxisAngle(walker.current.up, THREE.MathUtils.clamp(yaw, -7 * dt, 7 * dt))
+        walker.current.fwd.applyAxisAngle(walker.current.up, THREE.MathUtils.clamp(yaw, -11 * dt, 11 * dt))
         walker.current.fwd.projectOnPlane(walker.current.up).normalize()
       }
       const prevW = walker.current.up.clone()
@@ -368,7 +386,10 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     }
 
     // camera: riding = small look-around around the heading; walking = free orbit that auto-returns behind
-    const riding = mode === 'ride'
+    // while auto-parking, frame the door the avatar is about to stand at
+    const dp = (player === 'PARKING' || player === 'DISMOUNTING') && doorPose.current
+    const cb = dp || w
+    const riding = mode === 'ride' && !dp
     const cfg = riding ? CAMERA.riding : CAMERA.walking
     const lk = look.current
     if (riding) {
@@ -378,22 +399,35 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
       lk.pitch = THREE.MathUtils.clamp(lk.pitch, 0.05, 1.1)
     }
     const idle = performance.now() - lk.lastDrag > CAMERA.recenterDelay * 1000
-    // walking: auto-follow while walking forward (or after idle); strafing leaves the orbit free
-    const moving = riding ? Math.abs(speed.current) > 0.3 : fwdKey && Math.abs(walkSpeed.current) > 0.3
-    if (!lk.dragging && (riding || idle || moving)) {
-      const rate = riding ? 3 : moving ? 2.2 : 1.2
-      lk.yaw = THREE.MathUtils.damp(lk.yaw, 0, rate, dt)
-      lk.pitch = THREE.MathUtils.damp(lk.pitch, cfg.pitch, rate, dt)
+    const ch = camHead.current
+    if (dp) ch.copy(dp.fwd)
+    ch.projectOnPlane(cb.up)
+    if (ch.lengthSq() < 1e-8) ch.copy(cb.fwd)
+    ch.normalize()
+    if (riding) {
+      if (!lk.dragging) {
+        lk.yaw = THREE.MathUtils.damp(lk.yaw, 0, 3, dt)
+        lk.pitch = THREE.MathUtils.damp(lk.pitch, cfg.pitch, 3, dt)
+      }
+    } else if (!lk.dragging && idle) {
+      // walking: the camera heading drifts behind the avatar only while walking forward-ish
+      const walkingOn = fwdKey && walkSpeed.current > 0.3
+      if (walkingOn) {
+        _sd.crossVectors(cb.up, ch)
+        const a = Math.atan2(cb.fwd.dot(_sd), cb.fwd.dot(ch))
+        ch.applyAxisAngle(cb.up, a * (1 - Math.exp(-1.6 * dt))).normalize()
+      }
+      lk.pitch = THREE.MathUtils.damp(lk.pitch, cfg.pitch, 1.5, dt)
     }
-    const focus = surf(w.up, cfg.focusHeight)
-    const dirBack = w.fwd.clone().applyAxisAngle(w.up, lk.yaw)
+    const focus = surf(cb.up, cfg.focusHeight)
+    const dirBack = riding ? cb.fwd.clone().applyAxisAngle(cb.up, lk.yaw) : ch.clone()
     let dist = cfg.distance
     const desired = new THREE.Vector3()
     for (let i = 0; i < 6; i++) {
       desired
         .copy(focus)
         .addScaledVector(dirBack, -Math.cos(lk.pitch) * dist)
-        .addScaledVector(w.up, Math.sin(lk.pitch) * dist)
+        .addScaledVector(cb.up, Math.sin(lk.pitch) * dist)
       const blocked = colliders.some((c) => arcDistance(desired, c.at) < c.r + 0.4 && desired.length() < R + 10)
       if (!blocked) break
       dist *= 0.75
