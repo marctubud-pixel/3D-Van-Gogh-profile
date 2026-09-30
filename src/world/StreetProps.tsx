@@ -1,7 +1,8 @@
 import { useMemo, type ReactNode } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { R, SERVICE_CENTER, dirFromLatLon, locationAnchors, surfaceQuaternion } from './sphere'
+import { R, SERVICE_CENTER, dirFromLatLon, surfaceQuaternion } from './sphere'
+import { BRIDGE, ROUTE_LEN, ROUTE_S, locationAnchors, routeFrame, routePoint, surf } from './island'
 import { LINE_COLOR, Toon, geo } from './toon'
 
 interface Spot {
@@ -9,22 +10,15 @@ interface Spot {
   fwd: THREE.Vector3
 }
 
-/** Point on a road great circle at angle `t` (deg), offset sideways by `side` world units. */
-function roadPoint(road: 'eq' | 'mer', t: number, side: number): Spot {
-  const a = THREE.MathUtils.degToRad(t)
-  const o = side / R
-  if (road === 'eq') {
-    const up = new THREE.Vector3(Math.sin(a) * Math.cos(o), Math.sin(o), Math.cos(a) * Math.cos(o)).normalize()
-    return { up, fwd: new THREE.Vector3(Math.cos(a), 0, -Math.sin(a)) }
-  }
-  const up = new THREE.Vector3(Math.sin(o), Math.sin(a) * Math.cos(o), Math.cos(a) * Math.cos(o)).normalize()
-  return { up, fwd: new THREE.Vector3(0, Math.cos(a), -Math.sin(a)) }
+/** Spot beside the road at arc length `s`, offset sideways by `off` world units. */
+function roadSpot(s: number, off: number): Spot {
+  return { up: routePoint(s, off), fwd: routeFrame(s).tan }
 }
 
 function Placed({ spot, lift = 0, children }: { spot: Spot; lift?: number; children: ReactNode }) {
   const q = useMemo(() => surfaceQuaternion(spot.up, spot.fwd), [spot])
   return (
-    <group position={spot.up.clone().multiplyScalar(R + lift)} quaternion={q}>
+    <group position={surf(spot.up, lift)} quaternion={q}>
       {children}
     </group>
   )
@@ -43,15 +37,6 @@ function UtilityPole() {
   )
 }
 
-function TrafficCone() {
-  return (
-    <>
-      <Toon geometry={geo.box} color="#e0773f" position={[0, 0.03, 0]} scale={[0.45, 0.06, 0.45]} outline={0.02} />
-      <Toon geometry={geo.cone} color="#e0773f" position={[0, 0.38, 0]} scale={[0.34, 0.7, 0.34]} outline={0.025} />
-      <Toon geometry={geo.cyl} color="#f3f4ee" position={[0, 0.42, 0]} scale={[0.22, 0.1, 0.22]} outline={0} />
-    </>
-  )
-}
 
 function Bollard() {
   return (
@@ -84,26 +69,13 @@ function BusStop() {
   )
 }
 
-function Fence({ length = 4 }: { length?: number }) {
-  const posts = Math.max(2, Math.round(length / 1.2) + 1)
-  return (
-    <>
-      {Array.from({ length: posts }, (_, i) => (
-        <Toon key={i} geometry={geo.box} color="#9b8a74" position={[-length / 2 + (i * length) / (posts - 1), 0.5, 0]} scale={[0.12, 1, 0.12]} outline={0.015} />
-      ))}
-      {[0.4, 0.8].map((y) => (
-        <Toon key={y} geometry={geo.box} color="#a8977f" position={[0, y, 0]} scale={[length, 0.1, 0.06]} outline={0.015} />
-      ))}
-    </>
-  )
-}
 
 function Wires({ tops }: { tops: THREE.Vector3[] }) {
   const geometry = useMemo(() => {
     const pts: number[] = []
-    for (let i = 0; i < tops.length; i++) {
+    for (let i = 0; i < tops.length - 1; i++) {
       const a = tops[i]
-      const b = tops[(i + 1) % tops.length]
+      const b = tops[i + 1]
       if (a.distanceTo(b) > 20) continue
       const mid = a.clone().add(b).multiplyScalar(0.5)
       const sag = mid.clone().normalize().multiplyScalar(-0.5)
@@ -126,7 +98,7 @@ function Wires({ tops }: { tops: THREE.Vector3[] }) {
   )
 }
 
-/** Japanese small-town street furniture along the two ring roads and around the plaza. */
+/** Street furniture along the island road: utility poles with wires, bridge bollards, vending machines. */
 export function StreetProps({ locations }: { locations: WorldLocation[] }) {
   const layout = useMemo(() => {
     const blockers = locations.flatMap((l) => {
@@ -135,41 +107,25 @@ export function StreetProps({ locations }: { locations: WorldLocation[] }) {
     })
     blockers.push(dirFromLatLon(SERVICE_CENTER.lat, SERVICE_CENTER.lon))
     const plaza = dirFromLatLon(0, 0)
-    const free = (d: THREE.Vector3, r: number) => d.angleTo(plaza) * R > 9 && blockers.every((b) => b.angleTo(d) * R > r)
-    const poles: Spot[] = []
-    for (const road of ['eq', 'mer'] as const) {
-      for (let t = -180; t < 180; t += 13) {
-        const s = roadPoint(road, t + (road === 'mer' ? 6 : 0), 3.6)
-        if (THREE.MathUtils.radToDeg(Math.asin(s.up.y)) < -33) continue
-        if (free(s.up, 5)) poles.push(s)
+    const free = (d: THREE.Vector3, r: number) => d.angleTo(plaza) * R > 8 && blockers.every((b) => b.angleTo(d) * R > r)
+    const bridge: [number, number] = [ROUTE_S[BRIDGE.a] - 3, ROUTE_S[BRIDGE.b] + 3]
+    const runs: Spot[][] = [[]]
+    for (let s = 6; s < ROUTE_LEN - 4; s += 14) {
+      const spot = roadSpot(s, 3.7)
+      if ((s > bridge[0] && s < bridge[1]) || !free(spot.up, 7)) {
+        if (runs[runs.length - 1].length) runs.push([])
+        continue
       }
+      runs[runs.length - 1].push(spot)
     }
-    const cones: Spot[] = []
+    const poles = runs.flat()
+    const wires = runs.filter((r) => r.length > 1).map((r) => r.map((p) => surf(p.up, POLE_H - 0.6)))
     const bollards: Spot[] = []
-    locations.forEach((l, i) => {
-      const a = locationAnchors(l.lat, l.lon)
-      const side = new THREE.Vector3().crossVectors(a.parking, a.facing).normalize()
-      for (const k of [-1, 1]) {
-        const up = a.parking
-          .clone()
-          .add(a.facing.clone().multiplyScalar((1.7 + (i % 2) * 0.2) / R))
-          .add(side.clone().multiplyScalar((k * 1.1) / R))
-          .normalize()
-        cones.push({ up, fwd: a.facing })
-      }
-    })
-    for (let k = -2; k <= 2; k++) {
-      if (k === 0) continue
-      bollards.push(roadPoint('eq', (k * 2.2 * 180) / (Math.PI * R) + 7.5 * Math.sign(k), 2.2))
-      bollards.push(roadPoint('eq', (k * 2.2 * 180) / (Math.PI * R) + 7.5 * Math.sign(k), -2.2))
-    }
-    const fences: Spot[] = []
-    for (let lon = -170; lon <= 170; lon += 17) {
-      const up = dirFromLatLon(-31, lon)
-      if (free(up, 6)) fences.push({ up, fwd: new THREE.Vector3(Math.cos(THREE.MathUtils.degToRad(lon)), 0, -Math.sin(THREE.MathUtils.degToRad(lon))) })
-    }
-    const tops = poles.filter((p) => Math.abs(p.up.y) < 0.2).map((p) => p.up.clone().multiplyScalar(R + POLE_H - 0.6))
-    return { poles, cones, bollards, fences, tops }
+    for (const s of bridge) for (const k of [-1, 1]) bollards.push(roadSpot(s, k * 2.4))
+    const vending: Spot[] = [18, 70, 124, 170]
+      .map((s) => roadSpot(s, -4.2))
+      .filter((v) => free(v.up, 6))
+    return { poles, wires, bollards, vending }
   }, [locations])
 
   return (
@@ -179,28 +135,22 @@ export function StreetProps({ locations }: { locations: WorldLocation[] }) {
           <UtilityPole />
         </Placed>
       ))}
-      <Wires tops={layout.tops} />
-      {layout.cones.map((s, i) => (
-        <Placed key={`c${i}`} spot={s} lift={0.03}>
-          <TrafficCone />
-        </Placed>
+      {layout.wires.map((w, i) => (
+        <Wires key={i} tops={w} />
       ))}
       {layout.bollards.map((s, i) => (
         <Placed key={`b${i}`} spot={s} lift={0.05}>
           <Bollard />
         </Placed>
       ))}
-      {layout.fences.map((s, i) => (
-        <Placed key={`f${i}`} spot={s}>
-          <Fence length={5} />
+      {layout.vending.map((s, i) => (
+        <Placed key={`v${i}`} spot={s}>
+          <group rotation={[0, Math.PI / 2, 0]}>
+            <VendingMachine />
+          </group>
         </Placed>
       ))}
-      <Placed spot={roadPoint('mer', 10, -4.2)}>
-        <group rotation={[0, Math.PI / 2, 0]}>
-          <VendingMachine />
-        </group>
-      </Placed>
-      <Placed spot={roadPoint('eq', -11, 3.6)}>
+      <Placed spot={roadSpot(4, 3.8)}>
         <BusStop />
       </Placed>
     </group>

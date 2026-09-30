@@ -4,9 +4,10 @@ import type { WorldLocation } from '../../shared/types'
 import { AcUnit, stripeMaterial } from '../locations/Landmark'
 import { Fadeable } from './occlusion'
 import { VendingMachine } from './StreetProps'
-import { R, dirFromLatLon, surfaceQuaternion } from './sphere'
+import { surfaceQuaternion } from './sphere'
+import { surf } from './island'
 import { Toon, geo } from './toon'
-import { SPUR_ROADS, townLots, type TownLot } from './townLayout'
+import { townLots, type TownLot } from './townLayout'
 
 const WALLS = ['#ece6d6', '#dfe3dc', '#d5e0da', '#e8dccb', '#cdd7d5', '#efe9dc']
 const ROOFS = ['#4f7f86', '#5a676d', '#a4553f', '#6b8a7a', '#3f6f78']
@@ -114,46 +115,6 @@ function Garden({ lot }: { lot: TownLot }) {
   )
 }
 
-/** Short side street leaving the ring road, built as flat strips hugging the sphere. */
-function SpurRoad({ lon, dir, len }: { lon: number; dir: 1 | -1; len: number }) {
-  const geos = useMemo(() => {
-    const strip = (half: number, lift: number) => {
-      const pos: number[] = []
-      const idx: number[] = []
-      const steps = 24
-      for (let i = 0; i <= steps; i++) {
-        const lat = dir * (2.5 + (len * i) / steps)
-        const c = dirFromLatLon(lat, lon)
-        const east = new THREE.Vector3(Math.cos(THREE.MathUtils.degToRad(lon)), 0, -Math.sin(THREE.MathUtils.degToRad(lon)))
-        for (const sgn of [-1, 1]) {
-          const p = c.clone().addScaledVector(east, (sgn * half) / R).normalize().multiplyScalar(R + lift)
-          pos.push(p.x, p.y, p.z)
-        }
-        if (i < steps) {
-          const a = i * 2
-          idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2)
-        }
-      }
-      const g = new THREE.BufferGeometry()
-      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
-      g.setIndex(idx)
-      g.computeVertexNormals()
-      return g
-    }
-    return { walk: strip(2.4, 0.028), road: strip(1.5, 0.048) }
-  }, [lon, dir, len])
-  return (
-    <group>
-      <mesh geometry={geos.walk} receiveShadow>
-        <meshToonMaterial color="#d5dad1" side={THREE.DoubleSide} />
-      </mesh>
-      <mesh geometry={geos.road} receiveShadow>
-        <meshToonMaterial color="#6f848b" side={THREE.DoubleSide} />
-      </mesh>
-    </group>
-  )
-}
-
 function TownBuilding({ lot }: { lot: TownLot }) {
   const { width: w, depth: d, height: h, seed, kind } = lot
   if (kind === 'garden') return <Garden lot={lot} />
@@ -206,35 +167,13 @@ function TownBuilding({ lot }: { lot: TownLot }) {
   )
 }
 
-/** Dense low-rise seaside-town blocks lining the MAIN TOWN roads. */
+/** Sparse low-rise seaside houses along the first stretch of road. */
 export function Town({ locations }: { locations: WorldLocation[] }) {
   const lots = useMemo(() => townLots(locations), [locations])
-  const trees = useMemo(
-    () =>
-      SPUR_ROADS.flatMap((sp) =>
-        [-1, 1].flatMap((side) =>
-          [0.35, 0.7, 1].map((k) => {
-            const lat = sp.dir * (3 + sp.len * k)
-            const c = dirFromLatLon(lat, sp.lon)
-            const east = new THREE.Vector3(Math.cos(THREE.MathUtils.degToRad(sp.lon)), 0, -Math.sin(THREE.MathUtils.degToRad(sp.lon)))
-            return c.addScaledVector(east, (side * 3.4) / R).normalize()
-          }),
-        ),
-      ),
-    [],
-  )
   return (
     <group>
-      {SPUR_ROADS.map((sp) => (
-        <SpurRoad key={sp.lon} {...sp} />
-      ))}
-      {trees.map((up, i) => (
-        <group key={`st${i}`} position={up.clone().multiplyScalar(R)} quaternion={surfaceQuaternion(up, new THREE.Vector3(0, 1, 0))}>
-          <StreetTree position={[0, 0, 0]} s={0.85} />
-        </group>
-      ))}
       {lots.map((lot, i) => (
-        <group key={i} position={lot.up.clone().multiplyScalar(R)} quaternion={surfaceQuaternion(lot.up, lot.facing)}>
+        <group key={i} position={surf(lot.up)} quaternion={surfaceQuaternion(lot.up, lot.facing)}>
           <TownBuilding lot={lot} />
         </group>
       ))}

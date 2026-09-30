@@ -3,7 +3,8 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { playerUp } from '../world/occlusion'
-import { R, SERVICE_CENTER, locationAnchors, surfaceQuaternion } from '../world/sphere'
+import { BUILDING_SCALE, R, SERVICE_CENTER, surfaceQuaternion } from '../world/sphere'
+import { locationAnchors, surf } from '../world/island'
 import { Toon, geo, toonMaterial } from '../world/toon'
 import { Arcade, Cinema, CreativeMuseum, ExperimentLab, Observatory, ServiceCenter, Studio, WriteHouse } from './buildings'
 
@@ -120,32 +121,25 @@ function BuildingBody({ loc }: { loc: WorldLocation }) {
   }
 }
 
+/** Roadside "P" sign that pulses when the rider is close enough to auto-park. */
 function ParkingSpot({ color, up }: { color: string; up: THREE.Vector3 }) {
   const pTex = useMemo(() => signTexture('P', color), [color])
-  const ring = useMemo(() => new THREE.MeshBasicMaterial({ color: '#f0b44c', transparent: true, opacity: 0 }), [])
-  useFrame(({ clock }, dt) => {
-    const near = up.angleTo(playerUp) * R < 6
-    const target = near ? 0.4 + Math.sin(clock.elapsedTime * 5) * 0.18 : 0
-    ring.opacity = THREE.MathUtils.damp(ring.opacity, target, 6, dt)
+  const sign = useRef<THREE.Group>(null)
+  useFrame(({ clock }) => {
+    if (!sign.current) return
+    const near = up.angleTo(playerUp) * R < 14
+    sign.current.scale.setScalar(near ? 1.15 + Math.sin(clock.elapsedTime * 5) * 0.1 : 1)
   })
   return (
     <group>
-      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[1.6, 24]} />
-        <meshBasicMaterial color="#8499a0" />
-      </mesh>
-      <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, 0]} material={ring}>
-        <ringGeometry args={[1.25, 1.6, 32]} />
-      </mesh>
-      <Toon geometry={geo.cyl} color="#5a6670" position={[1.9, 1.1, 0]} scale={[0.08, 2.2, 0.08]} outline={0.02} />
-      <Toon geometry={geo.box} color="#4d6fa8" position={[1.9, 2.2, 0]} scale={[0.7, 0.7, 0.06]} outline={0.02} />
-      <mesh position={[1.9, 2.2, 0.04]}>
-        <planeGeometry args={[0.5, 0.5]} />
-        <meshBasicMaterial map={pTex} />
-      </mesh>
-      {[-0.6, 0, 0.6].map((x) => (
-        <Toon key={x} geometry={geo.torusRack} color="#8e979b" position={[x, 0, -1.2]} outline={0.015} radial={false} />
-      ))}
+      <Toon geometry={geo.cyl} color="#5a6670" position={[1.6, 1.3, 0]} scale={[0.1, 2.6, 0.1]} outline={0.02} />
+      <group ref={sign} position={[1.6, 2.7, 0]}>
+        <Toon geometry={geo.box} color={color} scale={[0.9, 0.9, 0.08]} outline={0.025} />
+        <mesh position={[0, 0, 0.05]}>
+          <planeGeometry args={[0.66, 0.66]} />
+          <meshBasicMaterial map={pTex} />
+        </mesh>
+      </group>
     </group>
   )
 }
@@ -177,13 +171,15 @@ export function Landmark({ loc, active }: LandmarkProps) {
   const a = useMemo(() => locationAnchors(loc.lat, loc.lon), [loc.lat, loc.lon])
   const buildingQ = useMemo(() => surfaceQuaternion(a.building, a.facing), [a])
   const parkingQ = useMemo(() => surfaceQuaternion(a.parking, a.facing), [a])
-  const bPos = a.building.clone().multiplyScalar(R)
-  const pPos = a.parking.clone().multiplyScalar(R)
+  const bPos = surf(a.building)
+  const pPos = surf(a.parking)
   return (
     <>
       <group position={bPos} quaternion={buildingQ}>
-        <BuildingBody loc={loc} />
-        <Beacon active={active} height={BEACON_HEIGHT[loc.id] ?? 9} />
+        <group scale={BUILDING_SCALE}>
+          <BuildingBody loc={loc} />
+        </group>
+        <Beacon active={active} height={(BEACON_HEIGHT[loc.id] ?? 9) * BUILDING_SCALE} />
       </group>
       {loc.parking && (
         <group position={pPos} quaternion={parkingQ}>
@@ -199,7 +195,7 @@ export function ServiceCenterSite() {
   const a = useMemo(() => locationAnchors(SERVICE_CENTER.lat, SERVICE_CENTER.lon), [])
   const q = useMemo(() => surfaceQuaternion(a.building, a.facing), [a])
   return (
-    <group position={a.building.clone().multiplyScalar(R)} quaternion={q}>
+    <group position={surf(a.building)} quaternion={q} scale={BUILDING_SCALE}>
       <ServiceCenter />
     </group>
   )

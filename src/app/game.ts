@@ -2,12 +2,16 @@ import { create } from 'zustand'
 
 export type PlayerState = 'RIDING' | 'PARKING' | 'DISMOUNTING' | 'WALKING' | 'INTERACTING' | 'MOUNTING'
 
+export type Phase = 'intro' | 'flying' | 'play'
+
 export interface Prompt {
   key: string
   label: string
 }
 
 interface GameState {
+  phase: Phase
+  teleport: { id: string; n: number } | null
   player: PlayerState
   prompt: Prompt | null
   toast: string | null
@@ -17,6 +21,8 @@ interface GameState {
   mapOpen: boolean
   latLon: [number, number]
   resetCount: number
+  setPhase: (p: Phase) => void
+  teleportTo: (id: string) => void
   setPlayer: (s: PlayerState) => void
   setPrompt: (p: Prompt | null) => void
   showToast: (t: string) => void
@@ -31,6 +37,8 @@ interface GameState {
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
 export const useGame = create<GameState>((set) => ({
+  phase: 'intro',
+  teleport: null,
   player: 'RIDING',
   prompt: null,
   toast: null,
@@ -40,6 +48,9 @@ export const useGame = create<GameState>((set) => ({
   mapOpen: false,
   latLon: [0, 0],
   resetCount: 0,
+  setPhase: (phase) => set({ phase }),
+  teleportTo: (id) =>
+    set((s) => ({ teleport: { id, n: (s.teleport?.n ?? 0) + 1 }, mapOpen: false, openLocationId: null, openProjectId: null })),
   setPlayer: (player) => set({ player }),
   setPrompt: (prompt) => set((s) => (s.prompt?.label === prompt?.label ? s : { prompt })),
   showToast: (toast) => {
@@ -58,5 +69,5 @@ export const useGame = create<GameState>((set) => ({
 
 export const inputLocked = () => {
   const s = useGame.getState()
-  return s.player === 'INTERACTING' || s.mapOpen || s.openLocationId !== null
+  return s.phase !== 'play' || s.player === 'INTERACTING' || s.mapOpen || s.openLocationId !== null
 }

@@ -38,15 +38,6 @@ export function arcDistance(a: THREE.Vector3, b: THREE.Vector3) {
   return a.clone().normalize().angleTo(b.clone().normalize()) * R
 }
 
-/** Nearest point on the two road great circles (equator and the lon 0/180 meridian). */
-export function nearestRoadDir(d: THREE.Vector3) {
-  const n = d.clone().normalize()
-  const onEquator = new THREE.Vector3(n.x, 0, n.z)
-  const onMeridian = new THREE.Vector3(0, n.y, n.z)
-  const candidates = [onEquator, onMeridian].filter((v) => v.lengthSq() > 1e-6).map((v) => v.normalize())
-  return candidates.reduce((best, v) => (v.angleTo(n) < best.angleTo(n) ? v : best))
-}
-
 /** Move from `a` toward `b` along the great circle by `dist` world units (clamped to b). */
 export function moveToward(a: THREE.Vector3, b: THREE.Vector3, dist: number) {
   const total = arcDistance(a, b)
@@ -61,24 +52,9 @@ export interface LocationAnchors {
   facing: THREE.Vector3
 }
 
-export const BUILDING_RADIUS = 3.3
+/** Uniform scale applied to every landmark model. */
+export const BUILDING_SCALE = 1.6
+export const BUILDING_RADIUS = 3.3 * BUILDING_SCALE
 
-/** Plaza-side ISLAND SERVICE CENTER (static, not CMS-driven). */
-export const SERVICE_CENTER = { lat: -10, lon: -12, radius: 4.4 } as const
-/** Bike parking sits beside the building (along the road), slightly toward the street. */
-const PARKING_SIDE_OFFSET = 5
-const PARKING_FRONT_OFFSET = 1.4
-
-export function locationAnchors(lat: number, lon: number): LocationAnchors {
-  const building = dirFromLatLon(lat, lon)
-  const road = nearestRoadDir(building)
-  const door = moveToward(building, road, BUILDING_RADIUS + 0.6)
-  const facing = road.clone().sub(building).projectOnPlane(building).normalize()
-  const side = new THREE.Vector3().crossVectors(building, facing).normalize()
-  const parking = building
-    .clone()
-    .add(side.multiplyScalar(PARKING_SIDE_OFFSET / R))
-    .add(facing.clone().multiplyScalar(PARKING_FRONT_OFFSET / R))
-    .normalize()
-  return { building, road, parking, door, facing }
-}
+/** ISLAND SERVICE CENTER beside the starting plaza (static, not CMS-driven). */
+export const SERVICE_CENTER = { lat: 0, lon: -17.5, radius: 7 } as const

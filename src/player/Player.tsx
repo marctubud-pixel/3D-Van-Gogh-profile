@@ -5,29 +5,23 @@ import type { WorldLocation } from '../../shared/types'
 import { inputLocked, useGame } from '../app/game'
 import { Bike } from '../bike/Bike'
 import { CAMERA } from '../camera/config'
-import {
-  BUILDING_RADIUS,
-  SERVICE_CENTER,
-  R,
-  arcDistance,
-  dirFromLatLon,
-  latLonFromDir,
-  locationAnchors,
-  surfaceQuaternion,
-  tangentNorth,
-} from '../world/sphere'
+import { BUILDING_RADIUS, SERVICE_CENTER, R, arcDistance, dirFromLatLon, latLonFromDir, slerpDir, surfaceQuaternion } from '../world/sphere'
+import { TITLE_CENTER, locationAnchors, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
 import { camFocus, playerUp } from '../world/occlusion'
 import { LOT_RADIUS, townLots } from '../world/townLayout'
 import { Avatar } from './Avatar'
 
 const RIDE_MAX = 6
 const WALK_MAX = 2.2
-const SLOW_ZONE = 6
-const PARK_RADIUS = 2.4
-const DOOR_RADIUS = 2.4
+/** Distance from a landmark within which the rider is offered auto-parking. */
+const PARK_OFFER = BUILDING_RADIUS + 11
+const PARK_S = 1.3
+const DOOR_RADIUS = 2.6
 const BIKE_RADIUS = 1.8
 const TRANSITION_S = 0.55
-const SEA_LIMIT_LAT = -35
+const UTURN_RATE = 3.4
+const INTRO_DIST = 118
+const FLY_S = 2.8
 
 const keys = new Set<string>()
 
@@ -41,10 +35,12 @@ interface Body {
   fwd: THREE.Vector3
 }
 
-function spawn(): Body {
-  const up = dirFromLatLon(0, -3)
-  return { up, fwd: new THREE.Vector3(1, 0, 0).projectOnPlane(up).normalize() }
+function spawn(s = 3): Body {
+  const f = routeFrame(s)
+  return { up: f.up, fwd: f.tan }
 }
+
+const ease = (t: number) => t * t * (3 - 2 * t)
 
 /** Advance a body along the sphere surface by `dist` world units and yaw it by `yaw` radians. */
 function advance(b: Body, dist: number, yaw: number) {
@@ -85,7 +81,11 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     dragging: false,
     lastDrag: 0,
   })
-  const noParkHinted = useRef(false)
+  const uturn = useRef(0)
+  const park = useRef<{ from: Body; to: Body } | null>(null)
+  const orbit = useRef({ lat: TITLE_CENTER.lat + 22, lon: TITLE_CENTER.lon - 8 })
+  const fly = useRef<{ t: number; pos: THREE.Vector3; up: THREE.Vector3 } | null>(null)
+  const snap = useRef(false)
   const lastLatLon = useRef(0)
   const bikeGroup = useRef<THREE.Group>(null)
   const avatarGroup = useRef<THREE.Group>(null)
@@ -99,13 +99,37 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     speed.current = 0
     walkSpeed.current = 0
     look.current.yaw = 0
+    uturn.current = 0
+    park.current = null
+    transition.current = 0
+    snap.current = true
     setMode('ride')
   }, [resetCount])
+
+  const teleport = useGame((s) => s.teleport)
+  useEffect(() => {
+    if (!teleport) return
+    const a = anchors.find((x) => x.loc.id === teleport.id)
+    if (!a) return
+    const hit = nearestOnRoute(a.building)
+    rider.current = spawn(Math.max(0, hit.s - 9))
+    speed.current = 0
+    uturn.current = 0
+    park.current = null
+    transition.current = 0
+    look.current.yaw = 0
+    snap.current = true
+    setMode('ride')
+    const g = useGame.getState()
+    g.setPlayer('RIDING')
+    g.showToast(`已抵达 ${a.loc.name} · 按 E 停靠`)
+  }, [teleport, anchors])
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       keys.add(e.code)
       if (e.code === 'KeyE' && !e.repeat) onInteract()
+      if ((e.code === 'KeyS' || e.code === 'ArrowDown') && !e.repeat) startUturn()
     }
     const up = (e: KeyboardEvent) => keys.delete(e.code)
     const blur = () => keys.clear()
@@ -113,7 +137,14 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     const pd = () => (look.current.dragging = true)
     const pu = () => (look.current.dragging = false)
     const pm = (e: PointerEvent) => {
-      if (!look.current.dragging || inputLocked()) return
+      if (!look.current.dragging) return
+      if (useGame.getState().phase === 'intro') {
+        const o = orbit.current
+        o.lon -= e.movementX * 0.25
+        o.lat = THREE.MathUtils.clamp(o.lat + e.movementY * 0.2, -70, 70)
+        return
+      }
+      if (inputLocked()) return
       look.current.lastDrag = performance.now()
       const riding = useGame.getState().player === 'RIDING'
       const k = riding ? 0.5 : 1
@@ -139,7 +170,23 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
 
   function nearestParking() {
     const p = rider.current.up
-    return anchors.filter((a) => a.loc.parking).find((a) => arcDistance(p, a.parking) < PARK_RADIUS)
+    let best: (typeof anchors)[number] | undefined
+    let bd = PARK_OFFER
+    for (const a of anchors) {
+      if (!a.loc.parking) continue
+      const d = arcDistance(p, a.building)
+      if (d < bd) {
+        bd = d
+        best = a
+      }
+    }
+    return best
+  }
+
+  function startUturn() {
+    if (inputLocked() || transition.current > 0) return
+    if (useGame.getState().player !== 'RIDING' || uturn.current !== 0) return
+    uturn.current = Math.PI * (steer.current < -0.1 ? -1 : 1)
   }
 
   function nearestDoor() {
@@ -152,15 +199,17 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     if (g.player === 'RIDING') {
       const spot = nearestParking()
       if (!spot) {
-        g.showToast('Find a bike parking spot to dismount.')
-        noParkHinted.current = true
+        g.showToast('靠近建筑时会出现 P 停靠提示')
         return
       }
       g.setPlayer('PARKING')
-      transition.current = TRANSITION_S
+      transition.current = PARK_S
+      uturn.current = 0
       const r = rider.current
-      r.up.copy(spot.parking)
-      r.fwd.copy(spot.facing).projectOnPlane(r.up).normalize()
+      const tan = routeFrame(nearestOnRoute(spot.parking).s).tan
+      if (tan.dot(r.fwd) < 0) tan.negate()
+      const toFwd = tan.projectOnPlane(spot.parking).normalize()
+      park.current = { from: { up: r.up.clone(), fwd: r.fwd.clone() }, to: { up: spot.parking.clone(), fwd: toFwd } }
     } else if (g.player === 'WALKING') {
       const door = nearestDoor()
       if (door) {
@@ -185,13 +234,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
         b.fwd.projectOnPlane(b.up).normalize()
       }
     }
-    const [lat] = latLonFromDir(b.up)
-    if (lat < SEA_LIMIT_LAT) {
-      const north = tangentNorth(b.up)
-      const axis = new THREE.Vector3().crossVectors(b.up, north).normalize()
-      b.up.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, THREE.MathUtils.degToRad(SEA_LIMIT_LAT - lat))).normalize()
-      b.fwd.projectOnPlane(b.up).normalize()
-    }
+
   }
 
   useFrame((_, rawDt) => {
@@ -205,12 +248,26 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     const turn = (left ? 1 : 0) - (right ? 1 : 0)
 
     if (transition.current > 0) {
-      transition.current -= dt
-      speed.current = THREE.MathUtils.damp(speed.current, 0, 10, dt)
+      transition.current -= Math.min(rawDt, 0.25)
+      const pk = park.current
+      if (g.player === 'PARKING' && pk) {
+        const t = ease(1 - Math.max(0, transition.current) / PARK_S)
+        const fdt = Math.min(rawDt, 0.25)
+        const r = rider.current
+        const prev = r.up.clone()
+        r.up.copy(slerpDir(pk.from.up, pk.to.up, t))
+        r.fwd.copy(pk.from.fwd).lerp(pk.to.fwd, t).projectOnPlane(r.up)
+        if (r.fwd.lengthSq() < 1e-6) r.fwd.copy(pk.to.fwd)
+        r.fwd.normalize()
+        speed.current = (arcDistance(prev, r.up) / Math.max(fdt, 1e-3)) * 0.8
+        crank.current += ((speed.current * fdt) / 0.34) * 0.45
+      } else speed.current = THREE.MathUtils.damp(speed.current, 0, 10, dt)
       walkSpeed.current = 0
       if (transition.current <= 0) {
         transition.current = 0
         if (g.player === 'PARKING') {
+          park.current = null
+          speed.current = 0
           g.setPlayer('DISMOUNTING')
           transition.current = TRANSITION_S
         } else if (g.player === 'DISMOUNTING') {
@@ -231,24 +288,37 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     }
 
     const player = useGame.getState().player
-    const nearParking = anchors.filter((a) => a.loc.parking).map((a) => arcDistance(rider.current.up, a.parking))
-    const inSlowZone = nearParking.some((d) => d < SLOW_ZONE)
-
     if (player === 'RIDING') {
-      // S backs up once (nearly) stopped; while rolling forward it brakes hard
-      const max = inSlowZone ? RIDE_MAX * 0.6 : RIDE_MAX
-      const target = fwdKey ? max : backKey ? (speed.current > 0.15 ? 0 : -1.4) : 0
-      const rate = backKey && speed.current > 0 ? 6 : fwdKey ? 2.4 : backKey ? 2.2 : 1.4
+      const spot = nearestParking()
+      const turning = uturn.current !== 0
+      // a tap on S swings the bike round 180°; holding it afterwards brakes
+      const max = spot ? RIDE_MAX * 0.75 : RIDE_MAX
+      const target = turning ? Math.min(Math.max(speed.current, 0), 1.6) : fwdKey ? max : 0
+      const rate = turning ? 5 : backKey ? 6 : fwdKey ? 2.4 : 1.4
       speed.current = THREE.MathUtils.damp(speed.current, target, rate, dt)
       crank.current += ((speed.current * dt) / 0.34) * 0.45
-      // progressive steering: builds up while held, springs back; gentler at speed
-      steer.current = THREE.MathUtils.damp(steer.current, turn, turn !== 0 ? 5 : 9, dt)
-      const turnRate = THREE.MathUtils.lerp(2.4, 1.6, Math.min(1, Math.abs(speed.current) / RIDE_MAX))
-      const yaw = steer.current * dt * turnRate * Math.sign(speed.current || 1)
+      let yaw: number
+      if (turning) {
+        const step = Math.sign(uturn.current) * Math.min(Math.abs(uturn.current), UTURN_RATE * dt)
+        uturn.current -= step
+        if (Math.abs(uturn.current) < 1e-4) uturn.current = 0
+        yaw = step
+        steer.current = THREE.MathUtils.damp(steer.current, Math.sign(step), 10, dt)
+      } else {
+        // progressive steering: builds up while held, springs back; gentler at speed
+        steer.current = THREE.MathUtils.damp(steer.current, turn, turn !== 0 ? 5 : 9, dt)
+        const turnRate = THREE.MathUtils.lerp(2.4, 1.6, Math.min(1, Math.abs(speed.current) / RIDE_MAX))
+        yaw = steer.current * dt * turnRate
+      }
+      const prev = rider.current.up.clone()
       advance(rider.current, speed.current * dt, yaw)
       collide(rider.current)
-      const spot = nearestParking()
-      g.setPrompt(spot ? { key: 'E', label: `BIKE PARKING · E · PARK — ${spot.loc.name}` } : null)
+      if (!walkable(rider.current.up)) {
+        rider.current.up.copy(prev)
+        rider.current.fwd.projectOnPlane(prev).normalize()
+        speed.current *= 0.3
+      }
+      g.setPrompt(spot && !locked ? { key: 'E', label: `E · P 停靠 — ${spot.loc.name}` } : null)
     } else if (player === 'WALKING') {
       // camera-relative WASD: W walks into the screen, A/D strafe, S steps back
       const mz = (fwdKey ? 1 : 0) - (backKey ? 1 : 0)
@@ -266,8 +336,13 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
         walker.current.fwd.applyAxisAngle(walker.current.up, THREE.MathUtils.clamp(yaw, -7 * dt, 7 * dt))
         walker.current.fwd.projectOnPlane(walker.current.up).normalize()
       }
+      const prevW = walker.current.up.clone()
       advance(walker.current, walkSpeed.current * dt, 0)
       collide(walker.current)
+      if (!walkable(walker.current.up)) {
+        walker.current.up.copy(prevW)
+        walker.current.fwd.projectOnPlane(prevW).normalize()
+      }
       const door = nearestDoor()
       if (door) g.setPrompt({ key: 'E', label: `E · ${door.loc.action} — ${door.loc.name}` })
       else if (arcDistance(walker.current.up, rider.current.up) < BIKE_RADIUS) g.setPrompt({ key: 'E', label: 'E · RIDE' })
@@ -279,7 +354,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     // place bike + avatar
     const r = rider.current
     if (bikeGroup.current) {
-      bikeGroup.current.position.copy(r.up).multiplyScalar(R)
+      bikeGroup.current.position.copy(surf(r.up))
       const lean = new THREE.Quaternion().setFromAxisAngle(
         new THREE.Vector3(0, 0, 1),
         -steer.current * Math.min(1, Math.abs(speed.current) / RIDE_MAX) * 0.28,
@@ -288,7 +363,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     }
     const w = mode === 'walk' ? walker.current : r
     if (avatarGroup.current) {
-      avatarGroup.current.position.copy(w.up).multiplyScalar(R)
+      avatarGroup.current.position.copy(surf(w.up))
       avatarGroup.current.quaternion.copy(surfaceQuaternion(w.up, w.fwd))
     }
 
@@ -310,7 +385,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
       lk.yaw = THREE.MathUtils.damp(lk.yaw, 0, rate, dt)
       lk.pitch = THREE.MathUtils.damp(lk.pitch, cfg.pitch, rate, dt)
     }
-    const focus = w.up.clone().multiplyScalar(R + cfg.focusHeight)
+    const focus = surf(w.up, cfg.focusHeight)
     const dirBack = w.fwd.clone().applyAxisAngle(w.up, lk.yaw)
     let dist = cfg.distance
     const desired = new THREE.Vector3()
@@ -319,14 +394,42 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
         .copy(focus)
         .addScaledVector(dirBack, -Math.cos(lk.pitch) * dist)
         .addScaledVector(w.up, Math.sin(lk.pitch) * dist)
-      const blocked = colliders.some((c) => arcDistance(desired, c.at) < c.r + 0.4)
+      const blocked = colliders.some((c) => arcDistance(desired, c.at) < c.r + 0.4 && desired.length() < R + 10)
       if (!blocked) break
       dist *= 0.75
     }
-    camera.position.lerp(desired, 1 - Math.exp(-cfg.follow * dt))
-    camTarget.current.lerp(focus, 1 - Math.exp(-cfg.follow * 1.5 * dt))
-    camera.up.lerp(w.up, 0.1).normalize()
-    camera.lookAt(camTarget.current)
+    const phase = g.phase
+    if (phase === 'intro') {
+      const o = orbit.current
+      if (!lk.dragging) o.lon += dt * 3
+      camera.position.copy(dirFromLatLon(o.lat, o.lon).multiplyScalar(INTRO_DIST))
+      camera.up.set(0, 1, 0)
+      camera.lookAt(0, 0, 0)
+      camTarget.current.set(0, 0, 0)
+      fly.current = null
+    } else if (phase === 'flying') {
+      if (!fly.current) fly.current = { t: 0, pos: camera.position.clone(), up: camera.up.clone() }
+      const f = fly.current
+      f.t = Math.min(1, f.t + dt / FLY_S)
+      const e = ease(f.t)
+      const dir = slerpDir(f.pos, desired, e)
+      camera.position.copy(dir.multiplyScalar(THREE.MathUtils.lerp(f.pos.length(), desired.length(), e)))
+      camTarget.current.set(0, 0, 0).lerp(focus, ease(Math.min(1, f.t * 1.3)))
+      camera.up.copy(f.up).lerp(w.up, e).normalize()
+      camera.lookAt(camTarget.current)
+      if (f.t >= 1) g.setPhase('play')
+    } else {
+      if (snap.current) {
+        camera.position.copy(desired)
+        camTarget.current.copy(focus)
+        camera.up.copy(w.up)
+        snap.current = false
+      }
+      camera.position.lerp(desired, 1 - Math.exp(-cfg.follow * dt))
+      camTarget.current.lerp(focus, 1 - Math.exp(-cfg.follow * 1.5 * dt))
+      camera.up.lerp(w.up, 0.1).normalize()
+      camera.lookAt(camTarget.current)
+    }
     camFocus.copy(camTarget.current)
     playerUp.copy(w.up)
 
