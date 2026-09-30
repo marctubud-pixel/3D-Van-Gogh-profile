@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { AcUnit, stripeMaterial } from '../locations/Landmark'
+import { Fadeable } from './occlusion'
 import { VendingMachine } from './StreetProps'
 import { R, dirFromLatLon, surfaceQuaternion } from './sphere'
 import { Toon, geo } from './toon'
@@ -79,9 +80,11 @@ function Rail({ y, z, width }: { y: number; z: number; width: number }) {
 function StreetTree({ position, s = 1 }: { position: [number, number, number]; s?: number }) {
   return (
     <group position={position} scale={s}>
+      <Fadeable height={2.2} radius={2.1}>
       <Toon geometry={geo.cyl} color="#6e6660" position={[0, 0.8, 0]} scale={[0.26, 1.6, 0.26]} outline={0.03} />
       <Toon geometry={geo.ico} color="#4f8f5f" position={[0, 2.1, 0]} scale={[1.8, 1.5, 1.8]} outline={0.05} radial={false} />
       <Toon geometry={geo.ico} color="#66a56f" position={[0.4, 2.6, 0.2]} scale={[1.1, 0.9, 1.1]} outline={0.04} radial={false} />
+      </Fadeable>
     </group>
   )
 }

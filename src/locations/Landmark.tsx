@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
+import { playerUp } from '../world/occlusion'
 import { R, locationAnchors, surfaceQuaternion } from '../world/sphere'
 import { Toon, geo, toonMaterial } from '../world/toon'
 
@@ -314,13 +315,22 @@ function BuildingBody({ loc }: { loc: WorldLocation }) {
   }
 }
 
-function ParkingSpot({ color }: { color: string }) {
+function ParkingSpot({ color, up }: { color: string; up: THREE.Vector3 }) {
   const pTex = useMemo(() => signTexture('P', color), [color])
+  const ring = useMemo(() => new THREE.MeshBasicMaterial({ color: '#f0b44c', transparent: true, opacity: 0 }), [])
+  useFrame(({ clock }, dt) => {
+    const near = up.angleTo(playerUp) * R < 6
+    const target = near ? 0.4 + Math.sin(clock.elapsedTime * 5) * 0.18 : 0
+    ring.opacity = THREE.MathUtils.damp(ring.opacity, target, 6, dt)
+  })
   return (
     <group>
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[1.6, 24]} />
         <meshBasicMaterial color="#8499a0" />
+      </mesh>
+      <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, 0]} material={ring}>
+        <ringGeometry args={[1.25, 1.6, 32]} />
       </mesh>
       <Toon geometry={geo.cyl} color="#5a6670" position={[1.9, 1.1, 0]} scale={[0.08, 2.2, 0.08]} outline={0.02} />
       <Toon geometry={geo.box} color="#4d6fa8" position={[1.9, 2.2, 0]} scale={[0.7, 0.7, 0.06]} outline={0.02} />
@@ -370,7 +380,7 @@ export function Landmark({ loc, active }: LandmarkProps) {
       </group>
       {loc.parking && (
         <group position={pPos} quaternion={parkingQ}>
-          <ParkingSpot color="#4d6fa8" />
+          <ParkingSpot color="#4d6fa8" up={a.parking} />
         </group>
       )}
     </>

@@ -15,6 +15,7 @@ import {
   surfaceQuaternion,
   tangentNorth,
 } from '../world/sphere'
+import { camFocus, playerUp } from '../world/occlusion'
 import { LOT_RADIUS, townLots } from '../world/townLayout'
 import { Avatar } from './Avatar'
 
@@ -28,6 +29,11 @@ const TRANSITION_S = 0.55
 const SEA_LIMIT_LAT = -35
 
 const keys = new Set<string>()
+
+const _cf = new THREE.Vector3()
+const _cr = new THREE.Vector3()
+const _mv = new THREE.Vector3()
+const _sd = new THREE.Vector3()
 
 interface Body {
   up: THREE.Vector3
@@ -68,6 +74,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
   const walker = useRef<Body>(spawn())
   const speed = useRef(0)
   const steer = useRef(0)
+  const crank = useRef(0)
   const walkSpeed = useRef(0)
   const transition = useRef(0)
   const look = useRef<{ yaw: number; pitch: number; dragging: boolean; lastDrag: number }>({
@@ -226,20 +233,38 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     const inSlowZone = nearParking.some((d) => d < SLOW_ZONE)
 
     if (player === 'RIDING') {
+      // S backs up once (nearly) stopped; while rolling forward it brakes hard
       const max = inSlowZone ? RIDE_MAX * 0.6 : RIDE_MAX
-      const target = fwdKey ? max : backKey ? -0.5 : 0
-      const rate = backKey && speed.current > 0 ? 5 : fwdKey ? 2 : 1.4
+      const target = fwdKey ? max : backKey ? (speed.current > 0.15 ? 0 : -1.4) : 0
+      const rate = backKey && speed.current > 0 ? 6 : fwdKey ? 2.4 : backKey ? 2.2 : 1.4
       speed.current = THREE.MathUtils.damp(speed.current, target, rate, dt)
-      steer.current = THREE.MathUtils.damp(steer.current, turn, 6, dt)
-      const yaw = steer.current * dt * 1.5 * THREE.MathUtils.clamp(Math.abs(speed.current) / 3 + 0.25, 0.25, 1) * Math.sign(speed.current || 1)
+      crank.current += ((speed.current * dt) / 0.34) * 0.45
+      // progressive steering: builds up while held, springs back; gentler at speed
+      steer.current = THREE.MathUtils.damp(steer.current, turn, turn !== 0 ? 5 : 9, dt)
+      const turnRate = THREE.MathUtils.lerp(2.4, 1.6, Math.min(1, Math.abs(speed.current) / RIDE_MAX))
+      const yaw = steer.current * dt * turnRate * Math.sign(speed.current || 1)
       advance(rider.current, speed.current * dt, yaw)
       collide(rider.current)
       const spot = nearestParking()
       g.setPrompt(spot ? { key: 'E', label: `BIKE PARKING · E · PARK — ${spot.loc.name}` } : null)
     } else if (player === 'WALKING') {
-      const target = fwdKey ? WALK_MAX : backKey ? -WALK_MAX * 0.6 : 0
-      walkSpeed.current = THREE.MathUtils.damp(walkSpeed.current, target, 8, dt)
-      advance(walker.current, walkSpeed.current * dt, turn * dt * 2.4)
+      // camera-relative WASD: W walks into the screen, A/D strafe, S steps back
+      const mz = (fwdKey ? 1 : 0) - (backKey ? 1 : 0)
+      const mx = (left ? 1 : 0) - (right ? 1 : 0)
+      const moving = mz !== 0 || mx !== 0
+      walkSpeed.current = THREE.MathUtils.damp(walkSpeed.current, moving ? WALK_MAX : 0, 8, dt)
+      if (moving) {
+        _cf.copy(camTarget.current).sub(camera.position).projectOnPlane(walker.current.up)
+        if (_cf.lengthSq() < 1e-8) _cf.copy(walker.current.fwd)
+        else _cf.normalize()
+        _cr.crossVectors(_cf, walker.current.up)
+        _mv.copy(_cf).multiplyScalar(mz).addScaledVector(_cr, -mx).normalize()
+        _sd.crossVectors(walker.current.up, walker.current.fwd)
+        const yaw = Math.atan2(_mv.dot(_sd), _mv.dot(walker.current.fwd))
+        walker.current.fwd.applyAxisAngle(walker.current.up, THREE.MathUtils.clamp(yaw, -7 * dt, 7 * dt))
+        walker.current.fwd.projectOnPlane(walker.current.up).normalize()
+      }
+      advance(walker.current, walkSpeed.current * dt, 0)
       collide(walker.current)
       const door = nearestDoor()
       if (door) g.setPrompt({ key: 'E', label: `E · ${door.loc.action} — ${door.loc.name}` })
@@ -253,7 +278,10 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     const r = rider.current
     if (bikeGroup.current) {
       bikeGroup.current.position.copy(r.up).multiplyScalar(R)
-      const lean = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -steer.current * Math.min(1, Math.abs(speed.current)) * 0.18)
+      const lean = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 0, 1),
+        -steer.current * Math.min(1, Math.abs(speed.current) / RIDE_MAX) * 0.28,
+      )
       bikeGroup.current.quaternion.copy(surfaceQuaternion(r.up, r.fwd)).multiply(lean)
     }
     const w = mode === 'walk' ? walker.current : r
@@ -273,7 +301,8 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
       lk.pitch = THREE.MathUtils.clamp(lk.pitch, 0.05, 1.1)
     }
     const idle = performance.now() - lk.lastDrag > CAMERA.recenterDelay * 1000
-    const moving = riding ? Math.abs(speed.current) > 0.3 : Math.abs(walkSpeed.current) > 0.3 || turn !== 0
+    // walking: auto-follow while walking forward (or after idle); strafing leaves the orbit free
+    const moving = riding ? Math.abs(speed.current) > 0.3 : fwdKey && Math.abs(walkSpeed.current) > 0.3
     if (!lk.dragging && (riding || idle || moving)) {
       const rate = riding ? 3 : moving ? 2.2 : 1.2
       lk.yaw = THREE.MathUtils.damp(lk.yaw, 0, rate, dt)
@@ -296,6 +325,8 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     camTarget.current.lerp(focus, 1 - Math.exp(-cfg.follow * 1.5 * dt))
     camera.up.lerp(w.up, 0.1).normalize()
     camera.lookAt(camTarget.current)
+    camFocus.copy(camTarget.current)
+    playerUp.copy(w.up)
 
     const now = performance.now()
     if (now - lastLatLon.current > 200) {
@@ -307,8 +338,8 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
   return (
     <>
       <group ref={bikeGroup}>
-        <Bike speed={speed} steer={steer} kickstand={mode === 'walk'} />
-        {mode === 'ride' && <Avatar pose="ride" speed={speed} />}
+        <Bike speed={speed} steer={steer} crank={crank} kickstand={mode === 'walk'} />
+        {mode === 'ride' && <Avatar pose="ride" speed={speed} crank={crank} steer={steer} />}
       </group>
       <group ref={avatarGroup} visible={mode === 'walk'}>
         {mode === 'walk' && <Avatar pose="walk" speed={walkSpeed} />}

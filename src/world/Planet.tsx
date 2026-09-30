@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { R, dirFromLatLon, locationAnchors, surfaceQuaternion, tangentNorth } from './sphere'
 import { townLots } from './townLayout'
+import { Fadeable } from './occlusion'
 import { LINE_COLOR, Toon, geo, outlineMaterial, toonMaterial } from './toon'
 
 const GRASS = '#72b07e'
@@ -283,7 +284,13 @@ export function Planet({ locations }: { locations: WorldLocation[] }) {
       <GrassTufts locations={locations} />
       {props.map((p, i) => (
         <group key={i} position={p.pos} quaternion={p.q} scale={p.s}>
-          <PropMesh kind={p.kind} />
+          {p.kind === 'tree' || p.kind === 'pine' ? (
+            <Fadeable height={p.kind === 'tree' ? 2.2 : 1.4}>
+              <PropMesh kind={p.kind} />
+            </Fadeable>
+          ) : (
+            <PropMesh kind={p.kind} />
+          )}
         </group>
       ))}
     </group>

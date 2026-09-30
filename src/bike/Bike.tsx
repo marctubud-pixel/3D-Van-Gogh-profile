@@ -8,7 +8,10 @@ const TIRE = '#3a464c'
 const METAL = '#c9ccc8'
 const SEAT = '#7a5641'
 const GRIP = '#8a5e46'
-const WHEEL_R = 0.34
+export const WHEEL_R = 0.34
+/** Crank axle (x is always 0), pedal circle radius, and grip position (right side) in bike space. */
+export const CRANK = { y: 0.4, z: -0.02, r: 0.13, x: 0.16 } as const
+export const GRIP_POS = { x: 0.315, y: 1.14, z: 0.14 } as const
 
 type Vec3 = [number, number, number]
 
@@ -63,22 +66,24 @@ function Fender({ start }: { start: number }) {
 interface BikeProps {
   speed: RefObject<number>
   steer: RefObject<number>
+  /** Shared crank angle so the rider's feet can track the pedals. */
+  crank: RefObject<number>
   kickstand?: boolean
 }
 
 /** Mint Japanese city bicycle (mamachari): curved step-through frame, full fenders, chain guard, rear carrier, swept-back bars. */
-export function Bike({ speed, steer, kickstand = false }: BikeProps) {
+export function Bike({ speed, steer, crank, kickstand = false }: BikeProps) {
   const front = useRef<THREE.Group>(null)
   const rear = useRef<THREE.Group>(null)
   const fork = useRef<THREE.Group>(null)
-  const crank = useRef<THREE.Group>(null)
+  const crankArm = useRef<THREE.Group>(null)
   const reflector = useMemo(() => toonMaterial('#d9574a'), [])
 
   useFrame((_, dt) => {
     const spin = ((speed.current ?? 0) * dt) / WHEEL_R
     if (front.current) front.current.rotation.x += spin
     if (rear.current) rear.current.rotation.x += spin
-    if (crank.current) crank.current.rotation.x += spin * 0.45
+    if (crankArm.current) crankArm.current.rotation.x = crank.current ?? 0
     if (fork.current) fork.current.rotation.y = (steer.current ?? 0) * 0.5
   })
 
@@ -108,28 +113,30 @@ export function Bike({ speed, steer, kickstand = false }: BikeProps) {
         <CurveTube points={[[0, WHEEL_R, 0], [0, 0.7, -0.07], [0, 1.02, -0.13]]} r={0.026} color={MINT} />
         <CurveTube points={[[0, 1.02, -0.13], [0, 1.14, -0.16], [0, 1.16, -0.2]]} r={0.02} color={METAL} />
         <CurveTube points={[[-0.3, 1.14, -0.36], [-0.2, 1.16, -0.24], [0, 1.16, -0.2], [0.2, 1.16, -0.24], [0.3, 1.14, -0.36]]} r={0.016} color={METAL} />
-        {[-0.3, 0.3].map((x) => (
-          <Toon key={x} geometry={geo.cyl} color={GRIP} position={[x * 1.05, 1.14, -0.4]} rotation={[Math.PI / 2, 0, 0]} scale={[0.05, 0.12, 0.05]} outline={0.01} />
+        {[-0.315, 0.315].map((x) => (
+          <Toon key={x} geometry={geo.cyl} color={GRIP} position={[x, 1.14, -0.4]} rotation={[Math.PI / 2, 0, 0]} scale={[0.05, 0.12, 0.05]} outline={0.01} />
         ))}
         <Toon geometry={geo.cyl} color="#ecebe4" position={[0, 0.9, 0.0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.1, 0.07, 0.1]} outline={0.012} />
       </group>
 
       {/* curved U step-through frame */}
-      <CurveTube points={[[0, 1.0, 0.42], [0, 0.72, 0.3], [0, 0.46, 0.08], [0, 0.4, -0.08], [0, 0.46, -0.2]]} r={0.04} />
-      <CurveTube points={[[0, 0.36, -0.1], [0, 0.62, -0.22], [0, 0.88, -0.3]]} r={0.034} />
-      <CurveTube points={[[0.05, WHEEL_R, -0.54], [0.03, 0.35, -0.3], [0, 0.36, -0.1]]} r={0.018} />
+      <CurveTube points={[[0, 1.0, 0.42], [0, 0.72, 0.3], [0, 0.48, 0.1], [0, 0.42, 0.0], [0, 0.48, -0.16]]} r={0.04} />
+      <CurveTube points={[[0, CRANK.y, CRANK.z], [0, 0.62, -0.22], [0, 0.88, -0.3]]} r={0.034} />
+      <CurveTube points={[[0.05, WHEEL_R, -0.54], [0.03, 0.37, -0.3], [0, CRANK.y, CRANK.z]]} r={0.018} />
       <CurveTube points={[[0.05, WHEEL_R, -0.54], [0.02, 0.6, -0.42], [0, 0.82, -0.29]]} r={0.018} />
-      <CurveTube points={[[0, 0.86, -0.3], [0, 0.98, -0.34]]} r={0.02} color={METAL} />
-      <Toon geometry={geo.sphere} color={SEAT} position={[0, 1.02, -0.36]} scale={[0.2, 0.08, 0.3]} outline={0.016} radial={false} />
+      <CurveTube points={[[0, 0.86, -0.3], [0, 0.94, -0.34]]} r={0.02} color={METAL} />
+      <Toon geometry={geo.sphere} color={SEAT} position={[0, 0.98, -0.36]} scale={[0.2, 0.07, 0.26]} outline={0.016} radial={false} />
 
-      {/* chain guard + crank */}
-      <Toon geometry={geo.box} color={MINT} position={[0.09, 0.37, -0.32]} scale={[0.03, 0.12, 0.46]} outline={0.012} />
-      <group ref={crank} position={[0.1, 0.36, -0.1]}>
-        <Toon geometry={geo.cyl} color={MINT} rotation={[0, 0, Math.PI / 2]} scale={[0.2, 0.03, 0.2]} outline={0.012} />
-        <Toon geometry={geo.box} color={METAL} position={[0.02, 0.1, 0]} scale={[0.02, 0.2, 0.03]} outline={0} />
-        <Toon geometry={geo.box} color={TIRE} position={[0.07, 0.2, 0]} scale={[0.1, 0.03, 0.07]} outline={0.01} />
-        <Toon geometry={geo.box} color={METAL} position={[-0.21, -0.1, 0]} scale={[0.02, 0.2, 0.03]} outline={0} />
-        <Toon geometry={geo.box} color={TIRE} position={[-0.26, -0.2, 0]} scale={[0.1, 0.03, 0.07]} outline={0.01} />
+      {/* chain guard + crank (pedal circle matches CRANK so the avatar's feet track it) */}
+      <Toon geometry={geo.box} color={MINT} position={[0.09, 0.37, -0.28]} scale={[0.03, 0.12, 0.52]} outline={0.012} />
+      <group ref={crankArm} position={[0, CRANK.y, CRANK.z]}>
+        <Toon geometry={geo.cyl} color={MINT} rotation={[0, 0, Math.PI / 2]} scale={[0.26, 0.04, 0.26]} outline={0.012} />
+        {([1, -1] as const).map((sgn) => (
+          <group key={sgn}>
+            <Toon geometry={geo.box} color={METAL} position={[sgn * 0.08, (sgn * CRANK.r) / 2, 0]} scale={[0.025, CRANK.r, 0.03]} outline={0} />
+            <Toon geometry={geo.box} color={TIRE} position={[sgn * CRANK.x, sgn * CRANK.r, 0]} scale={[0.12, 0.028, 0.09]} outline={0.01} />
+          </group>
+        ))}
       </group>
 
       {/* left kickstand */}
