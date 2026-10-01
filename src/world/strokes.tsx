@@ -223,12 +223,9 @@ function paintGeometry(out: Stroke[], r: () => number, g: THREE.BufferGeometry, 
   }
 }
 
-interface StrokePart {
-  obj: THREE.Object3D
-  geometry: THREE.BufferGeometry
-  color: string
-  outline: boolean
-}
+type StrokePart =
+  | { obj: THREE.Object3D; geometry: THREE.BufferGeometry; color: string; outline: boolean }
+  | { obj: THREE.Object3D; local: Stroke[] }
 
 class StrokeRegistry {
   parts = new Set<StrokePart>()
@@ -274,6 +271,20 @@ export function StrokePartMesh({ geometry, color, outline }: { geometry: THREE.B
   return <mesh ref={ref} geometry={geometry} material={baseMaterial(color)} />
 }
 
+/** Hand-placed strokes in this group's local frame, merged into the enclosing <StrokeBuild>. */
+export function StrokePaint({ strokes, position, rotation }: { strokes: Stroke[]; position?: [number, number, number]; rotation?: [number, number, number] }) {
+  const reg = useContext(StrokeCtx)
+  const ref = useRef<THREE.Group>(null)
+  useLayoutEffect(() => {
+    const obj = ref.current
+    if (!reg || !obj) return
+    const part = { obj, local: strokes }
+    reg.add(part)
+    return () => reg.remove(part)
+  }, [reg, strokes])
+  return <group ref={ref} position={position} rotation={rotation} />
+}
+
 /** Every Toon part inside is drawn as one batch of brush strokes (Van Gogh look). */
 export function StrokeBuild({ seed = 1, children }: { seed?: number; children: ReactNode }) {
   const root = useRef<THREE.Group>(null)
@@ -294,9 +305,20 @@ export function StrokeBuild({ seed = 1, children }: { seed?: number; children: R
     const r = rng(seed)
     const out: Stroke[] = []
     const m = new THREE.Matrix4()
+    const nm = new THREE.Matrix3()
     for (const part of reg.parts) {
       m.multiplyMatrices(inv, part.obj.matrixWorld)
-      paintGeometry(out, r, part.geometry, m, part.color, part.outline)
+      if ('local' in part) {
+        nm.getNormalMatrix(m)
+        for (const k of part.local) {
+          out.push({
+            ...k,
+            p: k.p.clone().applyMatrix4(m),
+            n: k.n.clone().applyMatrix3(nm).normalize(),
+            dir: k.dir.clone().transformDirection(m),
+          })
+        }
+      } else paintGeometry(out, r, part.geometry, m, part.color, part.outline)
     }
     setStrokes(out)
   }, [reg, seed, version])

@@ -584,10 +584,11 @@ function BaseColors() {
 /** Sandbox for building geometry entirely out of brush strokes (Van Gogh test). */
 /** `/lab?b=service`: a real landmark rebuilt from strokes, for side-by-side checks. */
 function BuildingLab() {
+  const v = (new URLSearchParams(window.location.search).get('cam') ?? '9,6,14,0,2.5,0').split(',').map(Number)
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
       <Canvas
-        camera={{ fov: 45, position: [9, 6, 14], near: 0.1, far: 200 }}
+        camera={{ fov: 45, position: [v[0], v[1], v[2]], near: 0.1, far: 200 }}
         gl={{ antialias: true }}
         onCreated={({ gl, scene }) => {
           gl.toneMapping = THREE.NoToneMapping
@@ -601,7 +602,7 @@ function BuildingLab() {
         <StrokeBuild seed={11}>
           <ServiceCenter />
         </StrokeBuild>
-        <OrbitControls target={[0, 2.5, 0]} enableDamping />
+        <OrbitControls target={[v[3], v[4], v[5]]} enableDamping />
       </Canvas>
     </div>
   )

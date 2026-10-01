@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
+import { type Stroke, StrokePaint, pick, rng, useStrokeBuild } from '../world/strokes'
 import { Toon, geo } from '../world/toon'
 import {
   Bench,
@@ -961,6 +962,132 @@ function mapTex() {
   })
 }
 
+/* Hand-painted panels: each picture is laid down dab by dab in its local XY plane. */
+
+const FACE = new THREE.Vector3(0, 0, 1)
+function dab(x: number, y: number, z: number, a: number, len: number, wid: number, color: string): Stroke {
+  return { p: new THREE.Vector3(x, y, z), n: FACE, dir: new THREE.Vector3(Math.cos(a), Math.sin(a), 0), len, wid, color: new THREE.Color(color) }
+}
+
+const paintCache = new Map<string, Stroke[]>()
+function painted(key: string, make: (r: () => number) => Stroke[]) {
+  let s = paintCache.get(key)
+  if (!s) {
+    s = make(rng(key.length * 977 + key.charCodeAt(0)))
+    paintCache.set(key, s)
+  }
+  return s
+}
+
+function clockStrokes() {
+  return painted('clock', (r) => {
+    const out: Stroke[] = []
+    const cream = ['#f7f3ea', '#efe6d2', '#fbf8ef', '#e6dcc6', '#f3ead8']
+    for (let rr = 0.04; rr < 0.45; rr += 0.055) {
+      const n = Math.max(3, Math.ceil((Math.PI * 2 * rr) / 0.07))
+      for (let i = 0; i < n; i++) {
+        const t = ((i + r() * 0.6) / n) * Math.PI * 2
+        const q = rr + (r() - 0.5) * 0.03
+        out.push(dab(Math.cos(t) * q, Math.sin(t) * q, 0.002 + r() * 0.006, t + Math.PI / 2 + (r() - 0.5) * 0.5, 0.1 + r() * 0.05, 0.045 + r() * 0.015, pick(r, cream)))
+      }
+    }
+    const rim = ['#7f8a96', '#6c7784', '#95a0aa', '#5f6a77']
+    for (let i = 0; i < 34; i++) {
+      const t = ((i + r() * 0.5) / 34) * Math.PI * 2
+      const q = 0.49 + (r() - 0.5) * 0.03
+      out.push(dab(Math.cos(t) * q, Math.sin(t) * q, 0.012 + r() * 0.004, t + Math.PI / 2 + (r() - 0.5) * 0.3, 0.13, 0.055 + r() * 0.015, pick(r, rim)))
+    }
+    for (let i = 0; i < 12; i++) {
+      const t = (i / 12) * Math.PI * 2
+      out.push(dab(Math.cos(t) * 0.37, Math.sin(t) * 0.37, 0.02, t + (r() - 0.5) * 0.25, i % 3 ? 0.06 : 0.09, i % 3 ? 0.03 : 0.04, '#2f4a78'))
+    }
+    const hand = (a: number, L: number, w: number) => {
+      for (let k = 0; k < 3; k++) {
+        const d = (L * (k + 0.5)) / 3
+        out.push(dab(Math.cos(a) * d, Math.sin(a) * d, 0.026 + k * 0.002, a + (r() - 0.5) * 0.12, (L / 3) * 1.35, w * (0.85 + r() * 0.3), pick(r, ['#2f4a78', '#263d63', '#34548a'])))
+      }
+    }
+    hand(Math.PI / 5, 0.24, 0.06)
+    hand((3 * Math.PI) / 4, 0.34, 0.045)
+    out.push(dab(0, 0, 0.034, r() * 3, 0.07, 0.06, '#c9a24a'))
+    return out
+  })
+}
+
+function sailStrokes() {
+  return painted('sail', (r) => {
+    const out: Stroke[] = []
+    const W = 0.25
+    const sky = ['#f5ecdc', '#f1e2c8', '#f8f1e4', '#efd9bf', '#e9e4d2']
+    const sea = ['#3c6fae', '#4a7fbe', '#335f99', '#5b8fc8']
+    for (let y = -0.47; y < 0.48; y += 0.045) {
+      for (let x = -W + 0.04; x < W - 0.03; x += 0.07) {
+        const wet = y < -0.08
+        const px = x + (r() - 0.5) * 0.03
+        const py = y + (r() - 0.5) * 0.02
+        out.push(dab(px, py, 0.002 + r() * 0.005, (wet ? Math.sin(px * 18) * 0.25 : 0) + (r() - 0.5) * 0.2, 0.09 + r() * 0.03, 0.045 + r() * 0.012, pick(r, wet ? sea : sky)))
+      }
+    }
+    for (let i = 0; i < 10; i++) out.push(dab(-0.2 + r() * 0.4, -0.15 - r() * 0.3, 0.012, (r() - 0.5) * 0.3, 0.06, 0.018, '#dbe8f2'))
+    const sun = ['#f0a35e', '#e98a4f', '#f5b874']
+    for (let i = 0; i < 9; i++) {
+      const t = (i / 9) * Math.PI * 2
+      out.push(dab(0.14 + Math.cos(t) * 0.035, 0.33 + Math.sin(t) * 0.035, 0.012, t + Math.PI / 2, 0.06, 0.04, pick(r, sun)))
+    }
+    const sail = ['#e8715a', '#f08a6c', '#d65f4a', '#ee7c60']
+    for (let y = -0.02; y < 0.36; y += 0.035) {
+      const half = ((0.38 - y) / 0.4) * 0.2
+      for (let x = 0.03 - half + 0.03; x < 0.03; x += 0.05) out.push(dab(x + r() * 0.015, y, 0.016 + r() * 0.004, 1.05 + (r() - 0.5) * 0.25, 0.08, 0.04, pick(r, sail)))
+    }
+    for (let k = 0; k < 4; k++) out.push(dab(0.045, -0.02 + k * 0.1, 0.022, Math.PI / 2 + (r() - 0.5) * 0.06, 0.12, 0.018, '#3a2f2a'))
+    for (let x = -0.17; x < 0.17; x += 0.06) out.push(dab(x, -0.075 + (r() - 0.5) * 0.01, 0.024, (r() - 0.5) * 0.15, 0.08, 0.045, pick(r, ['#b8483b', '#a33f34', '#c4564a'])))
+    return out
+  })
+}
+
+function mapStrokes() {
+  return painted('islandmap', (r) => {
+    const out: Stroke[] = []
+    const sea = ['#7cc6de', '#6ab8d4', '#8fd3e6', '#5aa9c9']
+    for (let y = -0.33; y < 0.34; y += 0.05) {
+      for (let x = -0.52; x < 0.52; x += 0.07) {
+        const px = x + (r() - 0.5) * 0.03
+        const py = y + (r() - 0.5) * 0.02
+        out.push(dab(px, py, 0.002 + r() * 0.005, Math.sin(px * 7) * 0.5 + Math.cos(py * 9) * 0.4, 0.09 + r() * 0.03, 0.045 + r() * 0.012, pick(r, sea)))
+      }
+    }
+    const cx = 0.06
+    const cy = -0.03
+    const rot = 0.3
+    const at = (u: number, v: number): [number, number] => [cx + u * Math.cos(rot) - v * Math.sin(rot), cy + u * Math.sin(rot) + v * Math.cos(rot)]
+    const ring = (rx: number, ry: number, n: number, z: number, pal: string[], len: number, wid: number) => {
+      for (let i = 0; i < n; i++) {
+        const t = ((i + r() * 0.5) / n) * Math.PI * 2
+        const [x, y] = at(Math.cos(t) * rx, Math.sin(t) * ry)
+        const [x2, y2] = at(Math.cos(t + 0.05) * rx, Math.sin(t + 0.05) * ry)
+        out.push(dab(x, y, z, Math.atan2(y2 - y, x2 - x) + (r() - 0.5) * 0.3, len, wid, pick(r, pal)))
+      }
+    }
+    ring(0.38, 0.22, 36, 0.01, ['#e8d8a8', '#f0e2b8', '#dccb96'], 0.09, 0.05)
+    const green = ['#9cc98a', '#86b877', '#b0d69a', '#74a866']
+    for (let k = 0.85; k > 0.05; k -= 0.17) ring(0.34 * k, 0.19 * k, Math.ceil(30 * k) + 3, 0.014 + (1 - k) * 0.004, green, 0.08, 0.045)
+    const road = ['#5c6b78', '#6d7c88']
+    for (let i = 0; i < 18; i++) {
+      if (i % 2) continue
+      const t = (i / 18) * Math.PI * 2
+      const [x, y] = at(Math.cos(t) * 0.22, Math.sin(t) * 0.11)
+      out.push(dab(x, y, 0.022, t + Math.PI / 2 + rot, 0.06, 0.022, pick(r, road)))
+    }
+    const pins = ['#e8715a', '#f0b04a', '#2f58a0', '#e8715a', '#9b5fc0', '#f0b04a', '#d65f4a']
+    pins.forEach((c, i) => {
+      const t = (i / pins.length) * Math.PI * 2 + 0.2
+      const [x, y] = at(Math.cos(t) * 0.22, Math.sin(t) * 0.11)
+      out.push(dab(x, y, 0.028, r() * 3, 0.04, 0.035, c))
+    })
+    return out
+  })
+}
+
 function ShutterWindow({ p }: { p: [number, number, number] }) {
   return (
     <group position={p}>
@@ -977,6 +1104,8 @@ export function ServiceCenter() {
   const sign = textTex(['ISLAND SERVICE CENTER'], 512, 64, { fg: '#f1ecdf', bg: '#2f4a78', border: '#c9d2dc', weight: 700 })
   const welcome = textTex(['WELCOME TO', 'MARC ISLAND'], 384, 160, { fg: '#2f4a78', weight: 800 })
   const about = textTex(['ABOUT MARC'], 192, 48, { fg: '#2f4a78', weight: 800 })
+  const guide = textTex(['ISLAND GUIDE'], 192, 48, { fg: '#2f4a78', weight: 800 })
+  const brushed = useStrokeBuild() !== null
   const water = useMemo(() => new THREE.MeshBasicMaterial({ color: '#6fd0e0', toneMapped: false }), [])
   const jet = useMemo(() => new THREE.MeshBasicMaterial({ color: '#e8fbff', transparent: true, opacity: 0.8, toneMapped: false }), [])
   const H = 4.6
@@ -985,8 +1114,8 @@ export function ServiceCenter() {
       <Bx c="#efe6d4" b={[-5.2, 5.2, -0.4, 0.12, -3.0, 4.2]} o={0.03} />
       {/* main two-storey hall */}
       <Bx c={W} b={[-3.3, 1.9, 0.12, H, -2.8, 0.4]} o={0.07} />
-      <group position={[-0.7, H, -1.2]}>
-        <Toon geometry={geo.roof} color={PAL.terracotta} position={[0, 0.7, 0]} rotation={[0, Math.PI / 4, 0]} scale={[5.2 * 1.0, 1.4, 3.3]} outline={0.06} />
+      <group position={[-0.7, H + 0.7, -1.2]} scale={[2.85 / 0.509, 1.4, 1.85 / 0.509]}>
+        <Toon geometry={geo.roof} color={PAL.terracotta} rotation={[0, Math.PI / 4, 0]} outline={0.06} />
       </group>
       {[-2.4, 1.0].map((x) => (
         <group key={x}>
@@ -1020,9 +1149,11 @@ export function ServiceCenter() {
       <Toon geometry={halfDisc} color="#1f2733" position={[2.6, 6.6, -0.2]} rotation={[Math.PI / 2, 0, 0]} scale={[0.7, 0.04, 0.7]} outline={0} />
       <Toon geometry={geo.cone} color="#8a6b3a" position={[2.6, 6.1, -0.3]} scale={[0.35, 0.4, 0.35]} outline={0.01} />
       <Bx c="#e4dac6" b={[1.85, 3.35, 6.9, 7.05, -1.85, -0.15]} o={0.02} />
-      <Toon geometry={geo.roof} color={PAL.terracotta} position={[2.6, 7.6, -1.0]} rotation={[0, Math.PI / 4, 0]} scale={[2.3, 1.1, 2.3]} outline={0.05} />
+      <group position={[2.6, 7.6, -1.0]} scale={[0.95 / 0.509, 1.1, 1.05 / 0.509]}>
+        <Toon geometry={geo.roof} color={PAL.terracotta} rotation={[0, Math.PI / 4, 0]} outline={0.05} />
+      </group>
       <Toon geometry={geo.sphere} color={PAL.gold} position={[2.6, 8.25, -1.0]} scale={0.18} outline={0.01} />
-      <Decal tex={clockTex()} p={[2.6, 4.9, -0.18]} w={1.05} h={1.05} />
+      {brushed ? <StrokePaint strokes={clockStrokes()} position={[2.6, 4.9, -0.165]} /> : <Decal tex={clockTex()} p={[2.6, 4.9, -0.18]} w={1.05} h={1.05} />}
       <Vines p={[2.0, 4.2, -0.18]} w={0.25} len={2.2} />
       {/* welcome wall */}
       <Bx c={W} b={[3.3, 5.1, 0.12, 2.5, -1.4, -0.9]} o={0.05} />
@@ -1070,16 +1201,23 @@ export function ServiceCenter() {
       </group>
       {/* guide board, about pillar, bike rack */}
       <group position={[-3.4, 0.12, 2.8]} rotation={[0, 0.5, 0]}>
-        <Bx c="#e4dac6" b={[-0.55, 0.55, 0, 0.7, -0.15, 0.15]} o={0.02} />
+        <Bx c="#e4dac6" b={[-0.55, 0.55, 0, 0.7, -0.15, 0.15]} o={brushed ? 0 : 0.02} />
         <group position={[0, 0.95, 0.05]} rotation={[-0.5, 0, 0]}>
-          <Bx c="#e4dac6" b={[-0.6, 0.6, -0.4, 0.4, -0.05, 0.05]} o={0.02} />
-          <Decal tex={mapTex()} p={[0, 0, 0.06]} w={1.1} h={0.72} />
+          <Bx c="#e4dac6" b={[-0.6, 0.6, -0.4, 0.4, -0.05, 0.05]} o={brushed ? 0 : 0.02} />
+          {brushed ? (
+            <>
+              <StrokePaint strokes={mapStrokes()} position={[0, 0, 0.085]} />
+              <Decal tex={guide} p={[-0.3, 0.29, 0.07]} w={0.42} h={0.1} />
+            </>
+          ) : (
+            <Decal tex={mapTex()} p={[0, 0, 0.06]} w={1.1} h={0.72} />
+          )}
         </group>
       </group>
       <group position={[2.4, 0.12, 2.6]}>
-        <Bx c="#f2ecdf" b={[-0.45, 0.45, 0, 2.0, -0.2, 0.2]} o={0.03} />
+        <Bx c="#f2ecdf" b={[-0.45, 0.45, 0, 2.0, -0.2, 0.2]} o={brushed ? 0 : 0.03} />
         <Decal tex={about} p={[0, 1.8, 0.21]} w={0.8} h={0.2} />
-        <Decal tex={posterTex('sail')} p={[0, 1.05, 0.21]} w={0.55} h={1.0} />
+        {brushed ? <StrokePaint strokes={sailStrokes()} position={[0, 1.05, 0.235]} /> : <Decal tex={posterTex('sail')} p={[0, 1.05, 0.21]} w={0.55} h={1.0} />}
       </group>
       {[3.3, 3.7, 4.1].map((x) => (
         <Toon key={x} geometry={geo.torusRack} color="#3f4a55" position={[x, 0.12, 3.1]} rotation={[0, Math.PI / 2, 0]} outline={0.015} radial={false} />
