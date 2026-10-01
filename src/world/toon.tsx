@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import { BRUSH } from './brush'
+import { StrokePartMesh, useStrokeBuild } from './strokes'
 
 export const LINE_COLOR = BRUSH ? '#1f2d5a' : '#2c3437'
 
@@ -94,6 +95,14 @@ export function Toon({ geometry, color, position, rotation, scale, outline = 0.0
   const hull = outline * (BRUSH ? 0.9 : 0.55)
   const line = useMemo(() => outlineMaterial(hull, radial), [hull, radial])
   const showEdges = edges ?? (outline > 0 && CREASED.has(geometry))
+  const stroked = useStrokeBuild() !== null && !material
+  if (stroked) {
+    return (
+      <group position={position} rotation={rotation} scale={scale}>
+        <StrokePartMesh geometry={geometry} color={color} outline={showEdges} />
+      </group>
+    )
+  }
   return (
     <group position={position} rotation={rotation} scale={scale}>
       <mesh geometry={geometry} material={mat} castShadow receiveShadow />

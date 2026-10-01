@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
+import { useStrokeBuild } from '../world/strokes'
 import { Toon, geo, toonMaterial } from '../world/toon'
 
 export type V3 = [number, number, number]
@@ -115,11 +116,14 @@ export function textTex(lines: string[], w: number, h: number, o: TextOpts) {
 
 /** Flat textured quad facing +Z. */
 export function Decal({ tex, p, w, h, r }: { tex: THREE.Texture; p: V3; w: number; h: number; r?: V3 }) {
+  const lift = useStrokeBuild() ? 0.045 : 0
   return (
-    <mesh position={p} rotation={r}>
-      <planeGeometry args={[w, h]} />
-      <meshBasicMaterial map={tex} transparent toneMapped={false} />
-    </mesh>
+    <group position={p} rotation={r}>
+      <mesh position={[0, 0, lift]}>
+        <planeGeometry args={[w, h]} />
+        <meshBasicMaterial map={tex} transparent toneMapped={false} />
+      </mesh>
+    </group>
   )
 }
 

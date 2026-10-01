@@ -6,6 +6,7 @@ import { playerUp } from '../world/occlusion'
 import { BUILDING_SCALE, R, SERVICE_CENTER, surfaceQuaternion } from '../world/sphere'
 import { locationAnchors, surf } from '../world/island'
 import { Toon, geo, toonMaterial } from '../world/toon'
+import { StrokeBuild } from '../world/strokes'
 import { Arcade, Cinema, CreativeMuseum, ExperimentLab, Observatory, ServiceCenter, Studio, WriteHouse } from './buildings'
 
 const CREAM = '#e1e1d9'
@@ -199,7 +200,9 @@ export function ServiceCenterSite() {
   const q = useMemo(() => surfaceQuaternion(a.building, a.facing), [a])
   return (
     <group position={surf(a.building)} quaternion={q} scale={BUILDING_SCALE}>
-      <ServiceCenter />
+      <StrokeBuild seed={11}>
+        <ServiceCenter />
+      </StrokeBuild>
     </group>
   )
 }

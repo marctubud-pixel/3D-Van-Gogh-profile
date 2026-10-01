@@ -1,103 +1,9 @@
 import { OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import * as THREE from 'three'
-
-/** Seeded RNG so the painting is stable between reloads. */
-function rng(seed: number) {
-  let s = seed >>> 0
-  return () => {
-    s = (s + 0x6d2b79f5) >>> 0
-    let t = s
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-const LIGHT = new THREE.Vector3(0.55, 0.8, 0.35).normalize()
-
-interface Stroke {
-  p: THREE.Vector3
-  n: THREE.Vector3
-  dir: THREE.Vector3
-  len: number
-  wid: number
-  color: THREE.Color
-}
-
-/** Flat, crisp-edged dab with ragged ends and a few bristle streaks. */
-function brushTexture() {
-  const c = document.createElement('canvas')
-  c.width = 256
-  c.height = 64
-  const g = c.getContext('2d')!
-  const r = rng(7)
-  g.fillStyle = '#fff'
-  g.beginPath()
-  const top: [number, number][] = []
-  const bot: [number, number][] = []
-  for (let i = 0; i <= 16; i++) {
-    const x = 6 + (i / 16) * 244
-    const t = i / 16
-    const half = 26 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.15 + 0.04)), 0.35)
-    top.push([x, 32 - half - r() * 3])
-    bot.push([x, 32 + half + r() * 3])
-  }
-  g.moveTo(top[0][0], 32)
-  for (const [x, y] of top) g.lineTo(x, y)
-  for (const [x, y] of bot.reverse()) g.lineTo(x, y)
-  g.closePath()
-  g.fill()
-  g.globalCompositeOperation = 'destination-out'
-  for (let i = 0; i < 5; i++) {
-    g.fillRect(150 + r() * 100, 8 + r() * 48, 30 + r() * 60, 1.5)
-  }
-  const t = new THREE.CanvasTexture(c)
-  t.colorSpace = THREE.SRGBColorSpace
-  return t
-}
-
-const brushMat = () =>
-  new THREE.MeshBasicMaterial({ map: brushTexture(), alphaTest: 0.5, side: THREE.DoubleSide, vertexColors: false })
-
-function pick(r: () => number, palette: string[]) {
-  return palette[Math.floor(r() * palette.length)]
-}
-
-/** Light/mid/dark palette chosen by facing; random jitter keeps neighbouring dabs distinct. */
-function shade(r: () => number, n: THREE.Vector3, ramp: { light: string[]; mid: string[]; dark: string[] }) {
-  const k = n.dot(LIGHT) + (r() - 0.5) * 0.5
-  return new THREE.Color(pick(r, k > 0.55 ? ramp.light : k > 0.05 ? ramp.mid : ramp.dark))
-}
-
-function rotateAbout(v: THREE.Vector3, axis: THREE.Vector3, a: number) {
-  return v.clone().applyAxisAngle(axis, a)
-}
-
-function Strokes({ strokes }: { strokes: Stroke[] }) {
-  const ref = useRef<THREE.InstancedMesh>(null)
-  const geom = useMemo(() => new THREE.PlaneGeometry(1, 1), [])
-  const mat = useMemo(brushMat, [])
-  useLayoutEffect(() => {
-    const m = ref.current
-    if (!m) return
-    const basis = new THREE.Matrix4()
-    strokes.forEach((s, i) => {
-      const x = s.dir.clone().normalize()
-      const z = s.n.clone().normalize()
-      const y = new THREE.Vector3().crossVectors(z, x).normalize()
-      x.crossVectors(y, z).normalize()
-      basis.makeBasis(x.multiplyScalar(s.len), y.multiplyScalar(s.wid), z)
-      basis.setPosition(s.p)
-      m.setMatrixAt(i, basis)
-      m.setColorAt(i, s.color)
-    })
-    m.instanceMatrix.needsUpdate = true
-    if (m.instanceColor) m.instanceColor.needsUpdate = true
-  }, [strokes])
-  return <instancedMesh ref={ref} args={[geom, mat, strokes.length]} frustumCulled={false} />
-}
+import { ServiceCenter } from '../locations/buildings'
+import { LIGHT, StrokeBuild, type Stroke, Strokes, pick, rng, rotateAbout, shade } from '../world/strokes'
 
 const WALL = {
   light: ['#f1f1ea', '#e8e9e0', '#f4eedd', '#e1e6de'],
@@ -676,7 +582,36 @@ function BaseColors() {
 }
 
 /** Sandbox for building geometry entirely out of brush strokes (Van Gogh test). */
+/** `/lab?b=service`: a real landmark rebuilt from strokes, for side-by-side checks. */
+function BuildingLab() {
+  return (
+    <div style={{ position: 'fixed', inset: 0 }}>
+      <Canvas
+        camera={{ fov: 45, position: [9, 6, 14], near: 0.1, far: 200 }}
+        gl={{ antialias: true }}
+        onCreated={({ gl, scene }) => {
+          gl.toneMapping = THREE.NoToneMapping
+          scene.background = new THREE.Color('#8fd0c8')
+        }}
+      >
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[16, 64]} />
+          <meshBasicMaterial color="#6aa977" />
+        </mesh>
+        <StrokeBuild seed={11}>
+          <ServiceCenter />
+        </StrokeBuild>
+        <OrbitControls target={[0, 2.5, 0]} enableDamping />
+      </Canvas>
+    </div>
+  )
+}
+
 export default function StrokeLab() {
+  return new URLSearchParams(window.location.search).get('b') === 'service' ? <BuildingLab /> : <StreetLab />
+}
+
+function StreetLab() {
   const all = useMemo(() => [...groundStrokes(), ...roadStrokes(), ...houseStrokes(), ...treeStrokes(), ...bushStrokes(), ...vendingStrokes(), ...poleStrokes(), ...skyStrokes()], [])
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
