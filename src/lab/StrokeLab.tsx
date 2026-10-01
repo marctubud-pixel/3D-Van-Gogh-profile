@@ -100,16 +100,16 @@ function Strokes({ strokes }: { strokes: Stroke[] }) {
 }
 
 const WALL = {
-  light: ['#dfe6f3', '#c9d8f0', '#e8dccf', '#bcd0ee'],
-  mid: ['#a9c1e6', '#97b1dd', '#b5b8dc', '#c2cfe8'],
-  dark: ['#7f97c9', '#6f86bd', '#8c8fc4', '#5f78ad'],
+  light: ['#f1f1ea', '#e8e9e0', '#f4eedd', '#e1e6de'],
+  mid: ['#d6d8cf', '#cfd3c9', '#dcd8c8', '#c8cfc8'],
+  dark: ['#a9b1ad', '#9aa5a5', '#b0b3a6', '#8f9c9e'],
 }
 const ROOF = {
-  light: ['#f0a35a', '#f6bd6d', '#e98a48'],
-  mid: ['#d9733f', '#c9632f', '#e0844c'],
-  dark: ['#a64a2a', '#8f3f26', '#b5583a'],
+  light: ['#7fc6bd', '#93d2c6', '#6fbab3'],
+  mid: ['#4f9f9a', '#5aa9a2', '#46918e'],
+  dark: ['#2f6f70', '#2a6266', '#367a78'],
 }
-const NAVY = ['#1f2d5a', '#253a6e', '#18244a']
+const NAVY = ['#2c3437', '#343e42', '#252c2f']
 
 /** Fill a parallelogram (origin + u·[0,1] + v·[0,1]) with dabs; two passes: broad underpainting then finer marks. */
 function paintFace(
@@ -125,6 +125,7 @@ function paintFace(
   const n = new THREE.Vector3().crossVectors(u, v).normalize()
   const area = u.length() * v.length()
   const passes: [number, number, number, number][] = [
+    [1.3, 0.55, 0.002, 1.4],
     [0.9, 0.32, 0.005, 1.6],
     [0.55, 0.13, 0.02, 1],
   ]
@@ -220,8 +221,8 @@ function houseStrokes() {
     contour(s, r, c(w / 2, h / 2), c(-w / 2, h / 2), n)
     contour(s, r, c(-w / 2, h / 2), c(-w / 2, -h / 2), n)
   }
-  const DOOR = ['#2f6f68', '#3b8075', '#275e5a', '#4a8c7c']
-  const GLASS = ['#f3d36a', '#f7e08a', '#e9bf4f', '#9cc7c0']
+  const DOOR = ['#e36f4c', '#ea8156', '#d4613f', '#f0956a']
+  const GLASS = ['#2d383d', '#3a4a50', '#4f6a70', '#8fc4c4']
   rect(-0.7, 0.85, 0.85, 1.7, DOOR, -z0, front, 'x')
   rect(0.95, 1.6, 0.9, 0.8, GLASS, -z0, front, 'x')
   rect(0, 1.6, 0.9, 0.8, GLASS, x0, V(-1, 0, 0), 'z')
@@ -245,14 +246,14 @@ function houseStrokes() {
 }
 
 const LEAF = {
-  light: ['#b9d46a', '#d4dd78', '#9fc95f', '#e6d36a'],
-  mid: ['#6fa64a', '#5d9a48', '#7fb456', '#4f8a52'],
-  dark: ['#2f6a4a', '#285a4f', '#1f4d4a', '#3b5f7a'],
+  light: ['#8fcf8a', '#a3d993', '#7cc283', '#b5dd9a'],
+  mid: ['#5e9d6d', '#4f8f63', '#6aa874', '#3f7a55'],
+  dark: ['#2f6650', '#28584a', '#2e5f5c', '#244c46'],
 }
 const BARK = {
-  light: ['#c98a4a', '#d8a05a'],
-  mid: ['#8f5a34', '#a06a3c', '#7a4b2e'],
-  dark: ['#4a3328', '#3a2c3a', '#2a2a4a'],
+  light: ['#a88a6a', '#b89a78'],
+  mid: ['#7a604a', '#86694f', '#6c5442'],
+  dark: ['#4a3d36', '#3e3a3a', '#34393c'],
 }
 
 function treeStrokes() {
@@ -301,9 +302,68 @@ function treeStrokes() {
 }
 
 const GROUND = {
-  light: ['#e6c56a', '#efd27a', '#d9b45a', '#f0dca0'],
-  mid: ['#c99a4a', '#b9884a', '#d2a65a', '#a8b46a'],
-  dark: ['#7a8a8a', '#6a7aa0', '#8a7a8a'],
+  light: ['#86bf84', '#9acb8c', '#7ab87e', '#a8d39a'],
+  mid: ['#72b07e', '#5e9d6d', '#68a875', '#7fb483'],
+  dark: ['#4a8462', '#3f7a5c', '#4d7f6a'],
+}
+const ASPHALT = { light: ['#8396a0', '#7a8e96'], mid: ['#6f848b', '#667a82', '#748990'], dark: ['#566870', '#5b6e76'] }
+const SIDEWALK = { light: ['#e4e8de', '#dfe3d8'], mid: ['#d5dad1', '#cdd3ca'], dark: ['#b4bcb6'] }
+const PAINT = ['#eef1ea', '#f6f7f1', '#e4e7df']
+
+/** Gently winding road through the scene, passing in front of the house. */
+const ROAD = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-16, 0, 9),
+  new THREE.Vector3(-8, 0, 5.2),
+  new THREE.Vector3(0, 0, 4.6),
+  new THREE.Vector3(7, 0, 2.5),
+  new THREE.Vector3(13, 0, -4),
+  new THREE.Vector3(17, 0, -12),
+])
+const ROAD_HALF = 1.5
+const WALK = 0.7
+const ROAD_PTS = ROAD.getSpacedPoints(400)
+
+function roadDistance(x: number, z: number) {
+  let best = Infinity
+  for (const p of ROAD_PTS) best = Math.min(best, (p.x - x) ** 2 + (p.z - z) ** 2)
+  return Math.sqrt(best)
+}
+
+function roadStrokes() {
+  const r = rng(41)
+  const s: Stroke[] = []
+  const n = new THREE.Vector3(0, 1, 0)
+  const L = ROAD.getLength()
+  const band = (count: number, from: number, to: number, ramp: typeof ASPHALT, lift: number, len: number, wid: number) => {
+    for (let i = 0; i < count; i++) {
+      const u = r()
+      const p = ROAD.getPointAt(u)
+      const t = ROAD.getTangentAt(u)
+      const side = new THREE.Vector3(-t.z, 0, t.x)
+      const off = from + r() * (to - from)
+      p.addScaledVector(side, off).setY(lift + r() * 0.01)
+      s.push({ p, n, dir: rotateAbout(t, n, (r() - 0.5) * 0.2), len: len * (0.7 + r() * 0.6), wid: wid * (0.7 + r() * 0.6), color: shade(r, n, ramp) })
+    }
+  }
+  band(Math.round(L * 9), -ROAD_HALF, ROAD_HALF, ASPHALT, 0.02, 0.8, 0.22)
+  band(Math.round(L * 4), ROAD_HALF, ROAD_HALF + WALK, SIDEWALK, 0.03, 0.6, 0.2)
+  band(Math.round(L * 4), -ROAD_HALF - WALK, -ROAD_HALF, SIDEWALK, 0.03, 0.6, 0.2)
+  // dashed centre line and curb contours
+  for (let d = 0; d < L; d += 1.6) {
+    const u = d / L
+    const p = ROAD.getPointAt(u).setY(0.05)
+    const t = ROAD.getTangentAt(u)
+    s.push({ p, n, dir: t, len: 0.75, wid: 0.12, color: new THREE.Color(pick(r, PAINT)) })
+  }
+  for (const off of [ROAD_HALF, -ROAD_HALF, ROAD_HALF + WALK, -ROAD_HALF - WALK]) {
+    for (let d = 0; d < L; d += 0.45) {
+      const u = d / L
+      const t = ROAD.getTangentAt(u)
+      const p = ROAD.getPointAt(u).addScaledVector(new THREE.Vector3(-t.z, 0, t.x), off).setY(0.06)
+      s.push({ p, n, dir: rotateAbout(t, n, (r() - 0.5) * 0.1), len: 0.55, wid: 0.06 + r() * 0.03, color: new THREE.Color(pick(r, NAVY)) })
+    }
+  }
+  return s
 }
 
 function groundStrokes() {
@@ -317,11 +377,12 @@ function groundStrokes() {
     const tz = z - 1.5 - shadowDir.y * 2.6
     return house || tx * tx + tz * tz < 2.6
   }
-  for (let i = 0; i < 14000; i++) {
+  for (let i = 0; i < 2600; i++) {
     const a = r() * Math.PI * 2
     const d = Math.sqrt(r()) * 16
     const x = Math.cos(a) * d
     const z = Math.sin(a) * d
+    if (roadDistance(x, z) < ROAD_HALF + WALK - 0.1) continue
     const p = new THREE.Vector3(x, 0.002 + r() * 0.01, z)
     const flow = Math.sin(x * 0.35) * 0.9 + Math.cos(z * 0.3) * 0.6
     const dir = new THREE.Vector3(Math.cos(flow), 0, Math.sin(flow))
@@ -331,7 +392,221 @@ function groundStrokes() {
   return s
 }
 
-const SKY = ['#8fc6e0', '#a7d6e6', '#c6e6ea', '#6fa8d6', '#e8efe0', '#7fb4e0']
+const BUSH = {
+  light: ['#9fd48e', '#b7de9c', '#86c784'],
+  mid: ['#5e9d6d', '#4f8f63', '#6aa874', '#3f7a55'],
+  dark: ['#2f6650', '#28584a', '#244c46'],
+}
+const BLADE = {
+  light: ['#a8d993', '#c2e3a0', '#8fcf8a'],
+  mid: ['#6aa874', '#5e9d6d', '#7fb483'],
+  dark: ['#3f7a55', '#346b52'],
+}
+const POLE = { light: ['#9aa39e', '#a8aea8'], mid: ['#7c8580', '#6f7873'], dark: ['#4b5350', '#3f4644'] }
+const VEND = {
+  light: ['#f4f6f2', '#eef1ea'],
+  mid: ['#d8dcd5', '#e2e5df'],
+  dark: ['#aab2ae', '#9ea7a4'],
+}
+const VEND_RED = ['#e36f4c', '#d4613f', '#ea8156']
+const VEND_PANEL = ['#2d383d', '#3a4a50']
+const VEND_GOODS = ['#f3d36a', '#8fc4c4', '#e36f4c', '#eef1ea', '#7fb483']
+
+const UP = new THREE.Vector3(0, 1, 0)
+
+function clearOfScene(x: number, z: number, pad = 0.4) {
+  if (roadDistance(x, z) < ROAD_HALF + WALK + pad) return false
+  if (Math.abs(x) < 2.4 + pad && Math.abs(z) < 2.1 + pad) return false
+  if ((x + 5) ** 2 + (z - 1.5) ** 2 < (1.6 + pad) ** 2) return false
+  return true
+}
+
+/** Dabs wrapped over a sphere-ish blob, curling around it like foliage. */
+function blob(out: Stroke[], r: () => number, c: THREE.Vector3, br: number, ramp: typeof BUSH, density = 260, size = 1) {
+  const count = Math.round(br * br * density)
+  for (let i = 0; i < count; i++) {
+    const n = new THREE.Vector3(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1)
+    if (n.lengthSq() > 1 || n.lengthSq() < 0.01) {
+      i--
+      continue
+    }
+    n.normalize()
+    if (n.y < -0.35) n.y = -n.y * 0.3
+    n.normalize()
+    const p = c.clone().addScaledVector(n, br * (0.82 + r() * 0.3))
+    const swirl = new THREE.Vector3().crossVectors(n, UP)
+    if (swirl.lengthSq() < 1e-3) swirl.set(1, 0, 0)
+    const dir = rotateAbout(swirl.normalize(), n, 0.6 + (r() - 0.5) * 0.9)
+    out.push({ p, n, dir, len: (0.3 + r() * 0.28) * size, wid: (0.09 + r() * 0.06) * size, color: shade(r, n, ramp) })
+  }
+}
+
+/** Vertical dabs wrapped round a cylinder from `base` up `h`. */
+function column(out: Stroke[], r: () => number, base: THREE.Vector3, h: number, rad: number, ramp: typeof POLE, count: number) {
+  for (let i = 0; i < count; i++) {
+    const y = r() * h
+    const ang = r() * Math.PI * 2
+    const n = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang))
+    const p = base.clone().add(new THREE.Vector3(n.x * rad, y, n.z * rad))
+    out.push({ p, n, dir: rotateAbout(UP, n, (r() - 0.5) * 0.15), len: 0.4 + r() * 0.3, wid: rad * 0.9, color: shade(r, n, ramp) })
+  }
+}
+
+function bushStrokes() {
+  const r = rng(77)
+  const s: Stroke[] = []
+  const spots: [number, number, number][] = [
+    [2.9, -0.8, 0.7],
+    [2.9, -2.4, 0.55],
+    [-2.9, -1.2, 0.6],
+    [-1.6, -2.7, 0.65],
+    [1.2, -2.8, 0.7],
+    [-7.5, 2.0, 0.8],
+    [-9.0, -1.5, 0.9],
+    [6.5, -2.0, 0.75],
+    [9.5, 3.5, 0.8],
+    [4.5, 7.5, 0.7],
+    [-3.5, 9.5, 0.85],
+    [-11.0, 3.0, 0.6],
+  ]
+  for (const [x, z, br] of spots) {
+    const lumps = 2 + Math.floor(r() * 3)
+    for (let k = 0; k < lumps; k++) {
+      const c = new THREE.Vector3(x + (r() - 0.5) * br * 1.6, br * (0.55 + r() * 0.3), z + (r() - 0.5) * br * 1.6)
+      blob(s, r, c, br * (0.6 + r() * 0.4), BUSH, 300, 0.85)
+    }
+  }
+  // grass tufts: fans of upright blades
+  let placed = 0
+  for (let tries = 0; placed < 170 && tries < 3000; tries++) {
+    const a = r() * Math.PI * 2
+    const d = 2 + Math.sqrt(r()) * 13.5
+    const x = Math.cos(a) * d
+    const z = Math.sin(a) * d
+    if (!clearOfScene(x, z, 0.1)) continue
+    placed++
+    const blades = 9 + Math.floor(r() * 9)
+    const tall = 0.35 + r() * 0.4
+    for (let i = 0; i < blades; i++) {
+      const yaw = r() * Math.PI * 2
+      const out = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw))
+      const lean = (r() * 0.7 + 0.15) * 0.9
+      const dir = UP.clone().multiplyScalar(Math.cos(lean)).addScaledVector(out, Math.sin(lean))
+      const len = tall * (0.6 + r() * 0.6)
+      const n = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(-out.z, 0, out.x)).normalize()
+      if (n.y < 0) n.negate()
+      const p = new THREE.Vector3(x + out.x * 0.08, 0, z + out.z * 0.08).addScaledVector(dir, len / 2)
+      s.push({ p, n, dir, len, wid: 0.06 + r() * 0.04, color: shade(r, new THREE.Vector3(out.x, 0.6, out.z).normalize(), BLADE) })
+    }
+  }
+  return s
+}
+
+/** Axis-aligned box painted on its 5 visible faces with contour strokes on every edge. */
+function paintBox(out: Stroke[], r: () => number, c: THREE.Vector3, w: number, h: number, d: number, ramp: typeof VEND) {
+  const V = (x: number, y: number, z: number) => new THREE.Vector3(c.x + x, c.y + y, c.z + z)
+  paintFace(out, r, V(-w / 2, 0, d / 2), new THREE.Vector3(w, 0, 0), new THREE.Vector3(0, h, 0), ramp, UP, 14)
+  paintFace(out, r, V(w / 2, 0, -d / 2), new THREE.Vector3(-w, 0, 0), new THREE.Vector3(0, h, 0), ramp, UP, 14)
+  paintFace(out, r, V(-w / 2, 0, -d / 2), new THREE.Vector3(0, 0, d), new THREE.Vector3(0, h, 0), ramp, UP, 14)
+  paintFace(out, r, V(w / 2, 0, d / 2), new THREE.Vector3(0, 0, -d), new THREE.Vector3(0, h, 0), ramp, UP, 14)
+  paintFace(out, r, V(-w / 2, h, d / 2), new THREE.Vector3(w, 0, 0), new THREE.Vector3(0, 0, -d), ramp, new THREE.Vector3(1, 0, 0), 14)
+  const xs = [-w / 2, w / 2]
+  const zs = [-d / 2, d / 2]
+  for (const x of xs) for (const z of zs) contour(out, r, V(x, 0, z), V(x, h, z), new THREE.Vector3(x, 0, z).normalize())
+  for (const y of [0.01, h]) {
+    contour(out, r, V(-w / 2, y, d / 2), V(w / 2, y, d / 2), new THREE.Vector3(0, y > 0.5 ? 1 : 0, 1).normalize())
+    contour(out, r, V(-w / 2, y, -d / 2), V(w / 2, y, -d / 2), new THREE.Vector3(0, y > 0.5 ? 1 : 0, -1).normalize())
+    contour(out, r, V(-w / 2, y, -d / 2), V(-w / 2, y, d / 2), new THREE.Vector3(-1, y > 0.5 ? 1 : 0, 0).normalize())
+    contour(out, r, V(w / 2, y, -d / 2), V(w / 2, y, d / 2), new THREE.Vector3(1, y > 0.5 ? 1 : 0, 0).normalize())
+  }
+}
+
+/** Patch of flat dabs on the +z face of a box at (c), local rect centred at (cx, cy). */
+function frontPatch(out: Stroke[], r: () => number, c: THREE.Vector3, zf: number, cx: number, cy: number, w: number, h: number, colors: string[], dens = 60, lift = 0.03) {
+  const n = new THREE.Vector3(0, 0, 1)
+  for (let i = 0; i < Math.round(w * h * dens); i++) {
+    const p = new THREE.Vector3(c.x + cx + (r() - 0.5) * w, c.y + cy + (r() - 0.5) * h, c.z + zf + lift + r() * 0.01)
+    out.push({ p, n, dir: rotateAbout(UP, n, (r() - 0.5) * 0.3), len: Math.min(h, 0.22 + r() * 0.12), wid: 0.06 + r() * 0.04, color: new THREE.Color(pick(r, colors)) })
+  }
+  const P = (a: number, b: number) => new THREE.Vector3(c.x + cx + a, c.y + cy + b, c.z + zf + lift + 0.015)
+  contour(out, r, P(-w / 2, -h / 2), P(w / 2, -h / 2), n)
+  contour(out, r, P(w / 2, -h / 2), P(w / 2, h / 2), n)
+  contour(out, r, P(w / 2, h / 2), P(-w / 2, h / 2), n)
+  contour(out, r, P(-w / 2, h / 2), P(-w / 2, -h / 2), n)
+}
+
+function vendingStrokes() {
+  const r = rng(91)
+  const s: Stroke[] = []
+  const c = new THREE.Vector3(3.2, 0, 0.1)
+  const W = 0.95
+  const H = 1.9
+  const D = 0.7
+  paintBox(s, r, c, W, H, D, VEND)
+  const zf = D / 2
+  frontPatch(s, r, c, zf, 0, H - 0.18, W * 0.92, 0.22, VEND_RED, 90)
+  frontPatch(s, r, c, zf, -0.08, 1.15, W * 0.68, 0.9, VEND_PANEL, 50)
+  // goods: rows of small bright dabs inside the window
+  for (let row = 0; row < 3; row++) {
+    for (let k = 0; k < 5; k++) {
+      const p = new THREE.Vector3(c.x - 0.08 + (k - 2) * 0.12, c.y + 0.85 + row * 0.27, c.z + zf + 0.06)
+      s.push({ p, n: new THREE.Vector3(0, 0, 1), dir: UP, len: 0.17, wid: 0.07, color: new THREE.Color(pick(r, VEND_GOODS)) })
+    }
+  }
+  frontPatch(s, r, c, zf, 0.36, 1.05, 0.12, 0.5, ['#c9cec8', '#b8bfba'], 120)
+  frontPatch(s, r, c, zf, 0, 0.28, W * 0.7, 0.18, VEND_PANEL, 90)
+  return s
+}
+
+function poleStrokes() {
+  const r = rng(53)
+  const s: Stroke[] = []
+  const tops: THREE.Vector3[] = []
+  const H = 5.2
+  for (const u of [0.12, 0.34, 0.56, 0.78, 0.97]) {
+    const p = ROAD.getPointAt(u)
+    const t = ROAD.getTangentAt(u)
+    const side = new THREE.Vector3(t.z, 0, -t.x)
+    const base = p.clone().addScaledVector(side, ROAD_HALF + WALK + 0.45)
+    column(s, r, base, H, 0.14, POLE, 160)
+    // crossarm
+    const arm = new THREE.Vector3(-t.z, 0, t.x).cross(UP).normalize()
+    const armN = new THREE.Vector3().crossVectors(arm, UP).normalize()
+    for (let i = 0; i < 14; i++) {
+      const p2 = base.clone().add(new THREE.Vector3(0, H - 0.5 + (r() - 0.5) * 0.08, 0)).addScaledVector(arm, (r() - 0.5) * 1.4).addScaledVector(armN, 0.12)
+      s.push({ p: p2, n: armN, dir: arm, len: 0.4 + r() * 0.2, wid: 0.1, color: shade(r, armN, POLE) })
+    }
+    contour(s, r, base.clone().add(new THREE.Vector3(0, H - 0.56, 0)).addScaledVector(arm, -0.75), base.clone().add(new THREE.Vector3(0, H - 0.56, 0)).addScaledVector(arm, 0.75), armN)
+    // insulators
+    for (const o of [-0.55, 0, 0.55]) {
+      const ip = base.clone().add(new THREE.Vector3(0, H - 0.35, 0)).addScaledVector(arm, o).addScaledVector(armN, 0.13)
+      s.push({ p: ip, n: armN, dir: UP, len: 0.22, wid: 0.1, color: new THREE.Color(pick(r, ['#eef1ea', '#d5dad1'])) })
+    }
+    tops.push(base.clone().add(new THREE.Vector3(0, H - 0.28, 0)))
+    contour(s, r, base, base.clone().add(new THREE.Vector3(0, H, 0)), armN)
+  }
+  // sagging wires: thin dark strokes along catenaries between neighbouring poles
+  for (let i = 0; i + 1 < tops.length; i++) {
+    for (const lift of [0, -0.12]) {
+      const a = tops[i].clone().add(new THREE.Vector3(0, lift, 0))
+      const b = tops[i + 1].clone().add(new THREE.Vector3(0, lift, 0))
+      const seg = 26
+      for (let k = 0; k < seg; k++) {
+        const t0 = k / seg
+        const t1 = (k + 1) / seg
+        const sag = (t: number) => -1.0 * 4 * t * (1 - t)
+        const p0 = a.clone().lerp(b, t0).add(new THREE.Vector3(0, sag(t0), 0))
+        const p1 = a.clone().lerp(b, t1).add(new THREE.Vector3(0, sag(t1), 0))
+        const dir = p1.clone().sub(p0)
+        const n = new THREE.Vector3().crossVectors(dir, UP).cross(dir).normalize().negate()
+        s.push({ p: p0.clone().lerp(p1, 0.5), n, dir, len: dir.length() * 1.15, wid: 0.035, color: new THREE.Color(pick(r, NAVY)) })
+      }
+    }
+  }
+  return s
+}
+
+const SKY = ['#9edbd1', '#b3e3da', '#d6f0e8', '#63b5b8', '#eaf6f0', '#7fc4c2']
 
 function skyStrokes() {
   const r = rng(3)
@@ -355,9 +630,56 @@ function skyStrokes() {
   return s
 }
 
+/** Flat-colour strip along the road between lateral offsets `a` and `b`. */
+function roadRibbon(a: number, b: number, y: number) {
+  const pos: number[] = []
+  const idx: number[] = []
+  const pts = ROAD.getSpacedPoints(200)
+  pts.forEach((p, i) => {
+    const t = ROAD.getTangentAt(i / (pts.length - 1))
+    const side = new THREE.Vector3(-t.z, 0, t.x)
+    const pa = p.clone().addScaledVector(side, a)
+    const pb = p.clone().addScaledVector(side, b)
+    pos.push(pa.x, y, pa.z, pb.x, y, pb.z)
+    if (i > 0) {
+      const k = i * 2
+      idx.push(k - 2, k - 1, k, k - 1, k + 1, k)
+    }
+  })
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setIndex(idx)
+  return g
+}
+
+/** Solid base colours under the sparse strokes: grass disc, sidewalks and asphalt. */
+function BaseColors() {
+  const walkL = useMemo(() => roadRibbon(ROAD_HALF, ROAD_HALF + WALK, 0.006), [])
+  const walkR = useMemo(() => roadRibbon(-ROAD_HALF - WALK, -ROAD_HALF, 0.006), [])
+  const road = useMemo(() => roadRibbon(-ROAD_HALF, ROAD_HALF, 0.01), [])
+  const side = THREE.DoubleSide
+  return (
+    <>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[16.5, 96]} />
+        <meshBasicMaterial color="#6aa977" />
+      </mesh>
+      <mesh geometry={walkL}>
+        <meshBasicMaterial color="#d5dad1" side={side} />
+      </mesh>
+      <mesh geometry={walkR}>
+        <meshBasicMaterial color="#d5dad1" side={side} />
+      </mesh>
+      <mesh geometry={road}>
+        <meshBasicMaterial color="#6f848b" side={side} />
+      </mesh>
+    </>
+  )
+}
+
 /** Sandbox for building geometry entirely out of brush strokes (Van Gogh test). */
 export default function StrokeLab() {
-  const all = useMemo(() => [...groundStrokes(), ...houseStrokes(), ...treeStrokes(), ...skyStrokes()], [])
+  const all = useMemo(() => [...groundStrokes(), ...roadStrokes(), ...houseStrokes(), ...treeStrokes(), ...bushStrokes(), ...vendingStrokes(), ...poleStrokes(), ...skyStrokes()], [])
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
       <Canvas
@@ -365,9 +687,10 @@ export default function StrokeLab() {
         gl={{ antialias: true }}
         onCreated={({ gl, scene }) => {
           gl.toneMapping = THREE.NoToneMapping
-          scene.background = new THREE.Color('#9fcfe0')
+          scene.background = new THREE.Color('#8fd0c8')
         }}
       >
+        <BaseColors />
         <Strokes strokes={all} />
         <OrbitControls target={[-1, 2, 0]} enableDamping />
       </Canvas>
