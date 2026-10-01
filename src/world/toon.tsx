@@ -1,13 +1,13 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 
-export const LINE_COLOR = '#4a3f35'
+export const LINE_COLOR = '#2c3437'
 
 let gradient: THREE.DataTexture | null = null
 function toonGradient() {
   if (!gradient) {
-    const data = new Uint8Array([110, 110, 110, 255, 165, 165, 165, 255, 215, 215, 215, 255, 255, 255, 255, 255])
-    gradient = new THREE.DataTexture(data, 4, 1, THREE.RGBAFormat)
+    const data = new Uint8Array([150, 150, 150, 255, 255, 255, 255, 255])
+    gradient = new THREE.DataTexture(data, 2, 1, THREE.RGBAFormat)
     gradient.minFilter = THREE.NearestFilter
     gradient.magFilter = THREE.NearestFilter
     gradient.generateMipmaps = false
@@ -90,7 +90,7 @@ interface ToonProps {
 /** A toon-shaded mesh with an inverted-hull, slightly wobbly charcoal outline. */
 export function Toon({ geometry, color, position, rotation, scale, outline = 0.06, radial = true, material, edges }: ToonProps) {
   const mat = useMemo(() => material ?? toonMaterial(color), [material, color])
-  const hull = outline * 0.42
+  const hull = outline * 0.55
   const line = useMemo(() => outlineMaterial(hull, radial), [hull, radial])
   const showEdges = edges ?? (outline > 0 && CREASED.has(geometry))
   return (
