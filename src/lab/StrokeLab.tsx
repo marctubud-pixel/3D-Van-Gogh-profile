@@ -476,27 +476,25 @@ function bushStrokes() {
       blob(s, r, c, br * (0.6 + r() * 0.4), BUSH, 300, 0.85)
     }
   }
-  // grass tufts: fans of upright blades
-  let placed = 0
-  for (let tries = 0; placed < 170 && tries < 3000; tries++) {
-    const a = r() * Math.PI * 2
-    const d = 2 + Math.sqrt(r()) * 13.5
-    const x = Math.cos(a) * d
-    const z = Math.sin(a) * d
-    if (!clearOfScene(x, z, 0.1)) continue
-    placed++
-    const blades = 9 + Math.floor(r() * 9)
-    const tall = 0.35 + r() * 0.4
-    for (let i = 0; i < blades; i++) {
-      const yaw = r() * Math.PI * 2
-      const out = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw))
-      const lean = (r() * 0.7 + 0.15) * 0.9
-      const dir = UP.clone().multiplyScalar(Math.cos(lean)).addScaledVector(out, Math.sin(lean))
-      const len = tall * (0.6 + r() * 0.6)
-      const n = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(-out.z, 0, out.x)).normalize()
-      if (n.y < 0) n.negate()
-      const p = new THREE.Vector3(x + out.x * 0.08, 0, z + out.z * 0.08).addScaledVector(dir, len / 2)
-      s.push({ p, n, dir, len, wid: 0.06 + r() * 0.04, color: shade(r, new THREE.Vector3(out.x, 0.6, out.z).normalize(), BLADE) })
+  // grass field: dense, near-upright blades on a jittered grid
+  const cell = 0.2
+  for (let gx = -16.5; gx < 16.5; gx += cell) {
+    for (let gz = -16.5; gz < 16.5; gz += cell) {
+      const x = gx + r() * cell
+      const z = gz + r() * cell
+      if (x * x + z * z > 16 * 16) continue
+      if (!clearOfScene(x, z, -0.05)) continue
+      const yaw = r() * Math.PI
+      const face = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw))
+      const lean = (r() - 0.5) * 0.25
+      const across = new THREE.Vector3(-face.z, 0, face.x)
+      const dir = rotateAbout(UP, face, lean)
+      const len = 0.22 + r() * 0.16
+      const n = new THREE.Vector3().crossVectors(across, dir).normalize()
+      const p = new THREE.Vector3(x, 0, z).addScaledVector(dir, len / 2)
+      const tone = r()
+      const ramp = tone < 0.55 ? BLADE.mid : tone < 0.85 ? BLADE.light : BLADE.dark
+      s.push({ p, n, dir, len, wid: 0.07 + r() * 0.03, color: new THREE.Color(pick(r, ramp)) })
     }
   }
   return s
