@@ -14,6 +14,7 @@ import { MapPage } from './navigation/MapPage'
 
 const Explore = lazy(() => import('./app/Explore'))
 const Admin = lazy(() => import('./admin/Admin'))
+const StrokeLab = lazy(() => import('./lab/StrokeLab'))
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -21,6 +22,7 @@ createRoot(document.getElementById('root')!).render(
       <Suspense fallback={<div className="loading">LOADING MY WORLD…</div>}>
         <Routes>
           <Route path="/admin/*" element={<Admin />} />
+          <Route path="/lab" element={<StrokeLab />} />
           <Route element={<ContentGate />}>
             <Route path="/" element={<Welcome />} />
             <Route path="/explore" element={<Explore />} />
