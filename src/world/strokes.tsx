@@ -74,6 +74,22 @@ export function rotateAbout(v: THREE.Vector3, axis: THREE.Vector3, a: number) {
   return v.clone().applyAxisAngle(axis, a)
 }
 
+/** Picture-plane helpers: a dab in a local XY plane facing +Z, and a cache for painted pictures. */
+const FACE = new THREE.Vector3(0, 0, 1)
+export function dab(x: number, y: number, z: number, a: number, len: number, wid: number, color: string): Stroke {
+  return { p: new THREE.Vector3(x, y, z), n: FACE, dir: new THREE.Vector3(Math.cos(a), Math.sin(a), 0), len, wid, color: new THREE.Color(color) }
+}
+
+const paintCache = new Map<string, Stroke[]>()
+export function painted(key: string, make: (r: () => number) => Stroke[]) {
+  let s = paintCache.get(key)
+  if (!s) {
+    s = make(rng(key.length * 977 + key.charCodeAt(0)))
+    paintCache.set(key, s)
+  }
+  return s
+}
+
 export function Strokes({ strokes }: { strokes: Stroke[] }) {
   const ref = useRef<THREE.InstancedMesh>(null)
   const geom = useMemo(() => new THREE.PlaneGeometry(1, 1), [])

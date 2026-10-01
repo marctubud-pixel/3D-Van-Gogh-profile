@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
-import { type Stroke, StrokePaint, pick, rng, useStrokeBuild } from '../world/strokes'
+import { type Stroke, StrokePaint, dab, painted, pick, useStrokeBuild } from '../world/strokes'
 import { Toon, geo } from '../world/toon'
 import {
   Bench,
@@ -722,7 +722,28 @@ function Awning({ x, w, y, z }: { x: number; w: number; y: number; z: number }) 
   )
 }
 
+function bookStrokes(w: number) {
+  return painted(`books:${w.toFixed(2)}`, (r) => {
+    const out: Stroke[] = []
+    const spines = ['#c7563f', '#3d6ea8', '#e3b24f', '#6f9a5a', '#8a5a9c', '#d98a5b', '#2f4a78', '#b9473a', '#f0e2c0']
+    const wood = ['#a8774a', '#93653d', '#b98957']
+    for (const y of [-0.85, -0.25, 0.35]) {
+      for (let x = -w / 2 + 0.06; x < w / 2 - 0.04; x += 0.13) out.push(dab(x + 0.04, y, 0.004, (r() - 0.5) * 0.08, 0.16, 0.06, pick(r, wood)))
+      let x = -w / 2 + 0.05
+      while (x < w / 2 - 0.05) {
+        const bw = 0.045 + r() * 0.035
+        const bh = 0.32 + r() * 0.16
+        const lean = r() < 0.12 ? (r() - 0.5) * 0.5 : (r() - 0.5) * 0.06
+        out.push(dab(x + bw / 2, y + 0.04 + bh / 2, 0.01 + r() * 0.004, Math.PI / 2 + lean, bh, bw * 1.1, pick(r, spines)))
+        x += bw + 0.012
+      }
+    }
+    return out
+  })
+}
+
 export function WriteHouse({ name }: { name: string }) {
+  const brushed = useStrokeBuild() !== null
   const title = textTex([name], 512, 96, { fg: '#34507c', weight: 800 })
   const wh = textTex(['WH'], 96, 96, { fg: '#f1ecdf', bg: '#34507c', weight: 700 })
   const books = booksTex()
@@ -752,17 +773,21 @@ export function WriteHouse({ name }: { name: string }) {
       ].map(([a, b]) => (
         <group key={a}>
           <Bx c="#f3f1ea" b={[a, b, 0.12, band, 1.1, F]} o={0.03} />
-          <Decal tex={tiles} p={[(a + b) / 2, band / 2 + 0.06, F + 0.01]} w={b - a} h={band - 0.1} />
+          {!brushed && <Decal tex={tiles} p={[(a + b) / 2, band / 2 + 0.06, F + 0.01]} w={b - a} h={band - 0.1} />}
         </group>
       ))}
       {sections.map(([a, b, sill], i) => (
         <group key={a}>
           <Bx c="#f3e2bf" b={[a, b, 0.12, band, 1.05, 1.1]} o={0} />
-          <Decal tex={books} p={[(a + b) / 2, 1.5, 1.12]} w={b - a - 0.1} h={1.8} />
+          {brushed ? (
+            <StrokePaint strokes={bookStrokes(b - a - 0.1)} position={[(a + b) / 2, 1.5, 1.135]} />
+          ) : (
+            <Decal tex={books} p={[(a + b) / 2, 1.5, 1.12]} w={b - a - 0.1} h={1.8} />
+          )}
           {sill > 0 && (
             <>
               <Bx c="#f3f1ea" b={[a, b, 0.12, sill, 1.1, F]} o={0.02} />
-              <Decal tex={tiles} p={[(a + b) / 2, sill / 2 + 0.06, F + 0.01]} w={b - a} h={sill - 0.06} />
+              {!brushed && <Decal tex={tiles} p={[(a + b) / 2, sill / 2 + 0.06, F + 0.01]} w={b - a} h={sill - 0.06} />}
             </>
           )}
           <Bx c={PAL.wood} b={[a + 0.25, b - 0.25, 0.8, 0.88, 1.2, 1.7]} o={0.01} />
@@ -786,7 +811,7 @@ export function WriteHouse({ name }: { name: string }) {
       ))}
       <Awning x={-2.1} w={2.1} y={band + 0.1} z={F} />
       <Awning x={0.4} w={2.0} y={band + 0.1} z={F} />
-      <Decal tex={title} p={[2.3, 2.98, F + 0.01]} w={2.3} h={0.45} />
+      <Decal tex={title} p={[2.2, 2.98, F + 0.01]} w={2.1} h={0.42} />
       <WallLamp p={[1.0, 3.15, F]} />
       <WallLamp p={[3.45, 3.15, F]} />
       <WallLamp p={[-3.35, 2.2, F]} />
@@ -963,21 +988,6 @@ function mapTex() {
 }
 
 /* Hand-painted panels: each picture is laid down dab by dab in its local XY plane. */
-
-const FACE = new THREE.Vector3(0, 0, 1)
-function dab(x: number, y: number, z: number, a: number, len: number, wid: number, color: string): Stroke {
-  return { p: new THREE.Vector3(x, y, z), n: FACE, dir: new THREE.Vector3(Math.cos(a), Math.sin(a), 0), len, wid, color: new THREE.Color(color) }
-}
-
-const paintCache = new Map<string, Stroke[]>()
-function painted(key: string, make: (r: () => number) => Stroke[]) {
-  let s = paintCache.get(key)
-  if (!s) {
-    s = make(rng(key.length * 977 + key.charCodeAt(0)))
-    paintCache.set(key, s)
-  }
-  return s
-}
 
 function clockStrokes() {
   return painted('clock', (r) => {

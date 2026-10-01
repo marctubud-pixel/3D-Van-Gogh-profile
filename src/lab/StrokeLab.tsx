@@ -2,7 +2,7 @@ import { OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
 import { useMemo } from 'react'
 import * as THREE from 'three'
-import { ServiceCenter } from '../locations/buildings'
+import { ServiceCenter, WriteHouse } from '../locations/buildings'
 import { LIGHT, StrokeBuild, type Stroke, Strokes, pick, rng, rotateAbout, shade } from '../world/strokes'
 
 const WALL = {
@@ -583,7 +583,7 @@ function BaseColors() {
 
 /** Sandbox for building geometry entirely out of brush strokes (Van Gogh test). */
 /** `/lab?b=service`: a real landmark rebuilt from strokes, for side-by-side checks. */
-function BuildingLab() {
+function BuildingLab({ which }: { which: string }) {
   const v = (new URLSearchParams(window.location.search).get('cam') ?? '9,6,14,0,2.5,0').split(',').map(Number)
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
@@ -600,7 +600,7 @@ function BuildingLab() {
           <meshBasicMaterial color="#6aa977" />
         </mesh>
         <StrokeBuild seed={11}>
-          <ServiceCenter />
+          {which === 'write' ? <WriteHouse name="WRITE HOUSE" /> : <ServiceCenter />}
         </StrokeBuild>
         <OrbitControls target={[v[3], v[4], v[5]]} enableDamping />
       </Canvas>
@@ -609,7 +609,8 @@ function BuildingLab() {
 }
 
 export default function StrokeLab() {
-  return new URLSearchParams(window.location.search).get('b') === 'service' ? <BuildingLab /> : <StreetLab />
+  const b = new URLSearchParams(window.location.search).get('b')
+  return b ? <BuildingLab which={b} /> : <StreetLab />
 }
 
 function StreetLab() {

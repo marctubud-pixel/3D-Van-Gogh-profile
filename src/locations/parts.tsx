@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
-import { useStrokeBuild } from '../world/strokes'
+import { type Stroke, StrokePaint, dab, painted, pick, rampFor, useStrokeBuild } from '../world/strokes'
 import { Toon, geo, toonMaterial } from '../world/toon'
 
 export type V3 = [number, number, number]
@@ -169,8 +169,29 @@ function mullionTex(cols: number, rows: number, color: string) {
  * Framed window facing +Z centred on `p`. `solid` paints an opaque glass tint (for panes on solid walls);
  * otherwise the pane is see-through into a recess.
  */
+function mullionStrokes(w: number, h: number, cols: number, rows: number, frame: string) {
+  return painted(`mullion:${w.toFixed(2)}:${h.toFixed(2)}:${cols}:${rows}:${frame}`, (r) => {
+    const out: Stroke[] = []
+    const ramp = rampFor(frame)
+    const pal = [...ramp.mid, ...ramp.dark.slice(0, 1)]
+    const line = (x0: number, y0: number, x1: number, y1: number) => {
+      const L = Math.hypot(x1 - x0, y1 - y0)
+      const n = Math.max(1, Math.round(L / 0.16))
+      const a = Math.atan2(y1 - y0, x1 - x0)
+      for (let k = 0; k < n; k++) {
+        const t = (k + 0.5) / n
+        out.push(dab(x0 + (x1 - x0) * t + (r() - 0.5) * 0.008, y0 + (y1 - y0) * t + (r() - 0.5) * 0.008, 0.002 + r() * 0.003, a + (r() - 0.5) * 0.08, (L / n) * 1.25, 0.035 + r() * 0.012, pick(r, pal)))
+      }
+    }
+    for (let i = 1; i < cols; i++) line(-w / 2 + (w * i) / cols, -h / 2, -w / 2 + (w * i) / cols, h / 2)
+    for (let j = 1; j < rows; j++) line(-w / 2, -h / 2 + (h * j) / rows, w / 2, -h / 2 + (h * j) / rows)
+    return out
+  })
+}
+
 export function Pane({ p, w, h, cols = 2, rows = 1, frame = PAL.navy, solid = false, r }: { p: V3; w: number; h: number; cols?: number; rows?: number; frame?: string; solid?: boolean; r?: V3 }) {
   const grid = mullionTex(cols, rows, frame)
+  const brushed = useStrokeBuild() !== null
   const t = 0.08
   return (
     <group position={p} rotation={r}>
@@ -181,10 +202,14 @@ export function Pane({ p, w, h, cols = 2, rows = 1, frame = PAL.navy, solid = fa
           <planeGeometry />
         </mesh>
       )}
-      <mesh position={[0, 0, 0.012]}>
-        <planeGeometry args={[w, h]} />
-        <meshBasicMaterial map={grid} transparent toneMapped={false} />
-      </mesh>
+      {brushed ? (
+        <StrokePaint strokes={mullionStrokes(w, h, cols, rows, frame)} position={[0, 0, 0.03]} />
+      ) : (
+        <mesh position={[0, 0, 0.012]}>
+          <planeGeometry args={[w, h]} />
+          <meshBasicMaterial map={grid} transparent toneMapped={false} />
+        </mesh>
+      )}
       <Bx c={frame} b={[-w / 2 - t, w / 2 + t, h / 2, h / 2 + t, -0.04, 0.05]} o={0} />
       <Bx c={frame} b={[-w / 2 - t, w / 2 + t, -h / 2 - t, -h / 2, -0.04, 0.05]} o={0} />
       <Bx c={frame} b={[-w / 2 - t, -w / 2, -h / 2, h / 2, -0.04, 0.05]} o={0} />

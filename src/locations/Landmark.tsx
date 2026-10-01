@@ -163,6 +163,9 @@ function Beacon({ active, height }: { active: boolean; height: number }) {
 
 const BEACON_HEIGHT: Record<string, number> = { observatory: 11, cinema: 10.5, arcade: 7.5, 'my-studio': 6.5 }
 
+/** Landmarks already rebuilt from brush strokes. */
+const STROKED = new Set(['print-house'])
+
 interface LandmarkProps {
   loc: WorldLocation
   active: boolean
@@ -181,7 +184,13 @@ export function Landmark({ loc, active }: LandmarkProps) {
     <>
       <group position={bPos} quaternion={buildingQ}>
         <group scale={BUILDING_SCALE}>
-          <BuildingBody loc={loc} />
+          {STROKED.has(loc.id) ? (
+            <StrokeBuild seed={loc.id.length * 31}>
+              <BuildingBody loc={loc} />
+            </StrokeBuild>
+          ) : (
+            <BuildingBody loc={loc} />
+          )}
         </group>
         <Beacon active={active} height={(BEACON_HEIGHT[loc.id] ?? 9) * BUILDING_SCALE} />
       </group>
