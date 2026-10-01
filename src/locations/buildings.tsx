@@ -9,7 +9,6 @@ import {
   Cypress,
   Decal,
   GableRoof,
-  HAND_FONT,
   PAL,
   Pane,
   Planter,
@@ -105,81 +104,64 @@ export function CreativeMuseum({ name }: { name: string }) {
   const title = useMemo(() => {
     const words = name.split(' ')
     const last = words.length > 1 ? words.pop()! : ''
-    return textTex(last ? [words.join(' '), last] : [name], 512, 180, { fg: PAL.navy, weight: 800 })
+    return textTex(last ? [words.join(' '), last] : [name], 640, 220, { fg: PAL.navy, weight: 800 })
   }, [name])
-  const bc = textTex(['B+C'], 256, 160, { fg: PAL.coral, stroke: PAL.navy, weight: 900 })
   const W = PAL.cream
-  const roof = (b: [number, number, number, number]) => (
-    <>
-      <Bx c={PAL.roofSlate} b={[b[0] + 0.12, b[1] - 0.12, b[3] - 0.02, b[3] + 0.04, b[2] + 0.12, 0]} o={0} />
-    </>
-  )
+  const wing = (sd: 1 | -1) => {
+    const x0 = sd * 2.8
+    const x1 = sd * 9.3
+    const lo = Math.min(x0, x1)
+    const hi = Math.max(x0, x1)
+    return (
+      <group key={sd}>
+        <Bx c={W} b={[lo, hi, 0.12, 4.6, -5.5, 2.2]} o={0.06} />
+        <Bx c={PAL.roofSlate} b={[lo + 0.15, hi - 0.15, 4.6, 4.68, -5.35, 2.05]} o={0} />
+        <Bx c="#e6dfcf" b={[lo - 0.05, hi + 0.05, 4.0, 4.2, 2.2, 2.32]} o={0.015} />
+        {[3.9, 6.05, 8.2].map((x) => (
+          <Pane key={x} p={[sd * x, 2.0, 2.21]} w={1.3} h={2.6} cols={2} rows={2} solid />
+        ))}
+        {[4.98, 7.13].map((x, i) => (
+          <Artwork key={x} p={[sd * x, 2.1, 2.24]} seed={(sd > 0 ? 2 : 0) + i} s={1.2} />
+        ))}
+        <Bx c={sd > 0 ? PAL.teal : PAL.coral} b={[sd * 3.05 - 0.22, sd * 3.05 + 0.22, 1.2, 3.8, 2.2, 2.24]} o={0} />
+        <Planter p={[sd * 6.05, 0.12, 2.75]} w={4.6} d={0.55} />
+        <Cypress p={[sd * 9.7, 0.12, 2.6]} h={3.6} />
+        <Cypress p={[sd * 9.7, 0.12, -1.5]} h={3.2} />
+      </group>
+    )
+  }
   return (
     <group>
-      {/* paving */}
-      <Bx c="#efe9dc" b={[-3.8, 3.8, -0.4, 0.12, -3.2, 3.4]} o={0.03} />
-      {/* left wing */}
-      <Bx c={W} b={[-3.7, -2.0, 0.1, 2.9, -3.0, 1.8]} o={0.06} />
-      <Bx c={PAL.roofSlate} b={[-3.55, -2.15, 2.9, 2.96, -2.85, 1.65]} o={0} />
-      <Pane p={[-2.85, 1.25, 1.81]} w={1.4} h={1.9} cols={2} solid />
-      <Artwork p={[-3.2, 1.35, 1.84]} seed={0} />
-      <Artwork p={[-2.5, 1.2, 1.84]} seed={1} s={0.8} />
-      <Pane p={[-1.99, 1.25, 0.1]} w={2.8} h={1.9} cols={4} solid r={[0, Math.PI / 2, 0]} />
-      <Artwork p={[-1.96, 1.4, -0.6]} seed={2} r={[0, Math.PI / 2, 0]} />
-      <Artwork p={[-1.96, 1.4, 0.8]} seed={3} r={[0, Math.PI / 2, 0]} />
-      {/* right wing, projecting further forward */}
-      <Bx c={W} b={[2.0, 3.7, 0.1, 3.15, -3.0, 2.5]} o={0.06} />
-      <Bx c={PAL.roofSlate} b={[2.15, 3.55, 3.15, 3.21, -2.85, 2.35]} o={0} />
-      <Bx c={W} b={[2.0, 3.7, 0.1, 0.35, 2.5, 3.0]} o={0.02} />
-      <Pane p={[2.85, 1.3, 2.51]} w={1.4} h={2.0} cols={2} solid />
-      <Artwork p={[3.2, 1.4, 2.54]} seed={1} />
-      <Toon geometry={geo.sphere} color="#cfc8b8" position={[2.5, 1.0, 2.55]} scale={[0.22, 0.6, 0.18]} outline={0.015} radial={false} />
-      <Bx c={PAL.stone} b={[2.35, 2.65, 0.3, 0.7, 2.45, 2.65]} o={0.01} />
-      <Pane p={[1.99, 1.3, 0.2]} w={2.8} h={2.0} cols={4} solid r={[0, -Math.PI / 2, 0]} />
-      <Artwork p={[1.96, 1.4, 0.4]} seed={3} r={[0, -Math.PI / 2, 0]} />
-      {/* back wing with colonnade facing the courtyard */}
-      <Bx c={W} b={[-2.0, 2.0, 0.1, 2.7, -3.0, -1.7]} o={0.05} />
-      <Bx c={PAL.roofSlate} b={[-1.9, 1.9, 2.7, 2.76, -2.9, -1.6]} o={0} />
-      <Bx c={W} b={[-2.0, 2.0, 2.45, 2.7, -1.7, -1.1]} o={0.02} />
-      <Pane p={[0, 1.2, -1.69]} w={3.6} h={1.9} cols={5} solid />
-      {[-1.5, 1.5].map((x, i) => (
-        <Artwork key={x} p={[x * 0.55, 1.3, -1.66]} seed={i + 2} />
+      <Bx c="#efe9dc" b={[-10, 10, -0.4, 0.12, -6.2, 3.8]} o={0.03} />
+      {/* back hall */}
+      <Bx c={W} b={[-2.8, 2.8, 0.12, 5.4, -5.5, 0.5]} o={0.05} />
+      <Bx c={PAL.roofSlate} b={[-2.65, 2.65, 5.4, 5.48, -5.35, 0.4]} o={0} />
+      {wing(-1)}
+      {wing(1)}
+      {/* grand portal */}
+      <Bx c={W} b={[-2.8, 2.8, 0.12, 6.4, 0.5, 3.0]} o={0.06} />
+      <Bx c="#e6dfcf" b={[-2.95, 2.95, 6.4, 6.65, 0.35, 3.15]} o={0.02} />
+      <Bx c={PAL.roofSlate} b={[-2.7, 2.7, 6.65, 6.72, 0.5, 3.0]} o={0} />
+      <Bx c="#f5e6c4" b={[-1.7, 1.7, 0.12, 4.3, 2.9, 2.95]} o={0} />
+      <Pane p={[0, 2.2, 2.97]} w={3.2} h={4.1} cols={4} rows={3} />
+      <Bx c={PAL.navy} b={[-1.25, 1.25, 0.12, 3.5, 2.98, 3.04]} o={0} />
+      <Bx c="#9cc5cf" b={[-1.1, -0.06, 0.25, 3.35, 3.04, 3.05]} o={0} />
+      <Bx c="#9cc5cf" b={[0.06, 1.1, 0.25, 3.35, 3.04, 3.05]} o={0} />
+      <Bx c={PAL.gold} b={[-0.2, -0.14, 1.3, 2.1, 3.05, 3.09]} o={0} />
+      <Bx c={PAL.gold} b={[0.14, 0.2, 1.3, 2.1, 3.05, 3.09]} o={0} />
+      <Decal tex={title} p={[0, 5.35, 3.01]} w={4.8} h={1.6} />
+      {[-2.3, 2.3].map((x) => (
+        <Toon key={x} geometry={geo.cyl} color={W} position={[x, 2.25, 3.3]} scale={[0.36, 4.3, 0.36]} outline={0.02} />
       ))}
-      {[-1.8, -0.6, 0.6, 1.8].map((x) => (
-        <Toon key={x} geometry={geo.cyl} color={W} position={[x, 1.3, -1.2]} scale={[0.14, 2.4, 0.14]} outline={0.015} />
-      ))}
-      {roof([0, 0, 0, 0])}
-      {/* courtyard: sculpture, tree, bench, planters */}
-      <Bx c="#f4f0e6" b={[-2.0, 2.0, 0.12, 0.14, -1.7, 2.4]} o={0} />
-      <Bx c="#d8d0bf" b={[-0.7, 0.7, 0.14, 0.2, -0.3, 1.0]} o={0.015} />
-      <Bx c={PAL.stone} b={[-0.35, 0.35, 0.2, 0.5, 0.05, 0.65]} o={0.02} />
-      <Toon geometry={torusGeo} color="#e7e2d6" position={[0, 1.05, 0.35]} scale={[0.9, 1.2, 0.9]} outline={0.03} radial={false} />
-      <Tree p={[0.9, 0.12, -0.6]} s={0.8} />
-      <Bench p={[-1.1, 0.12, 0.9]} yaw={0.4} w={1.0} />
-      <Planter p={[-1.5, 0.12, -1.0]} w={0.6} d={0.5} />
-      <Planter p={[1.5, 0.12, 1.4]} w={0.6} d={0.5} />
-      {/* entrance portal */}
-      <Bx c={W} b={[-1.95, -0.9, 0.12, 3.55, 2.3, 2.85]} o={0.05} />
-      <Bx c={W} b={[0.9, 1.95, 0.12, 3.55, 2.3, 2.85]} o={0.05} />
-      <Bx c={W} b={[-0.9, 0.9, 2.5, 3.55, 2.3, 2.85]} o={0.04} />
-      <Decal tex={title} p={[0, 3.05, 2.86]} w={2.9} h={1.0} />
-      <Bx c={PAL.coral} b={[-1.7, -1.15, 0.5, 2.1, 2.85, 2.87]} o={0} />
-      <Bx c={PAL.teal} b={[1.15, 1.7, 0.5, 2.1, 2.85, 2.87]} o={0} />
-      <Decal tex={bc} p={[1.96, 1.4, 2.55]} w={0.8} h={0.5} r={[0, Math.PI / 2, 0]} />
-      <WallLamp p={[-1.4, 2.35, 2.86]} />
-      <WallLamp p={[1.4, 2.35, 2.86]} />
-      <Steps x={[-1.2, 1.2]} z0={2.85} n={2} rise={0.07} run={0.3} c="#ebe4d4" />
-      {/* planting */}
-      <Planter p={[-2.9, 0.12, 2.5]} w={1.4} d={0.7} />
-      <Planter p={[-0.9, 0.12, 3.15]} w={0.9} d={0.5} />
-      <Planter p={[1.35, 0.12, 3.15]} w={0.6} d={0.5} />
-      <Planter p={[2.85, 0.12, 3.25]} w={1.5} d={0.5} />
-      <Tree p={[-1.4, 0.6, 3.15]} s={0.45} />
-      <Tree p={[1.35, 0.6, 3.15]} s={0.4} />
-      <Cypress p={[-3.8, 0.12, 1.6]} h={2.8} />
-      <Cypress p={[3.85, 0.12, 2.9]} h={2.8} />
-      <Cypress p={[3.85, 0.12, -0.6]} h={2.4} />
-      <Bush p={[-3.5, 0.3, 2.9]} s={0.5} c={PAL.leafDark} />
+      <Bx c="#e6dfcf" b={[-2.75, 2.75, 4.4, 4.6, 2.95, 3.6]} o={0.02} />
+      <WallLamp p={[-1.95, 3.6, 3.0]} />
+      <WallLamp p={[1.95, 3.6, 3.0]} />
+      <Steps x={[-2.0, 2.0]} z0={3.0} n={3} rise={0.04} run={0.25} c="#ebe4d4" />
+      {/* forecourt sculpture */}
+      <Bx c={PAL.stone} b={[-0.35, 0.35, 0.12, 0.5, -2.0, -1.4]} o={0.02} />
+      <Toon geometry={torusGeo} color="#e7e2d6" position={[0, 1.05, -1.7]} scale={[0.9, 1.2, 0.9]} outline={0.03} radial={false} />
+      <Tree p={[-2.4, 0.12, 3.5]} s={0.5} />
+      <Tree p={[2.4, 0.12, 3.5]} s={0.5} />
     </group>
   )
 }
@@ -188,25 +170,7 @@ export function CreativeMuseum({ name }: { name: string }) {
 /* MARC CINEMA — Art Deco stepped tower, rounded drum, lit marquee     */
 
 function marqueeTex(name: string) {
-  return canvasTex(`marquee:${name}`, 640, 160, (g) => {
-    g.fillStyle = '#f3ecd9'
-    g.fillRect(0, 0, 640, 160)
-    for (let y = 70; y < 160; y += 18) {
-      g.fillStyle = '#e4dcc6'
-      g.fillRect(0, y, 640, 2)
-    }
-    g.fillStyle = '#b8483b'
-    g.fillRect(0, 0, 640, 58)
-    g.font = '800 42px "Trebuchet MS", Arial, sans-serif'
-    g.textAlign = 'center'
-    g.textBaseline = 'middle'
-    g.fillStyle = '#fbf3e4'
-    g.fillText(name, 320, 31)
-    g.fillStyle = '#2b3a4d'
-    g.font = '800 34px "Courier New", monospace'
-    g.fillText('GOOD STORIES', 320, 88)
-    g.fillText('BRIGHTER PEOPLE', 320, 132)
-  })
+  return textTex([name], 640, 160, { fg: '#fbf3e4', bg: '#b8483b', weight: 800 })
 }
 
 function posterTex(kind: 'sun' | 'sail') {
@@ -248,7 +212,6 @@ export function Cinema({ name }: { name: string }) {
   const W = PAL.cream
   const N = PAL.navy
   const marquee = marqueeTex(name)
-  const mc = textTex(['MC'], 128, 96, { fg: '#56606a', weight: 800 })
   const fins: [number, number, number][] = [
     [0, 0.9, 3.3],
     [-0.72, 0.5, 2.5],
@@ -261,7 +224,20 @@ export function Cinema({ name }: { name: string }) {
   const drumWindows = [-0.9, -0.45, 0, 0.45, 0.9]
   return (
     <group>
-      <Bx c="#ece5d4" b={[-3.8, 3.8, -0.4, 0.1, -3.1, 3.7]} o={0.03} />
+      <Bx c="#ece5d4" b={[-8.8, 8.8, -0.4, 0.1, -3.1, 3.7]} o={0.03} />
+      {/* gabled side halls */}
+      {[-1, 1].map((sd) => (
+        <group key={sd} position={[sd * 6.0, 0.1, -0.3]}>
+          <Toon geometry={gableGeo(4.6, 3.0, 1.6, 4.6)} color={W} outline={0.05} edges />
+          <GableRoof w={4.6} h={3.0} ridge={1.6} d={4.6} c="#3d5f8f" trim={N} />
+          <Pane p={[-1.2, 1.5, 2.31]} w={1.1} h={1.5} cols={2} rows={2} solid />
+          <Pane p={[1.2, 1.5, 2.31]} w={1.1} h={1.5} cols={2} rows={2} solid />
+          <Bx c={N} b={[-0.45, 0.45, 0, 2.0, 2.3, 2.36]} o={0} />
+          <Bx c="#9cc5cf" b={[-0.38, 0.38, 0.08, 1.9, 2.36, 2.37]} o={0} />
+          <Pane p={[0, 3.6, 2.31]} w={0.7} h={0.7} cols={2} rows={2} solid />
+          <Planter p={[sd * 1.6, 0, 2.75]} w={1.2} d={0.5} flowers={sd > 0 ? '#f4efe0' : PAL.coral} />
+        </group>
+      ))}
       {/* side wings */}
       <Bx c={W} b={[-3.5, -1.9, 0.1, 3.2, -2.7, 2.2]} o={0.06} />
       <Bx c={N} b={[-3.55, -1.85, 3.2, 3.32, -2.75, 2.25]} o={0.015} />
@@ -296,7 +272,6 @@ export function Cinema({ name }: { name: string }) {
           <Bx c={N} b={[x - w / 2 - 0.03, x + w / 2 + 0.03, 5.9 + h, 5.98 + h, -0.43, 0.93]} o={0} />
         </group>
       ))}
-      <Decal tex={mc} p={[0, 8.35, 0.91]} w={0.6} h={0.45} />
       <Pane p={[0, 7.3, 0.91]} w={0.35} h={1.0} cols={1} rows={2} solid />
       {/* marquee */}
       <Bx c={W} b={[-2.8, 2.8, 2.6, 3.95, 2.2, 3.15]} o={0.04} />
@@ -340,8 +315,8 @@ export function Cinema({ name }: { name: string }) {
       <Cypress p={[-3.2, 0.1, 3.3]} h={2.0} />
       <Cypress p={[-2.3, 0.1, 3.35]} h={2.4} />
       <Cypress p={[2.4, 0.1, 3.35]} h={2.3} />
-      <Tree p={[-3.9, 0.1, 1.2]} s={0.8} />
-      <Tree p={[3.8, 0.1, 0.8]} s={0.75} />
+      <Tree p={[-8.9, 0.1, 2.9]} s={0.75} />
+      <Tree p={[8.9, 0.1, 2.9]} s={0.7} />
       <Bush p={[3.4, 0.35, 3.3]} s={0.45} c={PAL.leafDark} />
     </group>
   )
@@ -383,9 +358,9 @@ function DeskScene({ p, w }: { p: [number, number, number]; w: number }) {
 export function ExperimentLab({ name }: { name: string }) {
   const W = '#ece6d6'
   const N = '#28508c'
-  const exp = textTex(['EXP.'], 320, 128, { fg: N, stroke: '#1b3560', weight: 900 })
+  const exp = textTex(['EXP.'], 320, 128, { fg: N, weight: 800 })
   const motto = textTex(['PLAY TEST', 'FAIL LEARN', 'REPEAT'], 360, 240, { fg: '#40587a', weight: 800, align: 'left' })
-  const sign = textTex([name], 512, 96, { fg: '#f1ecdf', bg: N, border: '#a9b7c8', weight: 700 })
+  const sign = textTex([name], 512, 96, { fg: '#f1ecdf', bg: N, border: '#a9b7c8', weight: 800 })
   const P = '#646f78'
   return (
     <group>
@@ -487,7 +462,7 @@ export function Arcade({ name }: { name: string }) {
   const B = '#2a5bd0'
   const BD = '#2149a8'
   const N = '#1f2f55'
-  const sign = textTex([name], 640, 160, { fg: '#f7d24a', bg: '#d4452f', border: '#f08a3a', stroke: '#6b1f16', weight: 900 })
+  const sign = textTex([name], 640, 160, { fg: '#f7d24a', bg: '#d4452f', border: '#f08a3a', weight: 800 })
   const play = canvasTex('arcade:play', 96, 160, (g) => {
     g.fillStyle = '#f6f3ea'
     g.fillRect(0, 0, 96, 160)
@@ -502,7 +477,6 @@ export function Arcade({ name }: { name: string }) {
     g.textAlign = 'center'
     g.fillText('PLAY', 48, 96)
   })
-  const my = textTex(['MY', 'GAME'], 96, 96, { fg: '#f1ecdf', bg: N, weight: 700 })
   const run = 0.26
   return (
     <group>
@@ -534,7 +508,6 @@ export function Arcade({ name }: { name: string }) {
         <Decal tex={play} p={[0, 0, 0.06]} w={0.55} h={0.92} />
         <Decal tex={play} p={[0, 0, -0.06]} w={0.55} h={0.92} r={[0, Math.PI, 0]} />
       </group>
-      <Decal tex={my} p={[-1.08, 1.2, 2.21]} w={0.3} h={0.3} />
       <WallLamp p={[-0.75, 1.5, 2.2]} c="#2a2f38" />
       <WallLamp p={[3.05, 1.5, 2.2]} c="#2a2f38" />
       <Toon geometry={geo.cyl} color={N} position={[-1.15, 1.6, 1.8]} scale={[0.1, 3.0, 0.1]} outline={0} />
@@ -596,25 +569,6 @@ export function Arcade({ name }: { name: string }) {
 
 export function Observatory({ name }: { name: string }) {
   const sign = textTex([name], 512, 96, { fg: '#f1ecdf', bg: '#34507c', border: '#9fb2c9', weight: 800 })
-  const obs = canvasTex('obs:badge', 128, 128, (g) => {
-    g.fillStyle = '#efe8d6'
-    g.beginPath()
-    g.arc(64, 64, 60, 0, Math.PI * 2)
-    g.fill()
-    g.strokeStyle = '#34507c'
-    g.lineWidth = 6
-    g.stroke()
-    g.fillStyle = '#34507c'
-    g.font = '800 30px Arial, sans-serif'
-    g.textAlign = 'center'
-    g.fillText('OBS.', 64, 92)
-    g.beginPath()
-    g.moveTo(64, 22)
-    g.lineTo(70, 46)
-    g.lineTo(64, 58)
-    g.lineTo(58, 46)
-    g.fill()
-  })
   const T = 0.75
   const DR = 2.2
   const railPts = Array.from({ length: 15 }, (_, i) => {
@@ -667,7 +621,6 @@ export function Observatory({ name }: { name: string }) {
       <Decal tex={sign} p={[0, T + 2.47, DR + 0.21]} w={2.0} h={0.4} />
       <WallLamp p={[-0.6, T + 2.95, DR + 0.05]} />
       <WallLamp p={[0.6, T + 2.95, DR + 0.05]} />
-      <Decal tex={obs} p={[1.45 * 1.08, T + 1.3, 1.62 * 1.08]} w={0.6} h={0.6} r={[0, 0.73, 0]} />
       <Pot p={[-1.0, T, DR + 0.4]} s={0.75} />
       <Pot p={[1.0, T, DR + 0.4]} s={0.75} />
       {/* annex with rooftop telescope */}
@@ -794,7 +747,7 @@ function bookStrokes(w: number) {
 
 export function WriteHouse({ name }: { name: string }) {
   const brushed = useStrokeBuild() !== null
-  const title = textTex([name], 512, 128, { fg: '#34507c', weight: 700, font: HAND_FONT })
+  const title = textTex([name], 512, 128, { fg: '#34507c', weight: 800 })
   const books = booksTex()
   const tiles = tileMaterialTex()
   const H = 3.4
@@ -888,8 +841,6 @@ export function Studio({ name }: { name: string }) {
   const MINT = '#aee0d0'
   const T = '#1d6f8c'
   const sign = textTex([name], 384, 96, { fg: T, bg: '#f4efe0', border: PAL.wood, weight: 800 })
-  const ms = textTex(['MS'], 128, 128, { fg: T, weight: 800 })
-  const hobby = textTex(['HOBBY', 'STUDIO.'], 128, 96, { fg: '#f1ecdf', bg: '#2e4a66', weight: 600 })
   const blind = canvasTex('blind', 256, 64, (g) => {
     for (let x = 0; x < 256; x += 6) {
       g.fillStyle = x % 12 ? '#b58b56' : '#9c7443'
@@ -941,7 +892,6 @@ export function Studio({ name }: { name: string }) {
       <Decal tex={sign} p={[-2.1, deckY + 2.5, 1.27]} w={1.75} h={0.44} />
       <WallLamp p={[-2.1, deckY + 3.05, 1.2]} c="#2a2f38" />
       <WallLamp p={[-3.1, deckY + 1.9, 1.2]} c="#2a2f38" />
-      <Decal tex={hobby} p={[-3.1, deckY + 1.3, 1.21]} w={0.4} h={0.3} />
       {[-2.3, -1.9].map((x) => (
         <Pane key={x} p={[x, deckY + 3.1, 1.21]} w={0.25} h={0.35} cols={1} frame={T} solid />
       ))}
@@ -969,7 +919,6 @@ export function Studio({ name }: { name: string }) {
           <Toon geometry={geo.cone} color="#2a2f38" scale={[0.25, 0.18, 0.25]} outline={0} />
         </group>
       ))}
-      <Decal tex={ms} p={[3.51, deckY + 1.5, -0.6]} w={0.6} h={0.6} r={[0, Math.PI / 2, 0]} />
       <Pane p={[3.51, deckY + 1.5, -1.9]} w={1.0} h={0.35} cols={2} frame={T} solid r={[0, Math.PI / 2, 0]} />
       {/* planting */}
       <Planter p={[-3.1, deckY, 1.6]} w={0.7} d={0.4} />
@@ -1183,7 +1132,7 @@ function ShutterWindow({ p }: { p: [number, number, number] }) {
 
 export function ServiceCenter() {
   const W = '#f2ecdf'
-  const sign = textTex(['ISLAND SERVICE CENTER'], 512, 64, { fg: '#f1ecdf', bg: '#2f4a78', border: '#c9d2dc', weight: 700 })
+  const sign = textTex(['ISLAND SERVICE CENTER'], 512, 64, { fg: '#f1ecdf', bg: '#2f4a78', border: '#c9d2dc', weight: 800 })
   const welcome = textTex(['WELCOME TO', 'MARC ISLAND'], 384, 160, { fg: '#2f4a78', weight: 800 })
   const about = textTex(['ABOUT MARC'], 192, 48, { fg: '#2f4a78', weight: 800 })
   const guide = textTex(['ISLAND GUIDE'], 192, 48, { fg: '#2f4a78', weight: 800 })

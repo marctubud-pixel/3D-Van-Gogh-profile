@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { R, SERVICE_CENTER, dirFromLatLon, surfaceQuaternion } from './sphere'
-import { BRIDGE, ROUTE_LEN, ROUTE_S, locationAnchors, routeFrame, routePoint, surf } from './island'
+import { BRIDGE, ROUTE_LEN, ROUTE_S, landmarkBlockers, routeFrame, routePoint, surf } from './island'
 import { LINE_COLOR, Toon, geo } from './toon'
 
 interface Spot {
@@ -101,10 +101,7 @@ function Wires({ tops }: { tops: THREE.Vector3[] }) {
 /** Street furniture along the island road: utility poles with wires, bridge bollards, vending machines. */
 export function StreetProps({ locations }: { locations: WorldLocation[] }) {
   const layout = useMemo(() => {
-    const blockers = locations.flatMap((l) => {
-      const a = locationAnchors(l.lat, l.lon)
-      return [a.building, a.parking]
-    })
+    const blockers = locations.flatMap(landmarkBlockers)
     blockers.push(dirFromLatLon(SERVICE_CENTER.lat, SERVICE_CENTER.lon))
     const plaza = dirFromLatLon(0, 0)
     const free = (d: THREE.Vector3, r: number) => d.angleTo(plaza) * R > 8 && blockers.every((b) => b.angleTo(d) * R > r)

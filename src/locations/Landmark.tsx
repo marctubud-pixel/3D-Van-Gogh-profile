@@ -3,7 +3,7 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { playerUp } from '../world/occlusion'
-import { BUILDING_SCALE, R, SERVICE_CENTER, surfaceQuaternion } from '../world/sphere'
+import { BUILDING_SCALE, LANDMARK_FIT, R, SERVICE_CENTER, landmarkSetback, surfaceQuaternion } from '../world/sphere'
 import { locationAnchors, surf } from '../world/island'
 import { Toon, geo, toonMaterial } from '../world/toon'
 import { StrokeBuild } from '../world/strokes'
@@ -172,7 +172,8 @@ interface LandmarkProps {
 }
 
 export function Landmark({ loc, active }: LandmarkProps) {
-  const a = useMemo(() => locationAnchors(loc.lat, loc.lon), [loc.lat, loc.lon])
+  const a = useMemo(() => locationAnchors(loc.lat, loc.lon, loc.id), [loc.lat, loc.lon, loc.id])
+  const fit = LANDMARK_FIT[loc.id]?.scale ?? 1
   const buildingQ = useMemo(() => surfaceQuaternion(a.building, a.facing), [a])
   const parkingQ = useMemo(() => surfaceQuaternion(a.parking, a.facing), [a])
   const bPos = surf(a.building)
@@ -183,7 +184,7 @@ export function Landmark({ loc, active }: LandmarkProps) {
   return (
     <>
       <group position={bPos} quaternion={buildingQ}>
-        <group scale={BUILDING_SCALE}>
+        <group position={[0, 0, -landmarkSetback(loc.id)]} scale={BUILDING_SCALE * fit}>
           {STROKED.has(loc.id) ? (
             <StrokeBuild seed={loc.id.length * 31}>
               <BuildingBody loc={loc} />
@@ -192,7 +193,7 @@ export function Landmark({ loc, active }: LandmarkProps) {
             <BuildingBody loc={loc} />
           )}
         </group>
-        <Beacon active={active} height={(BEACON_HEIGHT[loc.id] ?? 9) * BUILDING_SCALE} />
+        <Beacon active={active} height={(BEACON_HEIGHT[loc.id] ?? 9) * BUILDING_SCALE * fit} />
       </group>
       {loc.parking && (
         <group position={pPos} quaternion={parkingQ}>

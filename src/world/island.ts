@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { BUILDING_RADIUS, R, dirFromLatLon, moveToward, type LocationAnchors } from './sphere'
+import { BUILDING_RADIUS, BUILDING_SCALE, LANDMARK_FIT, R, dirFromLatLon, landmarkSetback, moveToward, type LocationAnchors } from './sphere'
 
 /** Control points (lat, lon) of the island loop road: plaza → landmarks → observatory hill → back down to the plaza. */
 const CTRL: [number, number][] = [
@@ -189,7 +189,7 @@ export function surf(d: THREE.Vector3, lift = 0) {
 export const TITLE_CENTER = { lat: -34, lon: 112 }
 
 /** Building, door, road-side stop and side-of-building parking for a landmark at (lat, lon). */
-export function locationAnchors(lat: number, lon: number): LocationAnchors {
+export function locationAnchors(lat: number, lon: number, id = ''): LocationAnchors {
   const building = dirFromLatLon(lat, lon)
   const hit = nearestOnRoute(building)
   const road = ROUTE[hit.i].clone()
@@ -202,8 +202,33 @@ export function locationAnchors(lat: number, lon: number): LocationAnchors {
   const toward = ROUTE_TAN[hit.i].dot(along) < 0 ? 1 : -1
   const parking = door
     .clone()
-    .addScaledVector(along, (toward * 2.6) / R)
+    .addScaledVector(along, (toward * (LANDMARK_FIT[id]?.park ?? 2.6)) / R)
     .addScaledVector(facing, 0.5 / R)
     .normalize()
   return { building, road, parking, door, facing }
+}
+
+/** Collision circles covering a landmark's footprint (one circle unless the model is wider than deep). */
+export function landmarkColliders(a: LocationAnchors, id: string) {
+  const f = LANDMARK_FIT[id]
+  if (!f) return [{ at: a.building, r: BUILDING_RADIUS }]
+  const k = BUILDING_SCALE * f.scale
+  const front = f.front * BUILDING_SCALE
+  const back = f.back * k + landmarkSetback(id)
+  const hw = f.halfWidth * k
+  const r = (front + back) / 2
+  const mid = (front - back) / 2
+  const side = new THREE.Vector3().crossVectors(a.building, a.facing).normalize()
+  const span = Math.max(0, hw - r)
+  const n = span > 0 ? Math.ceil((span * 2) / (r * 1.2)) + 1 : 1
+  return Array.from({ length: n }, (_, i) => {
+    const x = n === 1 ? 0 : -span + (span * 2 * i) / (n - 1)
+    return { at: a.building.clone().addScaledVector(a.facing, mid / R).addScaledVector(side, x / R).normalize(), r }
+  })
+}
+
+/** Points other scenery keeps clear of: footprint centres plus the bike stand. */
+export function landmarkBlockers(l: { id: string; lat: number; lon: number }) {
+  const a = locationAnchors(l.lat, l.lon, l.id)
+  return [a.building, a.parking, ...landmarkColliders(a, l.id).map((c) => c.at)]
 }

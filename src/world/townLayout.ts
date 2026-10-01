@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { R, SERVICE_CENTER, dirFromLatLon } from './sphere'
-import { BRIDGE, ROUTE, ROUTE_S, landValue, locationAnchors, nearestOnRoute, routeFrame, routePoint } from './island'
+import { BRIDGE, ROUTE, ROUTE_S, landValue, landmarkBlockers, nearestOnRoute, routeFrame, routePoint } from './island'
 
 export type TownKind = 'house' | 'shop' | 'apartment' | 'gable' | 'garden'
 
@@ -43,10 +43,7 @@ const KINDS: TownKind[] = ['house', 'shop', 'gable', 'shop', 'house', 'apartment
 /** Sparse low-rise houses along the first stretch of road, skipping landmarks, plaza and coast. */
 export function townLots(locations: WorldLocation[]): TownLot[] {
   const rand = rng(99)
-  const blockers = locations.flatMap((l) => {
-    const a = locationAnchors(l.lat, l.lon)
-    return [a.building, a.parking]
-  })
+  const blockers = locations.flatMap(landmarkBlockers)
   blockers.push(dirFromLatLon(SERVICE_CENTER.lat, SERVICE_CENTER.lon), dirFromLatLon(0, 0))
   const lots: TownLot[] = []
   const bridgeS: [number, number] = [ROUTE_S[BRIDGE.a] - 6, ROUTE_S[BRIDGE.b] + 6]

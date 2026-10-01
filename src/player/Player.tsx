@@ -6,7 +6,7 @@ import { inputLocked, useGame } from '../app/game'
 import { Bike } from '../bike/Bike'
 import { CAMERA } from '../camera/config'
 import { BUILDING_RADIUS, SERVICE_CENTER, R, arcDistance, dirFromLatLon, latLonFromDir, slerpDir, surfaceQuaternion } from '../world/sphere'
-import { TITLE_CENTER, locationAnchors, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
+import { TITLE_CENTER, landmarkColliders, locationAnchors, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
 import { camFocus, playerUp } from '../world/occlusion'
 import { LOT_RADIUS, townLots } from '../world/townLayout'
 import { Avatar } from './Avatar'
@@ -56,10 +56,10 @@ function advance(b: Body, dist: number, yaw: number) {
 
 export function Player({ locations }: { locations: WorldLocation[] }) {
   const { camera, gl } = useThree()
-  const anchors = useMemo(() => locations.map((l) => ({ loc: l, ...locationAnchors(l.lat, l.lon) })), [locations])
+  const anchors = useMemo(() => locations.map((l) => ({ loc: l, ...locationAnchors(l.lat, l.lon, l.id) })), [locations])
   const colliders = useMemo(
     () => [
-      ...anchors.map((a) => ({ at: a.building, r: BUILDING_RADIUS })),
+      ...anchors.flatMap((a) => landmarkColliders(a, a.loc.id)),
       { at: locationAnchors(SERVICE_CENTER.lat, SERVICE_CENTER.lon).building, r: SERVICE_CENTER.radius },
       ...townLots(locations)
         .filter((l) => l.kind !== 'garden')

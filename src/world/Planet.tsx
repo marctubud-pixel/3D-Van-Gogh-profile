@@ -14,7 +14,7 @@ import {
   groundHeight,
   hillHeight,
   landValue,
-  locationAnchors,
+  landmarkBlockers,
   nearestOnRoute,
   routeFrame,
   routePoint,
@@ -236,10 +236,7 @@ function islandSample(rand: () => number, spread = 24) {
 
 function useBlockers(locations: WorldLocation[]) {
   return useMemo(() => {
-    const b = locations.flatMap((l) => {
-      const a = locationAnchors(l.lat, l.lon)
-      return [a.building, a.parking]
-    })
+    const b = locations.flatMap(landmarkBlockers)
     return {
       buildings: b,
       service: dirFromLatLon(SERVICE_CENTER.lat, SERVICE_CENTER.lon),

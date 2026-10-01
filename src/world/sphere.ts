@@ -56,5 +56,21 @@ export interface LocationAnchors {
 export const BUILDING_SCALE = 1.6
 export const BUILDING_RADIUS = 3.3 * BUILDING_SCALE
 
+/**
+ * Per-landmark fit in model units: extra `scale`, `front` face depth (kept on the street line),
+ * `halfWidth`/`back` footprint, and `park` offset (world units) of the bike stand beside the door.
+ */
+export const LANDMARK_FIT: Record<string, { scale: number; front: number; back: number; halfWidth: number; park: number }> = {
+  'brand-museum': { scale: 1, front: 3.4, back: 6.2, halfWidth: 10, park: 5.4 },
+  cinema: { scale: 1.15, front: 3.7, back: 3.1, halfWidth: 8.8, park: 4.6 },
+  observatory: { scale: 1.45, front: 4, back: 4, halfWidth: 4.2, park: 3.6 },
+}
+
+/** World-space distance a landmark model is pushed back so its enlarged frontage stays on the street line. */
+export function landmarkSetback(id: string) {
+  const f = LANDMARK_FIT[id]
+  return f ? f.front * BUILDING_SCALE * (f.scale - 1) : 0
+}
+
 /** ISLAND SERVICE CENTER beside the starting plaza (static, not CMS-driven). */
 export const SERVICE_CENTER = { lat: 0, lon: -17.5, radius: 7 } as const
