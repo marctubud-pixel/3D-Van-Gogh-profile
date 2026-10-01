@@ -6,6 +6,7 @@ import { useGame } from '../app/game'
 import { CAMERA } from '../camera/config'
 import { Landmark, ServiceCenterSite } from '../locations/Landmark'
 import { Player } from '../player/Player'
+import { BrushPass } from './brush'
 import { Planet } from './Planet'
 import { Sky } from './Sky'
 import { StreetProps } from './StreetProps'
@@ -83,6 +84,7 @@ export function World({ locations, onError }: { locations: WorldLocation[]; onEr
         ))}
         <ServiceCenterSite />
         <Player locations={locations} />
+        <BrushPass />
       </Canvas>
     </WorldBoundary>
   )

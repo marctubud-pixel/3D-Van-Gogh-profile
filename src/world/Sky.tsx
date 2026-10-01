@@ -1,6 +1,7 @@
 import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { BRUSH, STROKE_GLSL } from './brush'
 
 const vertex = /* glsl */ `
 varying vec3 vDir;
@@ -13,6 +14,8 @@ void main() {
 
 const fragment = /* glsl */ `
 uniform vec3 up;
+uniform float brush;
+${STROKE_GLSL}
 uniform float time;
 varying vec3 vDir;
 float hash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
@@ -36,6 +39,13 @@ void main() {
   float c2 = step(0.68, n * band + 0.06);
   col = mix(col, vec3(0.70, 0.90, 0.86), c1 * 0.85);
   col = mix(col, vec3(0.84, 0.96, 0.92), c2);
+  if (brush > 0.5) {
+    vec2 sp = vec2(atan(d.z, d.x) * 22.0, h * 30.0);
+    vec2 k = dabs(sp + vec2(time * 0.05, 0.0), 0.35);
+    vec3 lit = mix(col * 1.18 + vec3(0.06, 0.05, -0.02), vec3(0.98, 0.93, 0.70), 0.18);
+    vec3 dk = col * vec3(0.72, 0.82, 1.0);
+    col = mix(col, k.y > 0.0 ? mix(col, lit, k.y) : mix(col, dk, -k.y), k.x);
+  }
   gl_FragColor = vec4(col, 1.0);
 }
 `
@@ -46,7 +56,7 @@ export function Sky() {
   const mat = useMemo(
     () =>
       new THREE.ShaderMaterial({
-        uniforms: { up: { value: new THREE.Vector3(0, 1, 0) }, time: { value: 0 } },
+        uniforms: { up: { value: new THREE.Vector3(0, 1, 0) }, time: { value: 0 }, brush: { value: BRUSH ? 1 : 0 } },
         vertexShader: vertex,
         fragmentShader: fragment,
         side: THREE.BackSide,

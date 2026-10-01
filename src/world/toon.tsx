@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
+import { BRUSH } from './brush'
 
-export const LINE_COLOR = '#2c3437'
+export const LINE_COLOR = BRUSH ? '#1f2d5a' : '#2c3437'
 
 let gradient: THREE.DataTexture | null = null
 function toonGradient() {
@@ -90,7 +91,7 @@ interface ToonProps {
 /** A toon-shaded mesh with an inverted-hull, slightly wobbly charcoal outline. */
 export function Toon({ geometry, color, position, rotation, scale, outline = 0.06, radial = true, material, edges }: ToonProps) {
   const mat = useMemo(() => material ?? toonMaterial(color), [material, color])
-  const hull = outline * 0.55
+  const hull = outline * (BRUSH ? 0.9 : 0.55)
   const line = useMemo(() => outlineMaterial(hull, radial), [hull, radial])
   const showEdges = edges ?? (outline > 0 && CREASED.has(geometry))
   return (
