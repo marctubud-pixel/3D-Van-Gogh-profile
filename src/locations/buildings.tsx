@@ -225,36 +225,32 @@ export function Cinema({ name }: { name: string }) {
   return (
     <group>
       <Bx c="#ece5d4" b={[-8.8, 8.8, -0.4, 0.1, -3.1, 3.7]} o={0.03} />
-      {/* gabled side halls */}
-      {[-1, 1].map((sd) => (
-        <group key={sd} position={[sd * 6.0, 0.1, -0.3]}>
-          <Toon geometry={gableGeo(4.6, 3.0, 1.6, 4.6)} color={W} outline={0.05} edges />
-          <GableRoof w={4.6} h={3.0} ridge={1.6} d={4.6} c="#3d5f8f" trim={N} />
-          <Pane p={[-1.2, 1.5, 2.31]} w={1.1} h={1.5} cols={2} rows={2} solid />
-          <Pane p={[1.2, 1.5, 2.31]} w={1.1} h={1.5} cols={2} rows={2} solid />
-          <Bx c={N} b={[-0.45, 0.45, 0, 2.0, 2.3, 2.36]} o={0} />
-          <Bx c="#9cc5cf" b={[-0.38, 0.38, 0.08, 1.9, 2.36, 2.37]} o={0} />
-          <Pane p={[0, 3.6, 2.31]} w={0.7} h={0.7} cols={2} rows={2} solid />
-          <Planter p={[sd * 1.6, 0, 2.75]} w={1.2} d={0.5} flowers={sd > 0 ? '#f4efe0' : PAL.coral} />
-        </group>
-      ))}
-      {/* side wings */}
-      <Bx c={W} b={[-3.5, -1.9, 0.1, 3.2, -2.7, 2.2]} o={0.06} />
-      <Bx c={N} b={[-3.55, -1.85, 3.2, 3.32, -2.75, 2.25]} o={0.015} />
-      <Bx c={W} b={[1.9, 3.3, 0.1, 3.0, -2.7, 2.2]} o={0.06} />
-      <Bx c={N} b={[1.85, 3.35, 3.0, 3.12, -2.75, 2.25]} o={0.015} />
-      {[-3.2, -2.3].map((x) => (
-        <Bx key={x} c={N} b={[x - 0.08, x + 0.08, 0.9, 2.2, 2.2, 2.23]} o={0} />
-      ))}
-      {[2.3, 3.0].map((x) => (
-        <Bx key={x} c={N} b={[x - 0.08, x + 0.08, 0.9, 2.2, 2.2, 2.23]} o={0} />
-      ))}
-      <Bx c="#7d8893" b={[-3.3, -2.5, 3.32, 3.9, -2.2, -1.2]} o={0.02} />
-      <Bx c="#7d8893" b={[2.2, 3.0, 3.12, 3.7, -2.0, -1.0]} o={0.02} />
-      <Rail pts={[[-3.45, 2.1], [-3.45, -2.6], [-1.95, -2.6]]} y={3.32} h={0.45} />
-      <Rail pts={[[3.25, 2.1], [3.25, -2.6], [1.95, -2.6]]} y={3.12} h={0.45} />
-      <Vines p={[-2.4, 3.2, 2.24]} w={0.6} len={1.4} />
-      <Vines p={[3.0, 3.0, 2.24]} w={0.5} len={1.2} />
+      {/* flat-roofed deco wings joined to the hall */}
+      {[-1, 1].map((sd) => {
+        const lo = sd > 0 ? 2.4 : -8.4
+        const hi = sd > 0 ? 8.4 : -2.4
+        const out = sd > 0 ? hi : lo
+        const mid = (lo + hi) / 2 - sd * 0.45
+        return (
+          <group key={sd}>
+            <Bx c={W} b={[lo, hi, 0.1, 3.6, -2.8, 1.6]} o={0.06} />
+            <Bx c={N} b={[lo - 0.05, hi + 0.05, 3.6, 3.72, -2.85, 1.65]} o={0.015} />
+            <Bx c={W} b={[sd > 0 ? 2.4 : -5.8, sd > 0 ? 5.8 : -2.4, 3.72, 4.5, -2.6, 0.7]} o={0.05} />
+            <Bx c={N} b={[sd > 0 ? 2.35 : -5.85, sd > 0 ? 5.85 : -2.35, 4.5, 4.6, -2.65, 0.75]} o={0.015} />
+            <Bx c={N} b={[lo, hi, 1.78, 1.88, 1.6, 1.66]} o={0} />
+            <Pane p={[mid, 2.7, 1.62]} w={hi - lo - 2.0} h={0.75} cols={7} rows={1} solid />
+            <Pane p={[mid, 0.95, 1.62]} w={hi - lo - 2.0} h={1.2} cols={5} rows={1} solid />
+            <Bx c={W} b={[Math.min(out, out - sd * 1.0), Math.max(out, out - sd * 1.0), 0.1, 5.2, -2.9, 1.9]} o={0.06} />
+            <Bx c={N} b={[Math.min(out, out - sd * 1.0) - 0.05, Math.max(out, out - sd * 1.0) + 0.05, 5.2, 5.32, -2.95, 1.95]} o={0.015} />
+            <Bx c={W} b={[Math.min(out - sd * 0.2, out - sd * 0.8), Math.max(out - sd * 0.2, out - sd * 0.8), 5.32, 5.9, -1.0, 1.5]} o={0.04} />
+            {[0.25, 0.5, 0.75].map((f) => {
+              const x = out - sd * f
+              return <Bx key={f} c={N} b={[x - 0.05, x + 0.05, 0.8, 4.9, 1.9, 1.95]} o={0} />
+            })}
+            <Planter p={[mid, 0.1, 2.15]} w={2.2} d={0.5} flowers={sd > 0 ? '#f4efe0' : PAL.coral} />
+          </group>
+        )
+      })}
       {/* central mass */}
       <Bx c={W} b={[-2.4, 2.4, 0.1, 4.6, -2.8, 1.0]} o={0.06} />
       <Bx c={N} b={[-2.45, 2.45, 4.6, 4.7, -2.85, 1.0]} o={0.015} />
@@ -273,16 +269,31 @@ export function Cinema({ name }: { name: string }) {
         </group>
       ))}
       <Pane p={[0, 7.3, 0.91]} w={0.35} h={1.0} cols={1} rows={2} solid />
-      {/* marquee */}
-      <Bx c={W} b={[-2.8, 2.8, 2.6, 3.95, 2.2, 3.15]} o={0.04} />
-      <Bx c={N} b={[-2.85, 2.85, 3.95, 4.05, 2.15, 3.2]} o={0.015} />
-      <Bx c={N} b={[-2.9, 2.9, 2.5, 2.62, 2.15, 3.3]} o={0.015} />
-      <Decal tex={marquee} p={[0, 3.28, 3.16]} w={5.2} h={1.3} />
+      {/* name sign standing on the marquee */}
+      <Bx c={N} b={[-2.6, 2.6, 3.5, 4.55, 2.45, 2.75]} o={0.02} />
+      <Decal tex={marquee} p={[0, 4.02, 2.76]} w={4.9} h={0.92} />
+      {/* marquee canopy with blank letter boards */}
+      <Bx c="#b8483b" b={[-2.9, 2.9, 2.45, 3.5, 2.2, 3.4]} o={0.04} />
+      <Bx c={N} b={[-2.95, 2.95, 3.42, 3.52, 2.15, 3.45]} o={0.015} />
+      <Bx c={N} b={[-2.95, 2.95, 2.4, 2.5, 2.15, 3.45]} o={0.015} />
+      <Bx c="#f6f1e2" b={[-2.6, 2.6, 2.62, 3.3, 3.4, 3.5]} o={0} />
+      {[2.84, 3.07].map((y) => (
+        <Bx key={y} c="#c9bfa8" b={[-2.5, 2.5, y - 0.012, y + 0.012, 3.5, 3.56]} o={0} />
+      ))}
+      {[-1, 1].map((sd) => (
+        <Bx key={sd} c="#f6f1e2" b={[sd * 2.9 - 0.06, sd * 2.9 + 0.06, 2.62, 3.3, 2.45, 3.2]} o={0} />
+      ))}
       {Array.from({ length: 11 }, (_, i) => (
-        <mesh key={i} position={[-2.5 + i * 0.5, 2.48, 3.15]}>
-          <sphereGeometry args={[0.07, 8, 6]} />
-          <meshBasicMaterial color="#ffd978" toneMapped={false} />
-        </mesh>
+        <group key={i}>
+          <mesh position={[-2.5 + i * 0.5, 2.53, 3.5]}>
+            <sphereGeometry args={[0.06, 8, 6]} />
+            <meshBasicMaterial color="#ffd978" toneMapped={false} />
+          </mesh>
+          <mesh position={[-2.5 + i * 0.5, 4.48, 2.78]}>
+            <sphereGeometry args={[0.06, 8, 6]} />
+            <meshBasicMaterial color="#ffd978" toneMapped={false} />
+          </mesh>
+        </group>
       ))}
       {/* lobby: recessed glazing, doors, posters */}
       <Bx c={W} b={[-1.9, -1.15, 0.1, 2.6, 1.0, 2.2]} o={0.04} />
@@ -603,7 +614,12 @@ export function Observatory({ name }: { name: string }) {
             <Bx c={PAL.gold} b={[0.42, 0.5, DR + 0.12, DR + 0.24, -0.2, 0.2]} o={0} />
           </group>
         ))}
-        <Toon geometry={geo.cyl} color="#f2efe6" position={[0, 1.75, 0.95]} rotation={[0.75, 0, 0]} scale={[0.36, 1.1, 0.36]} outline={0.02} />
+        <group rotation={[0.72, 0, 0]}>
+          <Toon geometry={geo.cyl} color="#f2efe6" position={[0, 2.25, 0]} scale={[0.7, 2.9, 0.7]} outline={0.03} />
+          <Toon geometry={geo.cyl} color={PAL.gold} position={[0, 3.55, 0]} scale={[0.8, 0.22, 0.8]} outline={0.015} />
+          <Toon geometry={geo.cyl} color="#1c2433" position={[0, 3.68, 0]} scale={[0.62, 0.05, 0.62]} outline={0} />
+          <Toon geometry={geo.cyl} color="#3f5f8f" position={[0, 1.2, 0]} scale={[0.85, 0.5, 0.85]} outline={0.015} />
+        </group>
       </group>
       {windows.map((a) => (
         <group key={a} position={[(DR + 0.01) * Math.sin(a), T + 1.4, (DR + 0.01) * Math.cos(a)]} rotation={[0, a, 0]}>
@@ -814,7 +830,6 @@ export function WriteHouse({ name }: { name: string }) {
       <Awning x={-2.1} w={2.1} y={band + 0.1} z={F} />
       <Awning x={0.4} w={2.0} y={band + 0.1} z={F} />
       <Decal tex={title} p={[2.2, 2.98, F + 0.01]} w={2.1} h={0.52} />
-      <WallLamp p={[1.0, 3.15, F]} />
       <WallLamp p={[3.45, 3.15, F]} />
       <WallLamp p={[-3.35, 2.2, F]} />
       <Vines p={[-3.2, H, F + 0.02]} w={0.9} len={0.9} />

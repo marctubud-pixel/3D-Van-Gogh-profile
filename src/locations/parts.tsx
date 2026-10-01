@@ -142,7 +142,7 @@ function letterStrokes(l: Lettering, w: number, h: number) {
     drawText(g, l.lines, l.w, l.h, l.o, false)
     const px = g.getImageData(0, 0, l.w, l.h).data
     const ink = (x: number, y: number) => x >= 0 && y >= 0 && x < l.w && y < l.h && px[(y * l.w + x) * 4 + 3] > 120
-    const step = Math.max(2, Math.round(l.h / l.lines.length / 20))
+    const step = Math.max(2, Math.round(l.h / l.lines.length / 18))
     const sx = w / l.w
     const sy = h / l.h
     const out: Stroke[] = []
@@ -160,10 +160,10 @@ function letterStrokes(l: Lettering, w: number, h: number) {
         const i = (jy * l.w + jx) * 4
         col.setRGB(px[i] / 255, px[i + 1] / 255, px[i + 2] / 255, THREE.SRGBColorSpace)
         tint.set(r() < 0.5 ? '#ffffff' : '#1c2a44')
-        col.lerp(tint, r() * 0.14)
+        col.lerp(tint, r() * 0.08)
         const a = (hr >= vr ? 0 : Math.PI / 2) + (r() - 0.5) * 0.35
-        const len = step * (1.5 + r() * 0.6)
-        const wid = step * (1.15 + r() * 0.3)
+        const len = step * (1.7 + r() * 0.5)
+        const wid = step * (1.1 + r() * 0.2)
         const k = Math.abs(Math.cos(a)) * sx + Math.abs(Math.sin(a)) * sy
         out.push(dab((jx - l.w / 2) * sx, (l.h / 2 - jy) * sy, 0.004 + r() * 0.004, a, len * k, wid * k, `#${col.getHexString(THREE.SRGBColorSpace)}`))
       }
