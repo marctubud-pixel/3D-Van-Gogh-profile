@@ -164,7 +164,7 @@ function Beacon({ active, height }: { active: boolean; height: number }) {
 const BEACON_HEIGHT: Record<string, number> = { observatory: 11, cinema: 10.5, arcade: 7.5, 'my-studio': 6.5 }
 
 /** Landmarks already rebuilt from brush strokes. */
-const STROKED = new Set(['print-house'])
+const STROKED = new Set(['print-house', 'brand-museum', 'cinema', 'arcade', 'experiment-lab', 'my-studio', 'observatory'])
 
 interface LandmarkProps {
   loc: WorldLocation

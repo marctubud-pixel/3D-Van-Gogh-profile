@@ -51,19 +51,39 @@ export function Bx({ c, b, o = 0.03, e, r, material }: { c: string; b: Bounds; o
 
 const texCache = new Map<string, THREE.CanvasTexture>()
 /** Cached canvas texture; `draw` receives a context sized w×h pixels. */
-export function canvasTex(key: string, w: number, h: number, draw: (g: CanvasRenderingContext2D) => void) {
+export function canvasTex(key: string, w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, ready?: Promise<void>) {
   let t = texCache.get(key)
   if (!t) {
     const c = document.createElement('canvas')
     c.width = w
     c.height = h
-    draw(c.getContext('2d')!)
-    t = new THREE.CanvasTexture(c)
-    t.colorSpace = THREE.SRGBColorSpace
-    t.anisotropy = 4
-    texCache.set(key, t)
+    const g = c.getContext('2d')!
+    draw(g)
+    const tex = new THREE.CanvasTexture(c)
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.anisotropy = 4
+    ready?.then(() => {
+      g.clearRect(0, 0, w, h)
+      draw(g)
+      tex.needsUpdate = true
+    })
+    texCache.set(key, tex)
+    t = tex
   }
   return t
+}
+
+/** Bundled handwriting face for painted signage. */
+export const HAND_FONT = '"MarcHand", "Segoe Print", "Bradley Hand", cursive'
+let handReady: Promise<void> | null = null
+function loadHand() {
+  handReady ??= new FontFace('MarcHand', 'url(/fonts/Caveat.ttf)')
+    .load()
+    .then((f) => {
+      document.fonts.add(f)
+    })
+    .catch(() => {})
+  return handReady
 }
 
 interface TextOpts {
@@ -78,6 +98,7 @@ interface TextOpts {
 
 /** Multi-line lettering texture; lines share the vertical space evenly. */
 export function textTex(lines: string[], w: number, h: number, o: TextOpts) {
+  const ready = o.font === HAND_FONT ? loadHand() : undefined
   return canvasTex(`t:${lines.join('|')}:${w}:${h}:${JSON.stringify(o)}`, w, h, (g) => {
     if (o.bg) {
       g.fillStyle = o.bg
@@ -111,7 +132,7 @@ export function textTex(lines: string[], w: number, h: number, o: TextOpts) {
       g.fillStyle = o.fg
       g.fillText(line, x, y)
     })
-  })
+  }, ready)
 }
 
 /** Flat textured quad facing +Z. */

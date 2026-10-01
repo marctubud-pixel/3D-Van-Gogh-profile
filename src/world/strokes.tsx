@@ -202,12 +202,25 @@ function paintGeometry(out: Stroke[], r: () => number, g: THREE.BufferGeometry, 
       v = 1 - v
     }
     const p = a.clone().addScaledVector(e1.subVectors(b, a), u).addScaledVector(e2.subVectors(c, a), v)
-    p.addScaledVector(n, 0.008 + r() * 0.02)
+    const lift = 0.008 + r() * 0.02
     const dir = UP.clone().addScaledVector(n, -n.y)
     if (dir.lengthSq() < 0.04) dir.set(1, 0, 0).addScaledVector(n, -n.x)
     dir.normalize()
     const swirl = rotateAbout(dir, n, (r() - 0.5) * 0.5)
-    out.push({ p, n, dir: swirl, len: s * (0.7 + r() * 0.6), wid: s * 0.36 * (0.7 + r() * 0.6), color: shade(r, n, ramp) })
+    let len = s * (0.7 + r() * 0.6)
+    const wid = s * 0.36 * (0.7 + r() * 0.6)
+    for (const ax of ['x', 'y', 'z'] as const) {
+      const half = (len / 2) * Math.abs(swirl[ax]) + (wid / 2) * Math.sqrt(Math.max(0, 1 - swirl[ax] ** 2 - n[ax] ** 2))
+      const lo = box.min[ax] + half
+      const hi = box.max[ax] - half
+      if (lo <= hi) p[ax] = THREE.MathUtils.clamp(p[ax], lo, hi)
+      else {
+        p[ax] = (box.min[ax] + box.max[ax]) / 2
+        if (Math.abs(swirl[ax]) > 0.3) len = Math.min(len, (size[ax] / Math.abs(swirl[ax])) * 0.95)
+      }
+    }
+    p.addScaledVector(n, lift)
+    out.push({ p, n, dir: swirl, len, wid, color: shade(r, n, ramp) })
   }
   if (!outline) return
   const centre = box.getCenter(new THREE.Vector3())

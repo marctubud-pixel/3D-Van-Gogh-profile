@@ -2,7 +2,7 @@ import { OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
 import { useMemo } from 'react'
 import * as THREE from 'three'
-import { ServiceCenter, WriteHouse } from '../locations/buildings'
+import { Arcade, Cinema, CreativeMuseum, ExperimentLab, Observatory, ServiceCenter, Studio, WriteHouse } from '../locations/buildings'
 import { LIGHT, StrokeBuild, type Stroke, Strokes, pick, rng, rotateAbout, shade } from '../world/strokes'
 
 const WALL = {
@@ -600,7 +600,23 @@ function BuildingLab({ which }: { which: string }) {
           <meshBasicMaterial color="#6aa977" />
         </mesh>
         <StrokeBuild seed={11}>
-          {which === 'write' ? <WriteHouse name="WRITE HOUSE" /> : <ServiceCenter />}
+          {which === 'write' ? (
+            <WriteHouse name="WRITE HOUSE" />
+          ) : which === 'brand' ? (
+            <CreativeMuseum name="BRAND & CREATIVE MUSEUM" />
+          ) : which === 'cinema' ? (
+            <Cinema name="MARC CINEMA" />
+          ) : which === 'arcade' ? (
+            <Arcade name="ARCADE" />
+          ) : which === 'lab' ? (
+            <ExperimentLab name="EXPERIMENT LAB" />
+          ) : which === 'studio' ? (
+            <Studio name="MY STUDIO" />
+          ) : which === 'observatory' ? (
+            <Observatory name="OBSERVATORY" />
+          ) : (
+            <ServiceCenter />
+          )}
         </StrokeBuild>
         <OrbitControls target={[v[3], v[4], v[5]]} enableDamping />
       </Canvas>

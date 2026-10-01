@@ -9,6 +9,7 @@ import {
   Cypress,
   Decal,
   GableRoof,
+  HAND_FONT,
   PAL,
   Pane,
   Planter,
@@ -49,7 +50,51 @@ function paintingTex(seed: number) {
   })
 }
 
+function paintingStrokes(seed: number) {
+  return painted(`painting:${'#'.repeat(seed + 1)}`, (r) => {
+    const out: Stroke[] = []
+    const cols = ['#e2836a', '#5f9aa6', '#e7b957', '#2f4a78']
+    const W = 0.55
+    const H = 0.73
+    for (let y = -H / 2 + 0.05; y < H / 2 - 0.04; y += 0.05)
+      for (let x = -W / 2 + 0.05; x < W / 2 - 0.04; x += 0.07)
+        out.push(dab(x + (r() - 0.5) * 0.02, y, 0.004, (r() - 0.5) * 0.6, 0.09, 0.05, pick(r, ['#f4efe2', '#efe6d2', '#f7f2e6'])))
+    const cy = 0.12 - (seed % 3) * 0.06
+    for (let k = 0; k < 26; k++) {
+      const a = r() * Math.PI * 2
+      const rr = Math.sqrt(r())
+      out.push(dab(Math.cos(a) * rr * 0.16, cy + Math.sin(a) * rr * 0.12, 0.01, a + Math.PI / 2, 0.08, 0.045, pick(r, [cols[seed % 4], cols[seed % 4], '#f0d9a8'])))
+    }
+    for (let x = -W / 2 + 0.04; x < W / 2 - 0.02; x += 0.045) {
+      const t = (x + W / 2) / W
+      const top = -H / 2 + 0.12 + Math.sin(t * Math.PI + seed) * 0.08 + 0.06
+      for (let y = -H / 2 + 0.05; y < top; y += 0.05)
+        out.push(dab(x, y, 0.014, (r() - 0.5) * 0.5, 0.08, 0.045, pick(r, [cols[(seed + 1) % 4], cols[(seed + 1) % 4], '#ffffff'])))
+    }
+    const edge = (x0: number, y0: number, x1: number, y1: number) => {
+      const L = Math.hypot(x1 - x0, y1 - y0)
+      const n = Math.round(L / 0.09)
+      for (let k = 0; k < n; k++) {
+        const t = (k + 0.5) / n
+        out.push(dab(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 0.018, Math.atan2(y1 - y0, x1 - x0) + (r() - 0.5) * 0.1, (L / n) * 1.3, 0.035, pick(r, ['#2f4a78', '#34507c', '#24395e'])))
+      }
+    }
+    edge(-W / 2, -H / 2, W / 2, -H / 2)
+    edge(-W / 2, H / 2, W / 2, H / 2)
+    edge(-W / 2, -H / 2, -W / 2, H / 2)
+    edge(W / 2, -H / 2, W / 2, H / 2)
+    return out
+  })
+}
+
 function Artwork({ p, seed, s = 1, r }: { p: [number, number, number]; seed: number; s?: number; r?: [number, number, number] }) {
+  const brushed = useStrokeBuild() !== null
+  if (brushed)
+    return (
+      <group position={p} rotation={r} scale={s}>
+        <StrokePaint strokes={paintingStrokes(seed)} position={[0, 0, 0.02]} />
+      </group>
+    )
   return <Decal tex={paintingTex(seed)} p={p} w={0.55 * s} h={0.73 * s} r={r} />
 }
 
@@ -199,6 +244,7 @@ function posterTex(kind: 'sun' | 'sail') {
 }
 
 export function Cinema({ name }: { name: string }) {
+  const brushed = useStrokeBuild() !== null
   const W = PAL.cream
   const N = PAL.navy
   const marquee = marqueeTex(name)
@@ -279,7 +325,11 @@ export function Cinema({ name }: { name: string }) {
       {[-1.52, 1.52].map((x, i) => (
         <group key={x}>
           <Bx c={N} b={[x - 0.32, x + 0.32, 0.55, 1.85, 2.2, 2.24]} o={0} />
-          <Decal tex={posterTex(i ? 'sail' : 'sun')} p={[x, 1.2, 2.25]} w={0.54} h={1.18} />
+          {brushed ? (
+            <StrokePaint strokes={i ? sailStrokes() : sunStrokes()} position={[x, 1.2, 2.26]} />
+          ) : (
+            <Decal tex={posterTex(i ? 'sail' : 'sun')} p={[x, 1.2, 2.25]} w={0.54} h={1.18} />
+          )}
         </group>
       ))}
       {/* planting */}
@@ -744,8 +794,7 @@ function bookStrokes(w: number) {
 
 export function WriteHouse({ name }: { name: string }) {
   const brushed = useStrokeBuild() !== null
-  const title = textTex([name], 512, 96, { fg: '#34507c', weight: 800 })
-  const wh = textTex(['WH'], 96, 96, { fg: '#f1ecdf', bg: '#34507c', weight: 700 })
+  const title = textTex([name], 512, 128, { fg: '#34507c', weight: 700, font: HAND_FONT })
   const books = booksTex()
   const tiles = tileMaterialTex()
   const H = 3.4
@@ -811,11 +860,10 @@ export function WriteHouse({ name }: { name: string }) {
       ))}
       <Awning x={-2.1} w={2.1} y={band + 0.1} z={F} />
       <Awning x={0.4} w={2.0} y={band + 0.1} z={F} />
-      <Decal tex={title} p={[2.2, 2.98, F + 0.01]} w={2.1} h={0.42} />
+      <Decal tex={title} p={[2.2, 2.98, F + 0.01]} w={2.1} h={0.52} />
       <WallLamp p={[1.0, 3.15, F]} />
       <WallLamp p={[3.45, 3.15, F]} />
       <WallLamp p={[-3.35, 2.2, F]} />
-      <Decal tex={wh} p={[-3.35, 1.6, F + 0.01]} w={0.34} h={0.34} />
       <Vines p={[-3.2, H, F + 0.02]} w={0.9} len={0.9} />
       <Vines p={[3.62, H, F - 0.3]} w={0.5} len={2.2} />
       <Bush p={[-2.9, H + 0.2, F - 0.3]} s={0.4} />
@@ -1051,6 +1099,30 @@ function sailStrokes() {
     }
     for (let k = 0; k < 4; k++) out.push(dab(0.045, -0.02 + k * 0.1, 0.022, Math.PI / 2 + (r() - 0.5) * 0.06, 0.12, 0.018, '#3a2f2a'))
     for (let x = -0.17; x < 0.17; x += 0.06) out.push(dab(x, -0.075 + (r() - 0.5) * 0.01, 0.024, (r() - 0.5) * 0.15, 0.08, 0.045, pick(r, ['#b8483b', '#a33f34', '#c4564a'])))
+    return out
+  })
+}
+
+function sunStrokes() {
+  return painted('sunposter', (r) => {
+    const out: Stroke[] = []
+    const W = 0.25
+    const sky = ['#f5ecdc', '#f1e2c8', '#f8f1e4', '#efd9bf']
+    const sea = ['#3c6fae', '#4a7fbe', '#335f99', '#5b8fc8']
+    for (let y = -0.55; y < 0.56; y += 0.045)
+      for (let x = -W + 0.04; x < W - 0.03; x += 0.07) {
+        const wet = y < -0.12
+        out.push(dab(x + (r() - 0.5) * 0.03, y + (r() - 0.5) * 0.02, 0.002 + r() * 0.005, (wet ? Math.sin(x * 18) * 0.25 : 0) + (r() - 0.5) * 0.2, 0.09 + r() * 0.03, 0.045 + r() * 0.012, pick(r, wet ? sea : sky)))
+      }
+    const sun = ['#e8715a', '#ee7c60', '#f08a6c', '#e98a4f']
+    for (let ring = 0.03; ring < 0.17; ring += 0.035)
+      for (let t = 0; t < Math.PI; t += 0.09 / Math.max(ring, 0.05))
+        out.push(dab(Math.cos(t) * ring, -0.1 + Math.sin(t) * ring, 0.014, t + Math.PI / 2 + (r() - 0.5) * 0.2, 0.06, 0.04, pick(r, sun)))
+    for (let k = 0; k < 7; k++) {
+      const t = 0.25 + (k / 6) * (Math.PI - 0.5)
+      out.push(dab(Math.cos(t) * 0.22, -0.1 + Math.sin(t) * 0.22, 0.016, t, 0.06, 0.018, '#f0a35e'))
+    }
+    for (let i = 0; i < 10; i++) out.push(dab(-0.2 + r() * 0.4, -0.2 - r() * 0.3, 0.012, (r() - 0.5) * 0.3, 0.06, 0.018, '#dbe8f2'))
     return out
   })
 }
