@@ -25,17 +25,18 @@ float fbm(vec3 p) { float v = 0.0; float a = 0.5; for (int i = 0; i < 5; i++) { 
 void main() {
   vec3 d = normalize(vDir);
   float h = dot(d, normalize(up));
-  vec3 top = vec3(0.39, 0.71, 0.72);
-  vec3 horizon = vec3(0.62, 0.86, 0.82);
-  vec3 col = mix(horizon, top, smoothstep(-0.05, 0.7, h));
+  vec3 top = vec3(0.42, 0.66, 0.70);
+  vec3 horizon = vec3(0.94, 0.80, 0.62);
+  vec3 col = mix(horizon, top, smoothstep(-0.02, 0.6, h));
+  col = mix(col, vec3(0.99, 0.88, 0.72), smoothstep(0.12, -0.08, h) * 0.55);
   // brush-stroke streak clouds: stretched noise, hard thresholds
   vec3 q = d * vec3(1.3, 3.6, 1.3) + vec3(time * 0.006, 0.0, 0.0);
   float n = fbm(q + fbm(q * 1.7) * 0.9);
   float band = smoothstep(-0.15, 0.25, h) * (1.0 - smoothstep(0.75, 0.98, h));
-  float c1 = step(0.6, n * band + 0.06);
-  float c2 = step(0.68, n * band + 0.06);
-  col = mix(col, vec3(0.70, 0.90, 0.86), c1 * 0.85);
-  col = mix(col, vec3(0.84, 0.96, 0.92), c2);
+  float c1 = smoothstep(0.58, 0.66, n * band + 0.06);
+  float c2 = smoothstep(0.68, 0.76, n * band + 0.06);
+  col = mix(col, vec3(0.86, 0.83, 0.76), c1 * 0.8);
+  col = mix(col, vec3(0.99, 0.94, 0.86), c2);
   gl_FragColor = vec4(col, 1.0);
 }
 `

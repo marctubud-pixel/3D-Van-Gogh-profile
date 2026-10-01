@@ -1,8 +1,10 @@
-import { Canvas, useFrame } from '@react-three/fiber'
-import { Component, useRef, type ReactNode } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing'
+import { Component, useEffect, useRef, useState, type ReactNode } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { useGame } from '../app/game'
+
 import { CAMERA } from '../camera/config'
 import { Landmark, ServiceCenterSite } from '../locations/Landmark'
 import { Player } from '../player/Player'
@@ -42,8 +44,8 @@ function SunRig() {
   return (
     <directionalLight
       ref={sun}
-      intensity={1.9}
-      color="#fff6e6"
+      intensity={2.1}
+      color="#ffd9a6"
       castShadow
       shadow-mapSize={[2048, 2048]}
       shadow-bias={-0.0025}
@@ -58,6 +60,24 @@ function SunRig() {
   )
 }
 
+/** Bloom + vignette on real GPUs; skipped entirely on software rasterizers where shader compile stalls. */
+function Effects() {
+  const gl = useThree((s) => s.gl)
+  const [ok, setOk] = useState(false)
+  useEffect(() => {
+    const dbg = gl.getContext().getExtension('WEBGL_debug_renderer_info')
+    const renderer = dbg ? String(gl.getContext().getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : ''
+    setOk(!/swiftshader|llvmpipe|software/i.test(renderer))
+  }, [gl])
+  if (!ok) return null
+  return (
+    <EffectComposer>
+      <Bloom intensity={0.35} luminanceThreshold={0.78} luminanceSmoothing={0.25} mipmapBlur />
+      <Vignette offset={0.22} darkness={0.42} />
+    </EffectComposer>
+  )
+}
+
 export function World({ locations, onError }: { locations: WorldLocation[]; onError: () => void }) {
   const routeTargetId = useGame((s) => s.routeTargetId)
   return (
@@ -68,11 +88,13 @@ export function World({ locations, onError }: { locations: WorldLocation[]; onEr
         camera={{ fov: CAMERA.fov, near: 0.1, far: 400, position: [0, 45, 12] }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         onCreated={({ gl, scene }) => {
-          gl.toneMapping = THREE.NoToneMapping
-          scene.background = new THREE.Color('#9fdbd2')
+          gl.toneMapping = THREE.ACESFilmicToneMapping
+          gl.toneMappingExposure = 1.12
+          scene.background = new THREE.Color('#f0cfa4')
+          scene.fog = new THREE.Fog('#dcc4a8', 55, 210)
         }}
       >
-        <ambientLight intensity={1.2} color="#c9dcdc" />
+        <hemisphereLight intensity={0.9} color="#cfe4e2" groundColor="#8f7d5e" />
         <Sky />
         <SunRig />
         <Planet locations={locations} />
@@ -83,6 +105,7 @@ export function World({ locations, onError }: { locations: WorldLocation[]; onEr
         ))}
         <ServiceCenterSite />
         <Player locations={locations} />
+        <Effects />
       </Canvas>
     </WorldBoundary>
   )
