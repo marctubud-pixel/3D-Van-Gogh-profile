@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { R, SERVICE_CENTER, dirFromLatLon, surfaceQuaternion, tangentNorth } from './sphere'
@@ -23,7 +24,7 @@ import {
 import { townLots } from './townLayout'
 import { Fadeable } from './occlusion'
 import { IslandTitle } from './IslandTitle'
-import { LINE_COLOR, Toon, geo, outlineMaterial, toonMaterial } from './toon'
+import { LINE_COLOR, Toon, geo, toonMaterial } from './toon'
 
 const GRASS = '#7fa468'
 const GRASS_DARK = '#6a8f58'
@@ -48,11 +49,15 @@ function mulberry32(seed: number) {
 
 const arc = (a: THREE.Vector3, b: THREE.Vector3) => a.angleTo(b) * R
 
+/** Global clock uniform driving swaying grass and water streaks. */
+const WIND_TIME = { value: 0 }
+
 function PlanetBody() {
   const geometry = useMemo(() => {
     const g = new THREE.SphereGeometry(R, 256, 160)
     const pos = g.attributes.position
     const colors = new Float32Array(pos.count * 3)
+    const paints = new Float32Array(pos.count)
     const c = new THREE.Color()
     const v = new THREE.Vector3()
     for (let i = 0; i < pos.count; i++) {
@@ -60,13 +65,17 @@ function PlanetBody() {
       const land = landValue(v)
       const patch = Math.sin(v.x * 9) * Math.sin(v.z * 7) * Math.sin(v.y * 5)
       let r = R
+      let paint = 2
       if (land < 0) {
+        paint = 0
         c.set(land > -2.5 ? SHALLOW : SEA)
         r = R - THREE.MathUtils.clamp(0.3 - land * 0.25, 0.3, 0.9)
       } else if (land < 2.4) {
+        paint = 1
         c.set(SAND)
         r = R - 0.3 + (land / 2.4) * 0.3
       } else {
+        paint = 2
         const h = hillHeight(v)
         r = R + h
         if (arc(v, PARK.center) < PARK.r) c.set(LAWN)
@@ -74,22 +83,49 @@ function PlanetBody() {
       }
       pos.setXYZ(i, v.x * r, v.y * r, v.z * r)
       colors.set([c.r, c.g, c.b], i * 3)
+      paints[i] = paint
     }
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    g.setAttribute('paint', new THREE.BufferAttribute(paints, 1))
     g.computeVertexNormals()
     return g
   }, [])
   const mat = useMemo(() => {
     const m = toonMaterial('#ffffff').clone()
     m.vertexColors = true
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = WIND_TIME
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float paint; varying float vPaint; varying vec3 vDir;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPaint = paint; vDir = normalize(position);')
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>
+uniform float uTime;
+varying float vPaint;
+varying vec3 vDir;
+float ph(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float pn(vec3 p) {
+  vec3 i = floor(p); vec3 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(ph(i), ph(i + vec3(1,0,0)), f.x), mix(ph(i + vec3(0,1,0)), ph(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(ph(i + vec3(0,0,1)), ph(i + vec3(1,0,1)), f.x), mix(ph(i + vec3(0,0,1)), ph(i + vec3(1,1,1)), f.x), f.y), f.z);
+}
+float pfbm(vec3 p) { float v = 0.0; float a = 0.5; for (int i = 0; i < 4; i++) { v += a * pn(p); p *= 2.1; a *= 0.5; } return v; }`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+if (vPaint < 0.5) {
+  // painterly sea: slow bright brush streaks
+  float w = pfbm(vec3(vDir.x * 22.0, vDir.y * 6.0 + uTime * 0.05, vDir.z * 22.0));
+  diffuseColor.rgb += smoothstep(0.55, 0.85, w) * vec3(0.09, 0.11, 0.10);
+} else {
+  // painterly land: mottled brush blotch + drifting cloud shadows
+  float m = pfbm(vDir * 26.0) * 0.55 + pfbm(vDir * 9.0) * 0.45;
+  diffuseColor.rgb *= 0.9 + 0.2 * m;
+  float cs = pfbm(vec3(vDir.x * 3.5 + uTime * 0.014, vDir.y * 3.5, vDir.z * 3.5 + uTime * 0.009));
+  diffuseColor.rgb *= 1.0 - 0.22 * smoothstep(0.52, 0.78, cs);
+}`)
+    }
     return m
   }, [])
-  return (
-    <>
-      <mesh geometry={geometry} material={mat} receiveShadow />
-      <mesh geometry={geometry} material={outlineMaterial(0.25, false)} />
-    </>
-  )
+  return <mesh geometry={geometry} material={mat} receiveShadow />
 }
 
 /** Ribbon following the route between lateral offsets `a` and `b`; uv.x runs along the arc length. */
@@ -303,8 +339,9 @@ function PropMesh({ kind }: { kind: PropSpot['kind'] }) {
       return (
         <>
           <Toon geometry={geo.cyl} color="#6e6660" position={[0, 0.8, 0]} scale={[0.3, 1.6, 0.3]} outline={0.03} />
-          <Toon geometry={geo.ico} color="#4f8f5f" position={[0, 2.2, 0]} scale={[2, 1.7, 2]} outline={0.06} radial={false} />
-          <Toon geometry={geo.ico} color="#62a06c" position={[0.5, 2.8, 0.2]} scale={[1.2, 1, 1.2]} outline={0.05} radial={false} />
+          <Toon geometry={geo.sphere} color="#5d8f52" position={[0, 2.1, 0]} scale={[3.4, 2.4, 3.4]} outline={0.04} radial={false} />
+          <Toon geometry={geo.sphere} color="#6fa05e" position={[0.7, 2.8, 0.3]} scale={[2, 1.6, 2]} outline={0.04} radial={false} />
+          <Toon geometry={geo.sphere} color="#86b06a" position={[-0.6, 2.6, -0.2]} scale={[1.5, 1.2, 1.5]} outline={0.04} radial={false} />
         </>
       )
     case 'pine':
@@ -398,27 +435,25 @@ function Park() {
 function GrassTufts({ locations }: { locations: WorldLocation[] }) {
   const bl = useBlockers(locations)
   const mesh = useMemo(() => {
-    const blade = new THREE.ConeGeometry(0.05, 0.5, 3)
-    blade.translate(0, 0.25, 0)
-    const parts: THREE.BufferGeometry[] = []
-    ;[-0.25, 0, 0.22].forEach((tilt, i) => {
-      const b = blade.clone()
-      b.scale(1, 0.7 + i * 0.25, 1)
-      b.rotateZ(tilt)
-      b.translate(i * 0.08 - 0.08, 0, 0)
-      parts.push(b)
-    })
-    const merged = mergeTuft(parts)
-    const count = 1100
-    const m = new THREE.InstancedMesh(merged, new THREE.MeshBasicMaterial({ color: '#3f7a55' }), count)
+    const count = 3200
+    const mat4 = new THREE.MeshBasicMaterial({ map: bladeTexture(), alphaTest: 0.45, side: THREE.DoubleSide })
+    mat4.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = WIND_TIME
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nuniform float uTime;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+transformed.x += sin(uTime * 1.7 + instanceMatrix[3][0] * 2.1 + instanceMatrix[3][2] * 1.7) * transformed.y * 0.5;
+transformed.z += cos(uTime * 1.3 + instanceMatrix[3][0] * 1.9 + instanceMatrix[3][2] * 2.3) * transformed.y * 0.3;`)
+    }
+    const m = new THREE.InstancedMesh(crossQuads(0.7, 0.55), mat4, count)
     const rand = mulberry32(21)
     const mat = new THREE.Matrix4()
     let n = 0
     let guard = 0
     while (n < count && guard++ < 12000) {
-      const d = islandSample(rand, 20)
+      const d = islandSample(rand, 22)
       const hit = nearestOnRoute(d)
-      if (hit.dist < 3.8 || landValue(d, hit) < 3) continue
+      if (hit.dist < 3.8 || landValue(d, hit) < 2.8) continue
       if (arc(d, bl.plaza) < 8 || arc(d, bl.service) < 9) continue
       if (bl.buildings.some((b) => arc(b, d) < 7)) continue
       const q = surfaceQuaternion(d, randomTangent(d, rand))
@@ -456,15 +491,56 @@ function SeaFoam() {
   return <primitive object={mesh} />
 }
 
-function mergeTuft(parts: THREE.BufferGeometry[]) {
-  const positions: number[] = []
-  for (const p of parts) {
-    const g = p.index ? p.toNonIndexed() : p
-    positions.push(...(g.attributes.position.array as Float32Array))
+function bladeTexture() {
+  const c = document.createElement('canvas')
+  c.width = c.height = 256
+  const g = c.getContext('2d')!
+  const greens = ['#6f8f4f', '#87a25c', '#a0ac62', '#5d8147', '#7c9b53']
+  for (let i = 0; i < 26; i++) {
+    const x = 12 + Math.random() * 232
+    const h = 90 + Math.random() * 140
+    const lean = (Math.random() - 0.5) * 70
+    const w = 7 + Math.random() * 10
+    g.fillStyle = greens[i % greens.length]
+    g.beginPath()
+    g.moveTo(x - w / 2, 256)
+    g.quadraticCurveTo(x - w * 0.3 + lean * 0.4, 256 - h * 0.6, x + lean, 256 - h)
+    g.quadraticCurveTo(x + w * 0.3 + lean * 0.4, 256 - h * 0.6, x + w / 2, 256)
+    g.closePath()
+    g.fill()
   }
-  const out = new THREE.BufferGeometry()
-  out.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-  return out
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+/** Two crossed quads standing upright, used as a billboard pair for grass. */
+function crossQuads(w: number, h: number) {
+  const pos: number[] = []
+  const uv: number[] = []
+  const idx: number[] = []
+  for (const ry of [0, Math.PI / 2]) {
+    const c = Math.cos(ry)
+    const sn = Math.sin(ry)
+    const base = pos.length / 3
+    const corners: [number, number][] = [[-w / 2, 0], [w / 2, 0], [w / 2, h], [-w / 2, h]]
+    for (const [x, y] of corners) pos.push(x * c, y, x * sn)
+    uv.push(0, 1, 1, 1, 1, 0, 0, 0)
+    idx.push(base, base + 1, base + 2, base, base + 2, base + 3)
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  g.setIndex(idx)
+  return g
+}
+
+/** Advances the shared wind/water clock. */
+function WindClock() {
+  useFrame(({ clock }) => {
+    WIND_TIME.value = clock.elapsedTime
+  })
+  return null
 }
 
 export function Planet({ locations }: { locations: WorldLocation[] }) {
@@ -477,6 +553,7 @@ export function Planet({ locations }: { locations: WorldLocation[] }) {
       <Road />
       <Plaza />
       <Park />
+      <WindClock />
       <GrassTufts locations={locations} />
       {props.map((p, i) => (
         <group key={i} position={p.pos} quaternion={p.q} scale={p.s}>

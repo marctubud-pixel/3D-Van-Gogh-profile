@@ -26,6 +26,17 @@ export function toonMaterial(color: string) {
   return m
 }
 
+const softCache = new Map<string, THREE.MeshLambertMaterial>()
+/** Matte un-outlined material for the painterly look (skin, fabric, foliage). */
+export function softMaterial(color: string) {
+  let m = softCache.get(color)
+  if (!m) {
+    m = new THREE.MeshLambertMaterial({ color })
+    softCache.set(color, m)
+  }
+  return m
+}
+
 const outlineVertex = /* glsl */ `
 uniform float thickness;
 uniform float radial;
@@ -85,18 +96,20 @@ interface ToonProps {
   radial?: boolean
   material?: THREE.Material
   edges?: boolean
+  /** Painterly: lambert shading, no outline or crease lines. */
+  soft?: boolean
 }
 
 /** A toon-shaded mesh with an inverted-hull, slightly wobbly charcoal outline. */
-export function Toon({ geometry, color, position, rotation, scale, outline = 0.06, radial = true, material, edges }: ToonProps) {
-  const mat = useMemo(() => material ?? toonMaterial(color), [material, color])
+export function Toon({ geometry, color, position, rotation, scale, outline = 0.06, radial = true, material, edges, soft }: ToonProps) {
+  const mat = useMemo(() => material ?? (soft ? softMaterial(color) : toonMaterial(color)), [material, color, soft])
   const hull = outline * 0.42
   const line = useMemo(() => outlineMaterial(hull, radial), [hull, radial])
-  const showEdges = edges ?? (outline > 0 && CREASED.has(geometry))
+  const showEdges = !soft && (edges ?? (outline > 0 && CREASED.has(geometry)))
   return (
     <group position={position} rotation={rotation} scale={scale}>
       <mesh geometry={geometry} material={mat} castShadow receiveShadow />
-      {outline > 0 && <mesh geometry={geometry} material={line} />}
+      {!soft && outline > 0 && <mesh geometry={geometry} material={line} />}
       {showEdges && <lineSegments geometry={edgesFor(geometry)} material={edgeMaterial} />}
     </group>
   )
