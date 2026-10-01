@@ -127,25 +127,25 @@ function Leg({ side, refs, hip, hipX }: { side: number; refs: RefObject<Joint>; 
       }}
       position={[side * hipX, hip, 0]}
     >
-      <Toon soft geometry={shortsLegGeo} color={SHORTS} position={[side * 0.01, -0.17, 0]} scale={[0.2, 0.34, 0.21]} outline={0.02} radial={false} />
-      <Toon soft geometry={limb} color={SKIN} position={[0, -0.19, 0]} scale={[0.11, 0.28, 0.11]} outline={0.014} radial={false} />
+      <Toon geometry={shortsLegGeo} color={SHORTS} position={[side * 0.01, -0.17, 0]} scale={[0.2, 0.34, 0.21]} outline={0.02} radial={false} />
+      <Toon geometry={limb} color={SKIN} position={[0, -0.19, 0]} scale={[0.11, 0.28, 0.11]} outline={0.014} radial={false} />
       <group
         ref={(g) => {
           refs.current.mid = g
         }}
         position={[0, -THIGH, 0]}
       >
-        <Toon soft geometry={limb} color={SKIN} position={[0, -0.19, 0]} scale={[0.095, 0.25, 0.095]} outline={0.014} radial={false} />
-        <Toon soft geometry={geo.cyl} color={SOCK} position={[0, -0.36, 0]} scale={[0.1, 0.18, 0.1]} outline={0.012} />
+        <Toon geometry={limb} color={SKIN} position={[0, -0.19, 0]} scale={[0.095, 0.25, 0.095]} outline={0.014} radial={false} />
+        <Toon geometry={geo.cyl} color={SOCK} position={[0, -0.36, 0]} scale={[0.1, 0.18, 0.1]} outline={0.012} />
         <group
           ref={(g) => {
             refs.current.end = g
           }}
           position={[0, -SHIN, 0]}
         >
-          <Toon soft geometry={limb} color={SHOE} position={[0, floor + LEG_LENGTH - 0.79, 0.05]} rotation={[Math.PI / 2, 0, 0]} scale={[0.14, 0.1, 0.12]} outline={0.018} radial={false} />
-          <Toon soft geometry={geo.box} color={SOLE} position={[0, -0.06, 0.05]} scale={[0.14, 0.04, 0.3]} outline={0} />
-          <Toon soft geometry={geo.box} color="#c9cccd" position={[side * 0.07, -0.01, 0.06]} scale={[0.01, 0.05, 0.14]} outline={0} />
+          <Toon geometry={limb} color={SHOE} position={[0, floor + LEG_LENGTH - 0.79, 0.05]} rotation={[Math.PI / 2, 0, 0]} scale={[0.14, 0.1, 0.12]} outline={0.018} radial={false} />
+          <Toon geometry={geo.box} color={SOLE} position={[0, -0.06, 0.05]} scale={[0.14, 0.04, 0.3]} outline={0} />
+          <Toon geometry={geo.box} color="#c9cccd" position={[side * 0.07, -0.01, 0.06]} scale={[0.01, 0.05, 0.14]} outline={0} />
         </group>
       </group>
     </group>
@@ -160,16 +160,16 @@ function Arm({ side, refs, sleeve }: { side: number; refs: RefObject<Joint>; sle
       }}
       position={[side * 0.22, 0.47, 0]}
     >
-      <Toon soft geometry={sleeveGeo} color="#fff" material={sleeve} position={[0, -0.1, 0]} scale={[0.15, 0.24, 0.16]} outline={0.016} radial={false} />
-      <Toon soft geometry={limb} color={SKIN} position={[0, -0.15, 0]} scale={[0.08, 0.16, 0.08]} outline={0.012} radial={false} />
+      <Toon geometry={sleeveGeo} color="#fff" material={sleeve} position={[0, -0.1, 0]} scale={[0.15, 0.24, 0.16]} outline={0.016} radial={false} />
+      <Toon geometry={limb} color={SKIN} position={[0, -0.15, 0]} scale={[0.08, 0.16, 0.08]} outline={0.012} radial={false} />
       <group
         ref={(g) => {
           refs.current.mid = g
         }}
         position={[0, -UPPER, 0]}
       >
-        <Toon soft geometry={limb} color={SKIN} position={[0, -0.13, 0]} scale={[0.07, 0.14, 0.07]} outline={0.012} radial={false} />
-        <Toon soft geometry={geo.sphere} color={SKIN} position={[0, -FORE, 0.01]} scale={[0.075, 0.1, 0.06]} outline={0.01} radial={false} />
+        <Toon geometry={limb} color={SKIN} position={[0, -0.13, 0]} scale={[0.07, 0.14, 0.07]} outline={0.012} radial={false} />
+        <Toon geometry={geo.sphere} color={SKIN} position={[0, -FORE, 0.01]} scale={[0.075, 0.1, 0.06]} outline={0.01} radial={false} />
       </group>
     </group>
   )
@@ -248,39 +248,39 @@ export function Avatar({ pose, speed, crank, steer }: AvatarProps) {
       <Leg side={-1} refs={legL} hip={hip} hipX={hipX} />
       <Leg side={1} refs={legR} hip={hip} hipX={hipX} />
       <group position={[0, hip, 0]} rotation={[pose === 'ride' ? LEAN_RIDE : 0, 0, 0]}>
-        <Toon soft geometry={shortsLegGeo} color={SHORTS} position={[0, -0.02, 0]} scale={[0.36, 0.16, 0.22]} outline={0.015} radial={false} />
+        <Toon geometry={shortsLegGeo} color={SHORTS} position={[0, -0.02, 0]} scale={[0.36, 0.16, 0.22]} outline={0.015} radial={false} />
         {/* cream tee + open striped shirt */}
-        <Toon soft geometry={torsoGeo} color={TEE} scale={[0.37, 1, 0.21]} outline={0} radial={false} />
-        <Toon soft geometry={shirtGeo} color="#fff" material={shirt} scale={[0.43, 1, 0.26]} outline={0.02} radial={false} />
+        <Toon geometry={torsoGeo} color={TEE} scale={[0.37, 1, 0.21]} outline={0} radial={false} />
+        <Toon geometry={shirtGeo} color="#fff" material={shirt} scale={[0.43, 1, 0.26]} outline={0.02} radial={false} />
         {[-1, 1].map((s) => (
-          <Toon soft key={s} geometry={geo.box} color={STRIPE_CREAM} position={[s * 0.09, 0.5, 0.12]} rotation={[0.25, 0, s * -0.55]} scale={[0.09, 0.16, 0.015]} outline={0.008} />
+          <Toon key={s} geometry={geo.box} color={STRIPE_CREAM} position={[s * 0.09, 0.5, 0.12]} rotation={[0.25, 0, s * -0.55]} scale={[0.09, 0.16, 0.015]} outline={0.008} />
         ))}
         {/* crossbody strap from right shoulder to left hip, small pouch on the left */}
-        <Toon soft geometry={geo.box} color={BAG} position={[-0.01, 0.3, 0.135]} rotation={[0, 0, -0.72]} scale={[0.035, 0.68, 0.015]} outline={0} />
-        <Toon soft geometry={geo.box} color={BAG} position={[-0.01, 0.3, -0.135]} rotation={[0, 0, 0.72]} scale={[0.035, 0.68, 0.015]} outline={0} />
-        <Toon soft geometry={geo.sphere} color={BAG} position={[-0.25, 0.04, 0.05]} scale={[0.1, 0.17, 0.16]} outline={0.016} radial={false} />
+        <Toon geometry={geo.box} color={BAG} position={[-0.01, 0.3, 0.135]} rotation={[0, 0, -0.72]} scale={[0.035, 0.68, 0.015]} outline={0} />
+        <Toon geometry={geo.box} color={BAG} position={[-0.01, 0.3, -0.135]} rotation={[0, 0, 0.72]} scale={[0.035, 0.68, 0.015]} outline={0} />
+        <Toon geometry={geo.sphere} color={BAG} position={[-0.25, 0.04, 0.05]} scale={[0.1, 0.17, 0.16]} outline={0.016} radial={false} />
         <Arm side={-1} refs={armL} sleeve={sleeve} />
         <Arm side={1} refs={armR} sleeve={sleeve} />
         {/* neck, head, hair, cap */}
-        <Toon soft geometry={geo.cyl} color={SKIN} position={[0, 0.62, 0]} scale={[0.09, 0.12, 0.09]} outline={0} />
-        <Toon soft geometry={geo.sphere} color={SKIN} position={[0, 0.79, 0.01]} scale={[0.24, 0.28, 0.25]} outline={0.018} radial={false} />
+        <Toon geometry={geo.cyl} color={SKIN} position={[0, 0.62, 0]} scale={[0.09, 0.12, 0.09]} outline={0} />
+        <Toon geometry={geo.sphere} color={SKIN} position={[0, 0.79, 0.01]} scale={[0.24, 0.28, 0.25]} outline={0.018} radial={false} />
         {[-1, 1].map((s) => (
-          <Toon soft key={s} geometry={geo.sphere} color={SKIN} position={[s * 0.12, 0.78, 0]} scale={[0.04, 0.07, 0.05]} outline={0.008} radial={false} />
+          <Toon key={s} geometry={geo.sphere} color={SKIN} position={[s * 0.12, 0.78, 0]} scale={[0.04, 0.07, 0.05]} outline={0.008} radial={false} />
         ))}
         {[-1, 1].map((s) => (
-          <Toon soft key={`eye${s}`} geometry={geo.sphere} color={HAIR} position={[s * 0.05, 0.78, 0.128]} scale={[0.028, 0.042, 0.02]} outline={0} radial={false} />
+          <Toon key={`eye${s}`} geometry={geo.sphere} color={HAIR} position={[s * 0.05, 0.78, 0.128]} scale={[0.028, 0.042, 0.02]} outline={0} radial={false} />
         ))}
-        <Toon soft geometry={geo.box} color="#c98f7a" position={[0, 0.71, 0.128]} scale={[0.03, 0.008, 0.01]} outline={0} />
-        <Toon soft geometry={geo.sphere} color={HAIR} position={[0, 0.81, -0.03]} scale={[0.26, 0.26, 0.25]} outline={0.016} radial={false} />
+        <Toon geometry={geo.box} color="#c98f7a" position={[0, 0.71, 0.128]} scale={[0.03, 0.008, 0.01]} outline={0} />
+        <Toon geometry={geo.sphere} color={HAIR} position={[0, 0.81, -0.03]} scale={[0.26, 0.26, 0.25]} outline={0.016} radial={false} />
         {[-0.08, 0, 0.08].map((x, i) => (
-          <Toon soft key={x} geometry={geo.cone} color={HAIR} position={[x, 0.86, 0.11]} rotation={[Math.PI + 0.3, 0, (i - 1) * 0.3]} scale={[0.06, 0.09, 0.04]} outline={0} />
+          <Toon key={x} geometry={geo.cone} color={HAIR} position={[x, 0.86, 0.11]} rotation={[Math.PI + 0.3, 0, (i - 1) * 0.3]} scale={[0.06, 0.09, 0.04]} outline={0} />
         ))}
         {[-1, 1].map((s) => (
-          <Toon soft key={s} geometry={geo.cone} color={HAIR} position={[s * 0.115, 0.8, 0.05]} rotation={[Math.PI, 0, 0]} scale={[0.04, 0.1, 0.05]} outline={0} />
+          <Toon key={s} geometry={geo.cone} color={HAIR} position={[s * 0.115, 0.8, 0.05]} rotation={[Math.PI, 0, 0]} scale={[0.04, 0.1, 0.05]} outline={0} />
         ))}
-        <Toon soft geometry={geo.dome} color={CAP} position={[0, 0.86, 0]} scale={[0.27, 0.2, 0.28]} outline={0.016} radial={false} />
-        <Toon soft geometry={brim} color={CAP} position={[0, 0.87, 0.1]} scale={[0.23, 0.02, 0.3]} outline={0.01} radial={false} />
-        <Toon soft geometry={geo.sphere} color="#2c3437" position={[0, 0.94, -0.12]} scale={[0.07, 0.04, 0.03]} outline={0} radial={false} />
+        <Toon geometry={geo.dome} color={CAP} position={[0, 0.86, 0]} scale={[0.27, 0.2, 0.28]} outline={0.016} radial={false} />
+        <Toon geometry={brim} color={CAP} position={[0, 0.87, 0.1]} scale={[0.23, 0.02, 0.3]} outline={0.01} radial={false} />
+        <Toon geometry={geo.sphere} color="#2c3437" position={[0, 0.94, -0.12]} scale={[0.07, 0.04, 0.03]} outline={0} radial={false} />
       </group>
     </group>
   )
