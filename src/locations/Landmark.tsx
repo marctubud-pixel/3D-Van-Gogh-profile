@@ -40,7 +40,7 @@ export function AcUnit({ position, rotation }: { position: [number, number, numb
   return (
     <group position={position} rotation={rotation}>
       <Toon geometry={geo.box} color="#eef0ea" scale={[1, 0.7, 0.4]} outline={0.03} />
-      <Toon geometry={geo.cyl} color="#3a4549" position={[-0.15, 0, 0.2]} rotation={[Math.PI / 2, 0, 0]} scale={[0.45, 0.04, 0.45]} outline={0} />
+      <Toon geometry={geo.cyl} color="#7f8b8f" position={[-0.15, 0, 0.2]} rotation={[Math.PI / 2, 0, 0]} scale={[0.45, 0.04, 0.45]} outline={0} />
     </group>
   )
 }

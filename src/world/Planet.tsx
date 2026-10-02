@@ -25,7 +25,7 @@ import {
   surf,
 } from './island'
 import { townLots } from './townLayout'
-import { GroundPaint, type ScenerySpot, meadowTone, meadowZone } from './GroundPaint'
+import { GroundPaint, type ScenerySpot, meadowTone } from './GroundPaint'
 import { IslandTitle } from './IslandTitle'
 import { LINE_COLOR, Toon, geo, toonMaterial } from './toon'
 
@@ -49,6 +49,7 @@ function mulberry32(seed: number) {
 const arc = flatDistance
 
 /** Flat-map extent of the detailed island ground; the open sea continues beyond it. */
+const MEADOW_GROUND = meadowTone(0.42)
 const GROUND = { x0: -110, x1: 130, y0: -128, y1: 120, step: 0.8 }
 
 function PlanetBody() {
@@ -74,7 +75,7 @@ function PlanetBody() {
       } else {
         const h = hillHeight(v)
         y = h
-        meadowTone(0.22 + meadowZone(v.x, v.z) * 0.4, c)
+        c.copy(MEADOW_GROUND)
       }
       pos.setXYZ(i, v.x, y, v.z)
       colors.set([c.r, c.g, c.b], i * 3)

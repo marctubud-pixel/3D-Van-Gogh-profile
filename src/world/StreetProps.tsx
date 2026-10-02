@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { UP, flatDistance, yawQuaternion } from './plane'
 import { BRIDGE, PLAZA, ROUTE_K, ROUTE_LEN, ROUTE_S, SERVICE_POINT, landmarkBlockers, routeFrame, routePoint, surf } from './island'
-import { type Ramp, type Stroke, StrokeBuild, StrokePaint, Strokes, column, dab, painted, rng, shade } from './strokes'
+import { type Ramp, type Stroke, StrokeBuild, StrokePaint, Strokes, column, dab, painted, rng, rotateAbout, shade } from './strokes'
 import { Toon, geo } from './toon'
 
 interface Spot {
@@ -95,32 +95,42 @@ function BusStop() {
 }
 
 
-const WIRE = ['#2a3134', '#323b3e', '#262c2f', '#3a4447']
+const WIRE = ['#3c4548', '#465154', '#353d40', '#525c5e']
 
-/** Sagging wires drawn as chains of thin overlapping brush strokes, crossed so they read from any side. */
+/** Sagging wires drawn freehand: wobbling chains of overlapping strokes whose weight swells and thins, crossed so they read from any side. */
 function Wires({ tops }: { tops: THREE.Vector3[] }) {
   const strokes = useMemo(() => {
     const r = rng(tops.length * 31 + 7)
     const out: Stroke[] = []
-    const segs = 30
+    const segs = 24
     for (let i = 0; i < tops.length - 1; i++) {
       const a = tops[i]
       const b = tops[i + 1]
       if (a.distanceTo(b) > 20) continue
-      const at = (k: number) => a.clone().lerp(b, k).add(new THREE.Vector3(0, -2 * k * (1 - k), 0))
+      const sag = 1.6 + r() * 0.9
+      const ph = r() * Math.PI * 2
       const side = new THREE.Vector3().subVectors(b, a).cross(UP).normalize()
+      const at = (k: number) =>
+        a
+          .clone()
+          .lerp(b, k)
+          .add(new THREE.Vector3(0, -sag * 4 * k * (1 - k) * 0.5 + Math.sin(k * 9 + ph) * 0.04, 0))
+          .addScaledVector(side, Math.sin(k * 5 + ph) * 0.05)
       for (let s = 0; s < segs; s++) {
         const p0 = at(s / segs)
         const p1 = at((s + 1) / segs)
         const dir = p1.clone().sub(p0)
-        const len = dir.length() * (1.6 + r() * 0.3)
+        const len = dir.length() * (1.35 + r() * 0.4)
         dir.normalize()
-        const p = p0.lerp(p1, 0.5).add(new THREE.Vector3(0, (r() - 0.5) * 0.03, 0))
-        const wid = 0.035 + r() * 0.03
+        const k = (s + 0.5) / segs
+        const swell = 0.75 + 0.5 * Math.sin(k * Math.PI * 2 + ph) ** 2
+        const p = p0.lerp(p1, 0.5).add(new THREE.Vector3(0, (r() - 0.5) * 0.04, 0))
+        const wid = (0.045 + r() * 0.03) * swell
         const color = new THREE.Color(WIRE[Math.floor(r() * WIRE.length)])
-        const up = new THREE.Vector3().crossVectors(side, dir).normalize()
-        out.push({ p, n: side, dir, len, wid, color })
-        out.push({ p: p.clone(), n: up, dir, len, wid, color })
+        const tilt = rotateAbout(dir, side, (r() - 0.5) * 0.12)
+        const up = new THREE.Vector3().crossVectors(side, tilt).normalize()
+        out.push({ p, n: side, dir: tilt, len, wid, color })
+        out.push({ p: p.clone(), n: up, dir: tilt, len, wid, color })
       }
     }
     return out

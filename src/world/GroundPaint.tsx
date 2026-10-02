@@ -128,7 +128,7 @@ const FLECK = ['#f2f0e2', '#b9d4e8', '#e6e8f2']
  * Painted meadow after Van Gogh's green wheat fields: sickle-shaped blades that sweep up and arc over
  * downwind, toned from the local light/shadow zone so strokes read as masses rather than confetti.
  */
-export function meadowBlades(out: Stroke[], r: () => number, x: number, z: number, count: number, y = 0, widen = 1) {
+export function meadowBlades(out: Stroke[], r: () => number, x: number, z: number, count: number, y = 0, scale = 1) {
   const flow = windAngle(x, z)
   const zone = meadowZone(x, z)
   for (let b = 0; b < count; b++) {
@@ -138,11 +138,11 @@ export function meadowBlades(out: Stroke[], r: () => number, x: number, z: numbe
     const arched = r() < 0.65
     const lean = arched ? 0.15 + r() * 0.3 : (r() - 0.4) * 0.35
     const bend = arched ? 0.32 + r() * 0.2 : 0.06 + r() * 0.1
-    const L = (arched ? 0.4 + r() * 0.3 : 0.22 + r() * 0.2) * (0.8 + zone * 0.4)
+    const L = (arched ? 0.4 + r() * 0.3 : 0.22 + r() * 0.2) * (0.8 + zone * 0.4) * scale
     const segs = arched ? 4 : 2
     const seg = L / segs
-    const wid = (0.09 + r() * 0.05) * widen
-    const base = r() < 0.06 ? 0 : zone - 0.18 + (r() - 0.5) * 0.12
+    const wid = (0.09 + r() * 0.05) * scale
+    const base = r() < 0.06 ? 0 : 0.12 + r() * 0.5 + (zone - 0.5) * 0.25
     const p = new THREE.Vector3(x + (r() - 0.5) * 0.16, y, z + (r() - 0.5) * 0.16)
     for (let k = 0; k < segs; k++) {
       const th = lean + bend * k
@@ -222,31 +222,37 @@ function foamStrokes(out: Stroke[]) {
 const TILE = 12
 const NEAR = 24
 const FAR = 52
+const ISLAND_TILES = { i0: -10, i1: 11, j0: -11, j1: 11 }
+const LOD = [
+  { spacing: 0.18, count: 2, scale: 1 },
+  { spacing: 0.42, count: 2, scale: 1.5 },
+  { spacing: 1.0, count: 2, scale: 2.6 },
+]
 const tileCache = new Map<string, Stroke[]>()
 
-/** Painted meadow for one ground tile; `lod` 1 is a sparser, broader version for the middle distance. */
+/** Painted meadow for one ground tile; higher `lod` levels are sparser with broader blades for distance. */
 function meadowTile(tx: number, tz: number, lod: number, c: Clear) {
   const key = `${tx},${tz},${lod}`
   let out = tileCache.get(key)
   if (out) return out
   out = []
   const r = rng(tx * 7919 + tz * 104729 + lod * 31 + 17)
-  const spacing = lod === 0 ? 0.18 : 0.42
+  const { spacing, count, scale } = LOD[lod]
   const d = new THREE.Vector3()
   for (let x = tx * TILE; x < (tx + 1) * TILE; x += spacing) {
     for (let z = tz * TILE; z < (tz + 1) * TILE; z += spacing) {
       d.set(x + (r() - 0.5) * spacing, 0, z + (r() - 0.5) * spacing)
       const hit = nearestOnRoute(d)
       if (hit.dist < 2.15 || landValue(d, hit) < 2.6 || blocked(d, c, 0)) continue
-      meadowBlades(out, r, d.x, d.z, 2, groundHeight(d), lod === 0 ? 1 : 1.9)
+      meadowBlades(out, r, d.x, d.z, count, groundHeight(d), scale)
     }
   }
-  if (tileCache.size > 80) tileCache.delete(tileCache.keys().next().value as string)
+  if (tileCache.size > 700) tileCache.delete(tileCache.keys().next().value as string)
   tileCache.set(key, out)
   return out
 }
 
-/** Streams dense meadow tiles around the player and sparser ones further out; the painted ground colour carries the distance. */
+/** Meadow over the whole island in tiles: dense around the player, sparser and broader further out. */
 function Meadow({ clear }: { clear: Clear }) {
   const [tiles, setTiles] = useState<string[]>([])
   const last = useRef(0)
@@ -255,13 +261,10 @@ function Meadow({ clear }: { clear: Clear }) {
     if (t - last.current < 0.4) return
     last.current = t
     const want: string[] = []
-    const reach = Math.ceil(FAR / TILE)
-    const px = Math.floor(playerPos.x / TILE)
-    const pz = Math.floor(playerPos.z / TILE)
-    for (let i = px - reach; i <= px + reach; i++) {
-      for (let j = pz - reach; j <= pz + reach; j++) {
+    for (let i = ISLAND_TILES.i0; i <= ISLAND_TILES.i1; i++) {
+      for (let j = ISLAND_TILES.j0; j <= ISLAND_TILES.j1; j++) {
         const dist = Math.hypot((i + 0.5) * TILE - playerPos.x, (j + 0.5) * TILE - playerPos.z)
-        if (dist < FAR) want.push(`${i},${j},${dist < NEAR ? 0 : 1}`)
+        want.push(`${i},${j},${dist < NEAR ? 0 : dist < FAR ? 1 : 2}`)
       }
     }
     const next = want.join('|')
