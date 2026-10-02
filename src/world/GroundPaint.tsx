@@ -153,7 +153,7 @@ export function meadowBlades(out: Stroke[], r: () => number, x: number, z: numbe
       p.addScaledVector(dir, seg)
     }
   }
-  if (zone > 0.45 && r() < 0.012) {
+  if (scale >= 0.6 && zone > 0.45 && r() < 0.012) {
     for (let k = 0; k < 5; k++) {
       const a = r() * Math.PI * 2
       out.push({ p: new THREE.Vector3(x + (r() - 0.5) * 0.5, y + 0.3 + r() * 0.2, z + (r() - 0.5) * 0.5), n: new THREE.Vector3(Math.cos(a), 0.6, Math.sin(a)).normalize(), dir: new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)), len: 0.09, wid: 0.07, color: new THREE.Color(pick(r, FLOWER)) })
@@ -173,9 +173,11 @@ interface Clear {
   lots: THREE.Vector3[]
 }
 
-function blocked(d: THREE.Vector3, c: Clear, pad: number) {
-  if (arc(d, PLAZA) < 7.5 + pad || arc(d, SERVICE_POINT) < 9 + pad) return true
-  if (arc(d, POND.center) < POND.r + 0.8) return true
+function paved(d: THREE.Vector3, pad: number) {
+  return arc(d, PLAZA) < 7.5 + pad || arc(d, SERVICE_POINT) < 9 + pad || arc(d, POND.center) < POND.r + 0.8
+}
+
+function nearBuilding(d: THREE.Vector3, c: Clear, pad: number) {
   return c.buildings.some((b) => arc(b, d) < 5 + pad) || c.lots.some((b) => arc(b, d) < 3 + pad)
 }
 
@@ -243,8 +245,9 @@ function meadowTile(tx: number, tz: number, lod: number, c: Clear) {
     for (let z = tz * TILE; z < (tz + 1) * TILE; z += spacing) {
       d.set(x + (r() - 0.5) * spacing, 0, z + (r() - 0.5) * spacing)
       const hit = nearestOnRoute(d)
-      if (hit.dist < 2.15 || landValue(d, hit) < 2.6 || blocked(d, c, 0)) continue
-      meadowBlades(out, r, d.x, d.z, count, groundHeight(d), scale)
+      if (hit.dist < 2.15 || landValue(d, hit) < 2.6 || paved(d, 0)) continue
+      const low = nearBuilding(d, c, -1.8) ? 0.3 : nearBuilding(d, c, 0) ? 0.5 : 1
+      meadowBlades(out, r, d.x, d.z, count, groundHeight(d), scale * low)
     }
   }
   if (tileCache.size > 700) tileCache.delete(tileCache.keys().next().value as string)
