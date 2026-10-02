@@ -2,7 +2,7 @@ import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { NORTH, UP, flatDistance, yawQuaternion } from './plane'
+import { NORTH, UP, flatDir, flatDistance, yawQuaternion } from './plane'
 import {
   BRIDGE,
   PLAZA,
@@ -15,7 +15,10 @@ import {
   groundHeight,
   landValue,
   landmarkBlockers,
+  locationAnchors,
+  locationPoint,
   nearestOnRoute,
+  segmentDistance,
   onServiceSquare,
   wildBlocked,
 } from './island'
@@ -30,14 +33,19 @@ const BUSH: Ramp = { light: ['#9fd48e', '#b7de9c', '#86c784'], mid: ['#5e9d6d', 
 const CANOPY: Ramp = { light: ['#8fcf8a', '#a8d993'], mid: ['#4f8f5f', '#5e9d6d', '#62a06c'], dark: ['#2f6650', '#28584a'] }
 const FOREST_CANOPY: Ramp = { light: ['#7fbf7c', '#93c98a'], mid: ['#3f7f5a', '#4a8a60', '#367352'], dark: ['#21504a', '#1d4540', '#28584a'] }
 const PINE: Ramp = { light: ['#6aa874', '#5e9d6d'], mid: ['#3f7a5a', '#386f52', '#447f5e'], dark: ['#244c46', '#2a5a48'] }
+const POPLAR: Ramp = { light: ['#b9d27a', '#c6da86'], mid: ['#8fb35e', '#9cbc66', '#84a957'], dark: ['#5f8a4a', '#567f45'] }
+const UMBRELLA: Ramp = { light: ['#7aa86a', '#86b273'], mid: ['#4d7f4f', '#447548', '#568856'], dark: ['#2c5440', '#27493a'] }
+const BIRCH_LEAF: Ramp = { light: ['#d5e08e', '#c9db84'], mid: ['#a5c46c', '#97b962', '#b1cc74'], dark: ['#6f9550', '#668a4b'] }
+const BIRCH_BARK: Ramp = { light: ['#f4f1e8', '#ece8dc'], mid: ['#e2ddcf', '#d9d3c4'], dark: ['#3f3a36', '#c8c1b2'] }
 const TRUNK: Ramp = { light: ['#8a7f76'], mid: ['#6e6660', '#655d57'], dark: ['#4b4440'] }
 const ROCK: Ramp = { light: ['#ece4cb', '#e3d8b8'], mid: ['#d9cfb2', '#cfc4a5'], dark: ['#b2a88c'] }
 const PAVING: Ramp = { light: ['#c6cabf', '#cbc9bd'], mid: ['#b8beb2', '#b2b8ad', '#bfbfb2'], dark: ['#a6ada3', '#adb0a4'] }
 const SEA_FOAM = ['#e9f5f0', '#d6efe9', '#f4faf6']
 
 const arc = flatDistance
+const ROAD_EDGE = 2.1
 
-export type SceneryKind = 'tree' | 'tall' | 'pine' | 'bush' | 'rock'
+export type SceneryKind = 'tree' | 'tall' | 'poplar' | 'umbrella' | 'birch' | 'pine' | 'bush' | 'rock'
 export interface ScenerySpot {
   d: THREE.Vector3
   yaw: number
@@ -52,21 +60,38 @@ function besideRoad(i: number, off: number, along: number) {
   return ROUTE[i].clone().addScaledVector(side, off).addScaledVector(tan, along)
 }
 
-/** Map local (y-up, z-forward) strokes onto the ground at `d`. */
-function place(out: Stroke[], local: Stroke[], d: THREE.Vector3, fwd: THREE.Vector3, scale = 1) {
+/** Terrain normal at `p`, from central differences of the ground height. */
+function slopeNormal(p: THREE.Vector3) {
+  const e = 0.4
+  const gx = groundHeight(new THREE.Vector3(p.x + e, 0, p.z)) - groundHeight(new THREE.Vector3(p.x - e, 0, p.z))
+  const gz = groundHeight(new THREE.Vector3(p.x, 0, p.z + e)) - groundHeight(new THREE.Vector3(p.x, 0, p.z - e))
+  return new THREE.Vector3(-gx / (2 * e), 1, -gz / (2 * e)).normalize()
+}
+
+/** Tilt a flat stroke so it lies in the slope plane instead of poking out of the hillside. */
+function conformToSlope(k: Stroke) {
+  const n = slopeNormal(k.p)
+  k.n = n
+  k.dir = k.dir.clone().addScaledVector(n, -k.dir.dot(n)).normalize()
+  return k
+}
+
+/** Map local (y-up, z-forward) strokes onto the ground at `d`; `conform` lays flat strokes along the slope. */
+function place(out: Stroke[], local: Stroke[], d: THREE.Vector3, fwd: THREE.Vector3, scale = 1, conform = false) {
   const q = yawQuaternion(fwd)
   const base = new THREE.Vector3(d.x, 0, d.z)
   for (const k of local) {
     const p = k.p.clone().multiplyScalar(scale).applyQuaternion(q).add(base)
     p.y += groundHeight(p)
-    out.push({
+    const s: Stroke = {
       p,
       n: k.n.clone().applyQuaternion(q),
       dir: k.dir.clone().applyQuaternion(q),
       len: k.len * scale,
       wid: k.wid * scale,
       color: k.color,
-    })
+    }
+    out.push(conform ? conformToSlope(s) : s)
   }
 }
 
@@ -105,7 +130,7 @@ function roadStrokes(out: Stroke[]) {
     for (const sgn of [-1, 1]) {
       band(1, sgn * 1.75, sgn * 2.15, ASPHALT, 0.1, 1.4, 0.13)
     }
-    place(out, local, ROUTE[i], ROUTE_TAN[i])
+    place(out, local, ROUTE[i], ROUTE_TAN[i], 1, true)
   }
 }
 
@@ -123,7 +148,7 @@ function dashStrokes(out: Stroke[]) {
     for (let k = 0; k < 2; k++) {
       local.push({ p: new THREE.Vector3((r() - 0.5) * 0.05, 0.12 + r() * 0.01, (r() - 0.5) * 0.2), n: UP, dir: rotateAbout(new THREE.Vector3(0, 0, 1), UP, (r() - 0.5) * 0.08), len: 0.55 + r() * 0.2, wid: 0.13 + r() * 0.04, color: new THREE.Color(pick(r, DASH)) })
     }
-    place(out, local, ROUTE[i], ROUTE_TAN[i])
+    place(out, local, ROUTE[i], ROUTE_TAN[i], 1, true)
   }
 }
 
@@ -192,6 +217,51 @@ function windAngle(x: number, z: number) {
 interface Clear {
   buildings: THREE.Vector3[]
   lots: THREE.Vector3[]
+  paths: PathSeg[]
+}
+
+interface PathSeg {
+  a: THREE.Vector3
+  b: THREE.Vector3
+  half: number
+}
+
+const PATH: Ramp = { light: ['#ece2c6', '#e6dbbd'], mid: ['#d9cca9', '#d2c4a0', '#ddd1b0'], dark: ['#bfb08c', '#b8a985'] }
+
+/** Footpaths from the road to entrances set well back from it, with a cross path halfway along long ones. */
+function footpaths(locations: WorldLocation[]): PathSeg[] {
+  const out: PathSeg[] = []
+  for (const l of locations) {
+    const a = locationAnchors(locationPoint(l), l.id)
+    const dir = flatDir(a.door.clone().sub(a.road))
+    const start = a.road.clone().addScaledVector(dir, ROAD_EDGE)
+    const len = flatDistance(start, a.door)
+    if (len < 2.5) continue
+    out.push({ a: start, b: a.door.clone(), half: 0.75 })
+    if (len < 5) continue
+    const mid = start.clone().lerp(a.door, 0.5)
+    const across = new THREE.Vector3().crossVectors(UP, dir)
+    out.push({ a: mid.clone().addScaledVector(across, -2.8), b: mid.clone().addScaledVector(across, 2.8), half: 0.5 })
+  }
+  return out
+}
+
+const onPath = (d: THREE.Vector3, paths: PathSeg[], pad = 0) => paths.some((s) => segmentDistance(d, s.a, s.b) < s.half + pad)
+
+/** Sandy dabs laid along each footpath, ragged at the edges. */
+function pathStrokes(out: Stroke[], paths: PathSeg[]) {
+  const r = rng(61)
+  for (const s of paths) {
+    const dir = flatDir(s.b.clone().sub(s.a))
+    const across = new THREE.Vector3().crossVectors(UP, dir)
+    const len = flatDistance(s.a, s.b)
+    const n = Math.round(len * s.half * 2 * 12)
+    for (let k = 0; k < n; k++) {
+      const p = s.a.clone().addScaledVector(dir, r() * len).addScaledVector(across, (r() * 2 - 1) * s.half)
+      p.y = groundHeight(p) + 0.06 + r() * 0.01
+      out.push(conformToSlope({ p, n: UP, dir: rotateAbout(dir, UP, (r() - 0.5) * 0.4), len: 0.5 + r() * 0.3, wid: 0.24 + r() * 0.1, color: shade(r, UP, PATH) }))
+    }
+  }
 }
 
 function paved(d: THREE.Vector3, pad: number) {
@@ -222,6 +292,31 @@ function sceneryStrokes(out: Stroke[], spots: ScenerySpot[]) {
         const a = r() * Math.PI * 2
         blob(local, r, top.clone().add(new THREE.Vector3(Math.cos(a) * 0.9, 0.4 + r() * 0.9, Math.sin(a) * 0.9)), 0.8 + r() * 0.35, FOREST_CANOPY, 80, 1.4)
       }
+    } else if (sp.kind === 'poplar') {
+      // columnar Lombardy poplar: short trunk, tall narrow flame of a crown
+      column(local, r, new THREE.Vector3(0, 0, 0), 1.1, 0.12, TRUNK, 24)
+      for (let k = 0; k < 7; k++) {
+        const t = k / 6
+        blob(local, r, new THREE.Vector3((r() - 0.5) * 0.15, 1.3 + k * 0.55, (r() - 0.5) * 0.15), 0.62 * (1 - t * 0.55), POPLAR, 120, 1.1)
+      }
+    } else if (sp.kind === 'umbrella') {
+      // Mediterranean stone pine: bare leaning trunk under a broad flat crown
+      const lean = new THREE.Vector3((r() - 0.5) * 0.8, 0, (r() - 0.5) * 0.8)
+      for (let k = 0; k < 8; k++) {
+        const t = k / 8
+        column(local, r, lean.clone().multiplyScalar(t).setY(t * 3), 0.38, 0.13, TRUNK, 6)
+      }
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * Math.PI * 2 + r()
+        blob(local, r, lean.clone().add(new THREE.Vector3(Math.cos(a) * 0.9, 3.1 + r() * 0.25, Math.sin(a) * 0.9)), 0.85, UMBRELLA, 90, 1.5)
+      }
+    } else if (sp.kind === 'birch') {
+      // slim white-barked birch with a light, airy crown
+      column(local, r, new THREE.Vector3(0, 0, 0), 2.9, 0.09, BIRCH_BARK, 60)
+      for (let k = 0; k < 5; k++) {
+        const a = r() * Math.PI * 2
+        blob(local, r, new THREE.Vector3(Math.cos(a) * 0.5, 2.3 + r() * 1.3, Math.sin(a) * 0.5), 0.5, BIRCH_LEAF, 120, 1.1)
+      }
     } else if (sp.kind === 'pine') {
       column(local, r, new THREE.Vector3(0, 0, 0), 1.2, 0.13, TRUNK, 24)
       for (let k = 0; k < 4; k++) blob(local, r, new THREE.Vector3(0, 1.2 + k * 0.75, 0), 0.95 - k * 0.2, PINE, 150, 1.2)
@@ -235,23 +330,52 @@ function sceneryStrokes(out: Stroke[], spots: ScenerySpot[]) {
   }
 }
 
-const SEA_DEEP: Ramp = { light: ['#62adb8', '#6cb5bd'], mid: ['#4f9fae', '#4896a6', '#57a5b2'], dark: ['#3f8a9c', '#3a8396'] }
-const SEA_SHALLOW: Ramp = { light: ['#8fd0cc', '#9ad6cf'], mid: ['#6fbcc0', '#78c3c4', '#66b4ba'], dark: ['#5aa9b2'] }
+const WAVE_DEEP = ['#2c6890', '#295f86', '#33729a']
+const WAVE_MID = ['#3c88aa', '#4594b2', '#3a80a3']
+const WAVE_LIGHT = ['#6db6c2', '#79c1c4', '#62abbb']
+const WAVE_SHALLOW = ['#8fd3cb', '#9edbd0', '#7fc9c4']
+const WAVE_CAP = ['#f2f7f1', '#e3f1ee', '#d2ebe8']
+const SWELL = new THREE.Vector3(0.35, 0, -1).normalize()
+const CREST = new THREE.Vector3().crossVectors(UP, SWELL)
 
-/** Painted sea around the island: flat, wind-aligned dabs over the water body, paler in the shallows. */
+/**
+ * Painted sea after Van Gogh's Saintes-Maries seascapes: rows of swell drawn as long crest-wise
+ * strokes banded deep ultramarine → turquoise toward each crest, curled white caps on the crests,
+ * and pale breaker lines following the shore.
+ */
 function seaStrokes(out: Stroke[]) {
   const r = rng(91)
-  const step = 1.25
-  const wind = new THREE.Vector3(1, 0, 0.35).normalize()
+  const step = 1.3
   for (let x = -110; x < 130; x += step) {
     for (let z = -120; z < 128; z += step) {
       const p = new THREE.Vector3(x + (r() - 0.5) * step, 0, z + (r() - 0.5) * step)
       const land = landValue(p)
       if (land > -0.3) continue
       p.y = -THREE.MathUtils.clamp(0.3 - land * 0.25, 0.3, 0.9) + 0.04 + r() * 0.01
-      const dir = rotateAbout(wind, UP, Math.sin(x * 0.05 + z * 0.03) * 0.5 + (r() - 0.5) * 0.4)
-      const ramp = land > -2.8 ? SEA_SHALLOW : SEA_DEEP
-      out.push({ p, n: UP, dir, len: 1.1 + r() * 0.9, wid: 0.32 + r() * 0.2, color: shade(r, new THREE.Vector3(r() - 0.5, 1, 0).normalize(), ramp) })
+      const along = p.dot(SWELL)
+      const across = p.dot(CREST)
+      const ph = along * 0.55 + Math.sin(across * 0.08 + along * 0.03) * 2.2
+      const w = 0.5 + 0.5 * Math.sin(ph)
+      const dir = rotateAbout(CREST, UP, Math.cos(ph) * 0.35 + (r() - 0.5) * 0.25)
+      const tones = land > -2.4 ? WAVE_SHALLOW : w > 0.8 ? WAVE_LIGHT : w > 0.4 ? WAVE_MID : WAVE_DEEP
+      out.push({ p, n: UP, dir, len: 1.3 + r() * 1.1, wid: 0.3 + r() * 0.2, color: new THREE.Color(pick(r, tones)) })
+      if (land < -2.4 && w > 0.94 && r() < 0.3) {
+        // a curling white cap: three strokes bending over the crest
+        for (let j = 0; j < 3; j++) {
+          const a = j * 0.75
+          const c = p.clone().addScaledVector(CREST, Math.cos(a) * 0.45).addScaledVector(SWELL, Math.sin(a) * 0.45)
+          c.y += 0.01
+          const t = CREST.clone().multiplyScalar(-Math.sin(a)).addScaledVector(SWELL, Math.cos(a)).normalize()
+          out.push({ p: c, n: UP, dir: t, len: 0.55, wid: 0.13 - j * 0.03, color: new THREE.Color(pick(r, WAVE_CAP)) })
+        }
+      } else if (land > -1.6 && land < -0.5 && r() < 0.6) {
+        // breaker line running along the coast
+        const e = 0.6
+        const gx = landValue(new THREE.Vector3(p.x + e, 0, p.z)) - landValue(new THREE.Vector3(p.x - e, 0, p.z))
+        const gz = landValue(new THREE.Vector3(p.x, 0, p.z + e)) - landValue(new THREE.Vector3(p.x, 0, p.z - e))
+        const coast = new THREE.Vector3(-gz, 0, gx).normalize()
+        if (coast.lengthSq() > 0.5) out.push({ p: p.clone().setY(p.y + 0.015), n: UP, dir: coast, len: 1.2 + r() * 0.8, wid: 0.1 + r() * 0.06, color: new THREE.Color(pick(r, WAVE_CAP)) })
+      }
     }
   }
 }
@@ -297,7 +421,7 @@ function meadowTile(tx: number, tz: number, lod: number, q: QualityLevel, c: Cle
     for (let z = tz * TILE; z < (tz + 1) * TILE; z += spacing) {
       d.set(x + (r() - 0.5) * spacing, 0, z + (r() - 0.5) * spacing)
       const hit = nearestOnRoute(d)
-      if (hit.dist < 2.15 || landValue(d, hit) < 2.6 || paved(d, 0) || wildBlocked(d, 0.3)) continue
+      if (hit.dist < 2.15 || landValue(d, hit) < 2.6 || paved(d, 0) || wildBlocked(d, 0.3) || onPath(d, c.paths, 0.1)) continue
       const low = nearBuilding(d, c, -1.8) ? 0.3 : nearBuilding(d, c, 0) ? 0.5 : 1
       meadowBlades(out, r, d.x, d.z, count, groundHeight(d), scale * low)
     }
@@ -319,17 +443,19 @@ function flatMeadow(c: Clear) {
     for (let z = j0 * TILE; z < (j1 + 1) * TILE; z += step) {
       d.set(x + (r() - 0.5) * step, 0, z + (r() - 0.5) * step)
       const hit = nearestOnRoute(d)
-      if (hit.dist < 2.1 || landValue(d, hit) < 2.6 || paved(d, 0) || nearBuilding(d, c, -1.8) || wildBlocked(d, 0.3)) continue
+      if (hit.dist < 2.1 || landValue(d, hit) < 2.6 || paved(d, 0) || nearBuilding(d, c, -1.8) || wildBlocked(d, 0.3) || onPath(d, c.paths, 0.1)) continue
       const f = windAngle(d.x, d.z)
       const zone = meadowZone(d.x, d.z)
-      out.push({
-        p: new THREE.Vector3(d.x, groundHeight(d) + 0.03 + r() * 0.01, d.z),
-        n: UP,
-        dir: new THREE.Vector3(Math.cos(f), 0, Math.sin(f)),
-        len: 0.8 + r() * 0.7,
-        wid: 0.24 + r() * 0.14,
-        color: meadowTone(0.15 + r() * 0.5 + (zone - 0.5) * 0.3),
-      })
+      out.push(
+        conformToSlope({
+          p: new THREE.Vector3(d.x, groundHeight(d) + 0.03 + r() * 0.01, d.z),
+          n: UP,
+          dir: new THREE.Vector3(Math.cos(f), 0, Math.sin(f)),
+          len: 0.8 + r() * 0.7,
+          wid: 0.24 + r() * 0.14,
+          color: meadowTone(0.15 + r() * 0.5 + (zone - 0.5) * 0.3),
+        }),
+      )
     }
   }
   return out
@@ -392,7 +518,7 @@ function MeadowTile({ id, clear }: { id: string; clear: Clear }) {
 /** Brush-stroke layer for the whole island ground: road grain, meadow, foliage and sea foam. */
 export function GroundPaint({ locations, scenery }: { locations: WorldLocation[]; scenery: ScenerySpot[] }) {
   const clear = useMemo<Clear>(
-    () => ({ buildings: locations.flatMap(landmarkBlockers), lots: townLots(locations).map((l) => l.at) }),
+    () => ({ buildings: locations.flatMap(landmarkBlockers), lots: townLots(locations).map((l) => l.at), paths: footpaths(locations) }),
     [locations],
   )
   const grass = useQuality((s) => s.grass)
@@ -401,11 +527,12 @@ export function GroundPaint({ locations, scenery }: { locations: WorldLocation[]
     roadStrokes(out)
     plazaStrokes(out)
     dashStrokes(out)
+    pathStrokes(out, clear.paths)
     sceneryStrokes(out, scenery)
     seaStrokes(out)
     foamStrokes(out)
     return out
-  }, [scenery])
+  }, [scenery, clear])
   return (
     <>
       <Strokes key={strokes.length} strokes={strokes} />

@@ -13,7 +13,7 @@ const LAMP_H = 4.4
 const OFF = new THREE.Color('#c9c6b8')
 const ON = new THREE.Color('#ffffff')
 
-/** Road lamps built from brush strokes along the inner road edge; heads glow at night without lighting the ground. */
+/** Road lamps built from brush strokes alternating between the two road edges; heads glow at night without lighting the ground. */
 export function StreetLamps({ locations }: { locations: WorldLocation[] }) {
   const parts = useMemo(() => {
     const blockers = locations.flatMap(landmarkBlockers)
@@ -23,9 +23,9 @@ export function StreetLamps({ locations }: { locations: WorldLocation[] }) {
     const heads: Stroke[] = []
     const halos: Stroke[] = []
     const bridge: [number, number] = [ROUTE_S[BRIDGE.a] - 3, ROUTE_S[BRIDGE.b] + 3]
-    for (let s = 2; s < ROUTE_LEN - 2; s += 17) {
+    for (let k = 0, s = 2; s < ROUTE_LEN - 2; k++, s += 17) {
       if (s > bridge[0] && s < bridge[1]) continue
-      const at = routePoint(s, -3.6)
+      const at = routePoint(s, k % 2 ? 3.6 : -3.6)
       if (flatDistance(at, PLAZA) < 7.5 || blockers.some((b) => flatDistance(b, at) < 6)) continue
       const base = at.clone().setY(groundHeight(at))
       column(posts, r, base, LAMP_H, 0.07, POST, 70)

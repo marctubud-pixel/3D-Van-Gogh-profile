@@ -43,7 +43,7 @@ function mesaGeometry(m: Mesa) {
 /** Brush strokes over an outcrop: vertical sandstone dabs, dark cracks, and moss spilling over the top. */
 function mesaStrokes(out: Stroke[], m: Mesa) {
   const r = rng(300 + m.seed * 17)
-  const base = new THREE.Vector3(m.at.x, groundHeight(m.at) - 0.3, m.at.z)
+  const base = new THREE.Vector3(m.at.x, groundHeight(m.at) - 0.8, m.at.z)
   const n = Math.round(m.r * m.h * 26)
   for (let k = 0; k < n; k++) {
     const a = r() * Math.PI * 2
@@ -121,8 +121,8 @@ function creekStrokes(out: Stroke[]) {
 }
 
 const BRIDGE_AT = 62
-const SPAN = 5.2
-const DECK_W = 1.5
+const SPAN = 5.6
+const DECK_W = 2.6
 const RISE = 0.9
 
 /** Little arched footbridge over the creek, built from plank and rail strokes. */
@@ -191,7 +191,7 @@ export function Forest() {
     footbridge(strokes)
     return {
       strokes,
-      mesas: MESAS.map((m) => ({ geo: mesaGeometry(m), at: new THREE.Vector3(m.at.x, groundHeight(m.at) - 0.3, m.at.z) })),
+      mesas: MESAS.map((m) => ({ geo: mesaGeometry(m), at: new THREE.Vector3(m.at.x, groundHeight(m.at) - 0.8, m.at.z) })),
       deck: deckGeometry(),
     }
   }, [])

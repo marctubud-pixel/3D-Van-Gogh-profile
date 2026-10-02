@@ -63,16 +63,6 @@ function UtilityPole() {
 }
 
 
-function Bollard() {
-  return (
-    <>
-      <Toon geometry={geo.cyl} color="#2f3a3d" position={[0, 0.5, 0]} scale={[0.22, 1, 0.22]} outline={0.02} />
-      {[0.35, 0.7].map((y) => (
-        <Toon key={y} geometry={geo.cyl} color="#e7b53f" position={[0, y, 0]} scale={[0.23, 0.1, 0.23]} outline={0} />
-      ))}
-    </>
-  )
-}
 
 export function VendingMachine() {
   return (
@@ -106,7 +96,7 @@ function Wires({ tops }: { tops: THREE.Vector3[] }) {
     for (let i = 0; i < tops.length - 1; i++) {
       const a = tops[i]
       const b = tops[i + 1]
-      if (a.distanceTo(b) > 20) continue
+      if (a.distanceTo(b) > 40) continue
       const sag = 1.6 + r() * 0.9
       const ph = r() * Math.PI * 2
       const side = new THREE.Vector3().subVectors(b, a).cross(UP).normalize()
@@ -138,7 +128,7 @@ function Wires({ tops }: { tops: THREE.Vector3[] }) {
   return <Strokes strokes={strokes} />
 }
 
-/** Street furniture along the island road: utility poles with wires, bridge bollards, vending machines. */
+/** Street furniture along the island road: utility poles with wires and vending machines. */
 export function StreetProps({ locations }: { locations: WorldLocation[] }) {
   const layout = useMemo(() => {
     const blockers = locations.flatMap(landmarkBlockers)
@@ -147,7 +137,7 @@ export function StreetProps({ locations }: { locations: WorldLocation[] }) {
     const free = (d: THREE.Vector3, r: number) => flatDistance(d, plaza) > 8 && blockers.every((b) => flatDistance(b, d) > r)
     const bridge: [number, number] = [ROUTE_S[BRIDGE.a] - 3, ROUTE_S[BRIDGE.b] + 3]
     const runs: Spot[][] = [[]]
-    for (let s = 6; s < ROUTE_LEN - 4; s += 14) {
+    for (let s = 6; s < ROUTE_LEN - 4; s += 34) {
       const spot = roadSpot(s, 3.7)
       if ((s > bridge[0] && s < bridge[1]) || !free(spot.at, 7)) {
         if (runs[runs.length - 1].length) runs.push([])
@@ -157,12 +147,10 @@ export function StreetProps({ locations }: { locations: WorldLocation[] }) {
     }
     const poles = runs.flat()
     const wires = runs.filter((r) => r.length > 1).map((r) => r.map((p) => surf(p.at, POLE_H - 0.6)))
-    const bollards: Spot[] = []
-    for (const s of bridge) for (const k of [-1, 1]) bollards.push(roadSpot(s, k * 2.4))
     const vending: Spot[] = [18, 70, 124, 170]
       .map((s) => roadSpot(s * ROUTE_K, -4.2))
       .filter((v) => free(v.at, 6))
-    return { poles, wires, bollards, vending }
+    return { poles, wires, vending }
   }, [locations])
 
   return (
@@ -176,11 +164,6 @@ export function StreetProps({ locations }: { locations: WorldLocation[] }) {
       ))}
       {layout.wires.map((w, i) => (
         <Wires key={i} tops={w} />
-      ))}
-      {layout.bollards.map((s, i) => (
-        <Placed key={`b${i}`} spot={s} lift={0.05}>
-          <Bollard />
-        </Placed>
       ))}
       {layout.vending.map((s, i) => (
         <Placed key={`v${i}`} spot={s}>

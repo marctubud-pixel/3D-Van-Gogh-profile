@@ -3,8 +3,8 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { playerPos } from '../world/occlusion'
-import { BUILDING_SCALE, LANDMARK_FIT, flatDir, flatDistance, landmarkSetback, yawQuaternion } from '../world/plane'
-import { SERVICE_POINT, locationAnchors, locationPoint, surf } from '../world/island'
+import { BUILDING_SCALE, LANDMARK_FIT, UP, flatDistance, landmarkSetback, yawQuaternion } from '../world/plane'
+import { SERVICE_POINT, groundHeight, locationAnchors, locationPoint, surf } from '../world/island'
 import { Toon, geo, toonMaterial } from '../world/toon'
 import { type Stroke, StrokeBuild, StrokePaint, column, dab, painted, rampFor } from '../world/strokes'
 import { Decal, textTex } from './parts'
@@ -130,25 +130,25 @@ const signPostStrokes = () =>
     return out
   })
 
-/** Square sign plate painted from short horizontal dabs on both faces, with a darker rim. */
+/** Round sign plate painted from short dabs on both faces, with a darker rim stroked around the edge. */
 function plateStrokes(color: string) {
-  return painted(`parking-plate:${color}`, (r) => {
+  return painted(`parking-disc:${color}`, (r) => {
     const ramp = rampFor(color)
     const pickC = (list: string[]) => list[Math.floor(r() * list.length)]
     const out: Stroke[] = []
+    const R = 0.44
     for (const z of [0.03, -0.03]) {
-      for (let y = -0.4; y <= 0.41; y += 0.09) {
-        for (let x = -0.36; x <= 0.37; x += 0.18) {
-          const s = dab(x + (r() - 0.5) * 0.04, y + (r() - 0.5) * 0.02, z, (r() - 0.5) * 0.15, 0.24 + r() * 0.06, 0.11, pickC(r() < 0.3 ? ramp.light : ramp.mid))
+      for (let y = -0.38; y <= 0.39; y += 0.09) {
+        for (let x = -0.38; x <= 0.39; x += 0.16) {
+          if (Math.hypot(x, y) > R - 0.08) continue
+          const s = dab(x + (r() - 0.5) * 0.04, y + (r() - 0.5) * 0.02, z, (r() - 0.5) * 0.15, 0.22 + r() * 0.06, 0.11, pickC(r() < 0.3 ? ramp.light : ramp.mid))
           if (z < 0) s.n = s.n.clone().negate()
           out.push(s)
         }
       }
-      for (let k = 0; k < 16; k++) {
-        const t = (k % 4) / 4 - 0.375
-        const side = Math.floor(k / 4)
-        const [x, y, a] = side === 0 ? [t * 0.9, 0.44, 0] : side === 1 ? [t * 0.9, -0.44, 0] : side === 2 ? [0.44, t * 0.9, Math.PI / 2] : [-0.44, t * 0.9, Math.PI / 2]
-        const s = dab(x, y, z * 1.2, a + (r() - 0.5) * 0.1, 0.28, 0.06, pickC(ramp.dark))
+      for (let k = 0; k < 18; k++) {
+        const a = (k / 18) * Math.PI * 2
+        const s = dab(Math.cos(a) * R, Math.sin(a) * R, z * 1.2, a + Math.PI / 2 + (r() - 0.5) * 0.1, 0.2, 0.07, pickC(ramp.dark))
         if (z < 0) s.n = s.n.clone().negate()
         out.push(s)
       }
@@ -198,6 +198,9 @@ function Beacon({ active, height }: { active: boolean; height: number }) {
   )
 }
 
+/** Height of the model-space floor slab; models are sunk by it so floors sit flush with the road. */
+const PLINTH = 0.12
+
 const BEACON_HEIGHT: Record<string, number> = { observatory: 11, cinema: 10.5, arcade: 7.5, 'my-studio': 6.5 }
 
 /** Landmarks already rebuilt from brush strokes. */
@@ -213,15 +216,23 @@ export function Landmark({ loc, active }: LandmarkProps) {
   const fit = LANDMARK_FIT[loc.id]?.scale ?? 1
   const buildingQ = useMemo(() => yawQuaternion(a.facing), [a])
   const parkingQ = useMemo(() => yawQuaternion(a.facing), [a])
-  const bPos = surf(a.building)
-  const pPos = useMemo(() => {
-    const away = flatDir(a.parking.clone().sub(a.door))
-    return surf(a.parking.clone().addScaledVector(away, 1.5))
+  const bPos = useMemo(() => {
+    const p = surf(a.building)
+    p.y = Math.min(p.y, groundHeight(a.door))
+    return p
   }, [a])
+  // the sign stands off the building's flank on the parking side, so it never covers the facade
+  const pPos = useMemo(() => {
+    const across = new THREE.Vector3().crossVectors(UP, a.facing).normalize()
+    const side = Math.sign(a.parking.clone().sub(a.door).dot(across)) || 1
+    const half = (LANDMARK_FIT[loc.id]?.halfWidth ?? 3.3) * BUILDING_SCALE * fit
+    const front = (LANDMARK_FIT[loc.id]?.front ?? 2.2) * BUILDING_SCALE
+    return surf(a.building.clone().addScaledVector(across, side * (half * 0.85 + 1.4)).addScaledVector(a.facing, front * 0.6))
+  }, [a, loc.id, fit])
   return (
     <>
       <group position={bPos} quaternion={buildingQ}>
-        <group position={[0, 0, -landmarkSetback(loc.id)]} scale={BUILDING_SCALE * fit}>
+        <group position={[0, -PLINTH * BUILDING_SCALE * fit, -landmarkSetback(loc.id)]} scale={BUILDING_SCALE * fit}>
           {STROKED.has(loc.id) ? (
             <StrokeBuild seed={loc.id.length * 31}>
               <BuildingBody loc={loc} />
@@ -246,7 +257,7 @@ export function ServiceCenterSite() {
   const a = useMemo(() => locationAnchors(SERVICE_POINT), [])
   const q = useMemo(() => yawQuaternion(a.facing), [a])
   return (
-    <group position={surf(a.building)} quaternion={q} scale={BUILDING_SCALE}>
+    <group position={surf(a.building).add(new THREE.Vector3(0, -PLINTH * BUILDING_SCALE, 0))} quaternion={q} scale={BUILDING_SCALE}>
       <StrokeBuild seed={11}>
         <ServiceCenter />
       </StrokeBuild>

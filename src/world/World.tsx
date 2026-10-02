@@ -13,6 +13,7 @@ import { Landmark, ServiceCenterSite } from '../locations/Landmark'
 import { Player } from '../player/Player'
 import { BrushPass } from './brush'
 import { Planet } from './Planet'
+import { Critters } from './Critters'
 import { Sky } from './Sky'
 import { StreetProps } from './StreetProps'
 import { Town } from './Town'
@@ -141,6 +142,7 @@ export function World({ locations, onError }: { locations: WorldLocation[]; onEr
         <StreetProps locations={locations} />
         <StreetLamps locations={locations} />
         <Town locations={locations} />
+        <Critters />
         {locations.map((l) => (
           <Landmark key={l.id} loc={l} active={routeTargetId === l.id} />
         ))}

@@ -110,6 +110,8 @@ const BAY = { s: 64 * ROUTE_K, off: 8, r: 9 }
 const CINEMA_LOBE = { s: STOPS.cinema.s, off: 13, r: 12 }
 const STUDIO = STOPS['my-studio']
 const bayCenter = routePoint(BAY.s, BAY.off)
+/** Channel linking the bay under the bridge to the open sea, so water flows on both sides of the deck. */
+const CHANNEL = { a: routePoint(BAY.s, 2), b: routePoint(BAY.s, -30), r: 5 }
 const lobeCenter = routePoint(CINEMA_LOBE.s, CINEMA_LOBE.off)
 /** Starting plaza just before the loop's origin, and the service center behind it. */
 export const PLAZA = routePoint(-1, -2.3)
@@ -176,6 +178,13 @@ export function beachWidth(d: THREE.Vector3) {
 
 const arc = flatDistance
 
+export function segmentDistance(d: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3) {
+  const abx = b.x - a.x
+  const abz = b.z - a.z
+  const t = THREE.MathUtils.clamp(((d.x - a.x) * abx + (d.z - a.z) * abz) / (abx * abx + abz * abz), 0, 1)
+  return Math.hypot(d.x - a.x - abx * t, d.z - a.z - abz * t)
+}
+
 /** Signed distance-like land value: > 0 on land, < 0 at sea. */
 const ROUTE_PLAN = ROUTE.map((d) => pointToPlan(d))
 
@@ -199,7 +208,7 @@ export function landValue(d: THREE.Vector3, hit = nearestOnRoute(d)) {
   }
   let v = insideLoop(d) ? w + hit.dist : w - hit.dist
   v = Math.max(v, 20 - arc(d, plazaCenter), CINEMA_LOBE.r + noise(d) * 2 - arc(d, lobeCenter))
-  v = Math.min(v, arc(d, bayCenter) - BAY.r)
+  v = Math.min(v, arc(d, bayCenter) - BAY.r, segmentDistance(d, CHANNEL.a, CHANNEL.b) - CHANNEL.r - noise(d) * 0.6)
   return v
 }
 
@@ -218,17 +227,27 @@ export const BRIDGE = (() => {
 })()
 
 export function onBridge(d: THREE.Vector3, hit = nearestOnRoute(d)) {
-  return hit.i >= BRIDGE.a && hit.i <= BRIDGE.b && hit.dist < 2.3
+  return hit.i >= BRIDGE.a && hit.i <= BRIDGE.b && hit.dist < 3.2
 }
 
 const BRIDGE_RISE = 1.5
 const BRIDGE_MID = ROUTE[(BRIDGE.a + BRIDGE.b) >> 1]
 const BRIDGE_REACH = (ROUTE_S[BRIDGE.b] - ROUTE_S[BRIDGE.a]) / 2 + 4
 
-/** Arched deck height at road sample `i` (0 at both abutments). */
-export function deckHeight(i: number) {
-  const t = THREE.MathUtils.clamp((i - BRIDGE.a) / (BRIDGE.b - BRIDGE.a), 0, 1)
-  return BRIDGE_RISE * Math.sin(Math.PI * t)
+/** Deck height at arc length `s`: a gentle hump that meets both abutments with zero slope. */
+export function deckAt(s: number) {
+  const t = THREE.MathUtils.clamp((s - ROUTE_S[BRIDGE.a]) / (ROUTE_S[BRIDGE.b] - ROUTE_S[BRIDGE.a]), 0, 1)
+  return BRIDGE_RISE * Math.sin(Math.PI * t) ** 2
+}
+
+/** Deck height at road sample `i`. */
+export const deckHeight = (i: number) => deckAt(ROUTE_S[i])
+
+/** Continuous arc length of `d` projected onto the road around sample `hit.i`. */
+function projectedS(d: THREE.Vector3, hit: RouteHit) {
+  const p = ROUTE[hit.i]
+  const t = ROUTE_TAN[hit.i]
+  return hit.s + (d.x - p.x) * t.x + (d.z - p.z) * t.z
 }
 
 /** Terrain elevation above the base radius (only the observatory hill rises). */
@@ -248,7 +267,7 @@ export function walkable(d: THREE.Vector3) {
 export function groundHeight(d: THREE.Vector3) {
   if (flatDistance(d, BRIDGE_MID) < BRIDGE_REACH) {
     const hit = nearestOnRoute(d)
-    if (onBridge(d, hit)) return deckHeight(hit.i)
+    if (onBridge(d, hit)) return deckAt(projectedS(d, hit))
   }
   return hillHeight(d)
 }
@@ -343,8 +362,8 @@ export function creekEdge(d: THREE.Vector3) {
 export const MESAS = [
   { at: planPoint(-8, -38), r: 5.5, h: 9, seed: 1 },
   { at: planPoint(32, -38), r: 4.5, h: 6.5, seed: 2 },
-  { at: planPoint(-15, -5), r: 6.5, h: 8, seed: 3 },
-  { at: planPoint(-30, -20), r: 5, h: 7, seed: 4 },
+  { at: planPoint(5, -46), r: 5, h: 7.5, seed: 3 },
+  { at: planPoint(40, -34), r: 4.5, h: 6, seed: 4 },
   { at: planPoint(25, -10), r: 4, h: 5.5, seed: 5 },
 ]
 

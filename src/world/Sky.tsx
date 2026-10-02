@@ -18,6 +18,7 @@ uniform vec3 up;
 ${STROKE_GLSL}
 uniform float time;
 uniform float night;
+uniform float view;
 varying vec3 vDir;
 float hash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
 float noise(vec3 p) {
@@ -45,19 +46,20 @@ void main() {
   vec3 nsky = mix(vec3(0.17, 0.29, 0.52), vec3(0.06, 0.12, 0.33), smoothstep(0.0, 0.75, hh));
   float flow = fbm(vec3(az * 1.6, hh * 3.0, time * 0.01));
   // long horizontal current that waves across the sky
-  float wy = hh - 0.42 - 0.07 * sin(az * 3.0 + 1.3) - (flow - 0.5) * 0.12;
+  float wy = hh - 0.2 - 0.05 * sin(az * 3.0 + 1.3) - (flow - 0.5) * 0.1;
   float current = exp(-wy * wy / 0.012);
   float streak = 0.5 + 0.5 * sin(wy * 110.0 + sin(az * 2.0) * 1.5 + flow * 6.0);
   // a couple of big curls riding on the current
   float swirl = 0.0;
   float ring = 0.0;
-  for (int i = 0; i < 4; i++) {
+  // the painting's interlocking double curl sits just left of the view; smaller curls ring the horizon
+  for (int i = 0; i < 6; i++) {
     float fi = float(i);
-    vec2 c = vec2(-2.4 + fi * 1.7, 0.45 + 0.06 * sin(fi * 2.1));
+    vec2 c = i == 0 ? vec2(view - 0.32, 0.19) : i == 1 ? vec2(view + 0.05, 0.14) : vec2(view + 1.1 + fi * 1.05, 0.17 + 0.04 * sin(fi * 2.1));
     float da = mod(az - c.x + 3.14159, 6.28318) - 3.14159;
     vec2 o = vec2(da * 0.55, hh - c.y);
     float r = length(o);
-    float R = 0.16 + 0.05 * fi * (2.0 - fi) * 0.5;
+    float R = i == 0 ? 0.12 : i == 1 ? 0.085 : 0.07;
     float w = exp(-r * r / (R * R));
     float ang = atan(o.y, o.x);
     ring = max(ring, w * (0.5 + 0.5 * sin(r * 70.0 - ang * 2.0 + flow * 4.0)));
@@ -82,12 +84,14 @@ void main() {
   float star = step(0.997, hash(floor(d * 150.0))) * smoothstep(0.05, 0.3, hh);
   nsky = mix(nsky, vec3(1.0, 0.95, 0.75), star);
   // crescent moon with a glowing ring
-  vec3 md = normalize(vec3(0.62, 0.5, -0.6));
+  // crescent hangs high right of the view like in the painting
+  float ma = view + 0.5;
+  vec3 md = normalize(vec3(cos(ma) * 0.98, 0.2, sin(ma) * 0.98));
   float mr = acos(clamp(dot(d, md), -1.0, 1.0));
   vec3 md2 = normalize(md + vec3(0.03, 0.02, 0.03));
   float mr2 = acos(clamp(dot(d, md2), -1.0, 1.0));
-  float moon = smoothstep(0.075, 0.068, mr) * smoothstep(0.06, 0.068, mr2);
-  float mhalo = smoothstep(0.32, 0.07, mr) * (0.6 + 0.4 * sin(mr * 120.0));
+  float moon = smoothstep(0.065, 0.058, mr) * smoothstep(0.05, 0.058, mr2);
+  float mhalo = smoothstep(0.26, 0.06, mr) * (0.6 + 0.4 * sin(mr * 120.0));
   nsky = mix(nsky, vec3(0.95, 0.85, 0.45), mhalo * 0.6);
   nsky = mix(nsky, vec3(1.0, 0.86, 0.35), moon);
   col = mix(col, nsky, night);
@@ -95,13 +99,15 @@ void main() {
 }
 `
 
+const look = new THREE.Vector3()
+
 /** Flat painted sky dome with torn-edged pale cloud patches; follows the camera. */
 export function Sky() {
   const ref = useRef<THREE.Mesh>(null)
   const mat = useMemo(
     () =>
       new THREE.ShaderMaterial({
-        uniforms: { up: { value: new THREE.Vector3(0, 1, 0) }, time: { value: 0 }, night: { value: dusk.k } },
+        uniforms: { up: { value: new THREE.Vector3(0, 1, 0) }, time: { value: 0 }, night: { value: dusk.k }, view: { value: 0 } },
         vertexShader: vertex,
         fragmentShader: fragment,
         side: THREE.BackSide,
@@ -109,8 +115,13 @@ export function Sky() {
       }),
     [],
   )
-  useFrame(({ camera, clock }) => {
+  useFrame(({ camera, clock }, dt) => {
     ref.current?.position.copy(camera.position)
+    camera.getWorldDirection(look)
+    const u = mat.uniforms.view
+    const target = Math.atan2(look.z, look.x)
+    const delta = THREE.MathUtils.euclideanModulo(target - u.value + Math.PI, Math.PI * 2) - Math.PI
+    u.value += delta * (1 - Math.exp(-dt * 0.6))
     mat.uniforms.up.value.copy(camera.up)
     mat.uniforms.time.value = clock.elapsedTime
     mat.uniforms.night.value = dusk.k

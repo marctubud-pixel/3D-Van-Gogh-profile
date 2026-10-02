@@ -487,7 +487,7 @@ const _door = new THREE.Vector3()
  * Double entrance door at a uniform world size (see DOOR): frame, warm-lit vestibule and two
  * hinged leaves that swing outward while the player stands nearby.
  */
-export function EntryDoor({ p, k, leaf = PAL.navy, frame = PAL.cream }: { p: V3; k: number; leaf?: string; frame?: string }) {
+export function EntryDoor({ p, k, leaf = PAL.navy, frame = PAL.cream, trim = PAL.gold, glass = false }: { p: V3; k: number; leaf?: string; frame?: string; trim?: string; glass?: boolean }) {
   const w = DOOR.w / k
   const h = DOOR.h / k
   const t = 0.07
@@ -506,11 +506,23 @@ export function EntryDoor({ p, k, leaf = PAL.navy, frame = PAL.cream }: { p: V3;
     if (left.current) left.current.rotation.y = -a
     if (right.current) right.current.rotation.y = a
   })
-  const panel = (
+  const s = 0.07
+  const panel = glass ? (
+    <>
+      {/* full-height glazed leaf in a slim metal frame */}
+      <Bx c={PAL.glass} b={[s, hw - 0.01 - s, s, h - s, -0.015, 0.015]} o={0} />
+      <Bx c={leaf} b={[0, s, 0, h, -0.03, 0.03]} o={0.005} />
+      <Bx c={leaf} b={[hw - 0.01 - s, hw - 0.01, 0, h, -0.03, 0.03]} o={0.005} />
+      <Bx c={leaf} b={[s, hw - 0.01 - s, 0, s, -0.03, 0.03]} o={0.005} />
+      <Bx c={leaf} b={[s, hw - 0.01 - s, h - s, h, -0.03, 0.03]} o={0.005} />
+      <Bx c={trim} b={[hw - 0.16, hw - 0.12, h * 0.3, h * 0.6, 0.03, 0.09]} o={0} />
+    </>
+  ) : (
     <>
       <Bx c={leaf} b={[0, hw - 0.01, 0, h, -0.03, 0.03]} o={0.01} />
       <Bx c={PAL.glass} b={[0.1, hw - 0.1, h * 0.42, h - 0.12, 0.03, 0.04]} o={0} />
-      <Bx c={PAL.gold} b={[hw - 0.12, hw - 0.08, h * 0.38, h * 0.5, 0.03, 0.08]} o={0} />
+      <Bx c={trim} b={[0.1, hw - 0.1, h * 0.3, h * 0.34, 0.03, 0.05]} o={0} />
+      <Bx c={trim} b={[hw - 0.12, hw - 0.08, h * 0.38, h * 0.5, 0.03, 0.08]} o={0} />
     </>
   )
   return (

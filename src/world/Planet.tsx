@@ -540,6 +540,11 @@ function useProps(locations: WorldLocation[]) {
       return landValue(d, hit)
     }
     const push = (d: THREE.Vector3, kind: ScenerySpot['kind'], s: number) => spots.push({ d, yaw: rand() * Math.PI * 2, kind, s })
+    const pickKind = (mix: [ScenerySpot['kind'], number][]) => {
+      let t = rand() * mix.reduce((a, [, w]) => a + w, 0)
+      for (const [k, w] of mix) if ((t -= w) <= 0) return k
+      return mix[0][0]
+    }
 
     let guard = 0
     while (spots.length < 240 && guard++ < 9000) {
@@ -557,7 +562,9 @@ function useProps(locations: WorldLocation[]) {
       const [cx, cy] = pointToPlan(d)
       const clump = Math.sin(cx * 0.5) * Math.sin(cy * 0.42 + 1) * Math.sin((cx - cy) * 0.3 + 2)
       if (!hill && clump < 0.05) continue
-      const kind: ScenerySpot['kind'] = hill ? (rand() > 0.25 ? 'pine' : 'bush') : rand() > 0.5 ? 'tree' : rand() > 0.45 ? 'bush' : 'pine'
+      const kind = hill
+        ? pickKind([['pine', 6], ['bush', 2.5], ['umbrella', 1.5]])
+        : pickKind([['tree', 3.5], ['umbrella', 1.5], ['poplar', 1.5], ['bush', 2], ['pine', 1.5]])
       push(d, kind, 0.8 + rand() * 0.6)
     }
     guard = 0
@@ -567,20 +574,20 @@ function useProps(locations: WorldLocation[]) {
       const land = free(d, 5)
       if (land === null || land < 3) continue
       if (arc(d, PARK.center) < PARK.r - 5 && rand() < 0.7) continue
-      push(d, rand() > 0.3 ? 'tree' : 'bush', 0.9 + rand() * 0.5)
+      push(d, pickKind([['tree', 4], ['birch', 2], ['poplar', 1], ['bush', 3]]), 0.9 + rand() * 0.5)
       park++
     }
     // woodland: tall broadleaf trees thinning toward the rim, bushes and boulders along the creek
     guard = 0
     const forest: THREE.Vector3[] = []
-    while (forest.length < 70 && guard++ < 6000) {
+    while (forest.length < 42 && guard++ < 6000) {
       const d = FOREST.center.clone().addScaledVector(randomHeading(rand), FOREST.r * Math.sqrt(rand()))
       const land = free(d, 6)
       if (land === null || land < 3 || wildBlocked(d, 2)) continue
       if (arc(d, FOREST.center) > FOREST.r * 0.7 && rand() < 0.5) continue
-      if (forest.some((f) => arc(f, d) < 3)) continue
+      if (forest.some((f) => arc(f, d) < 4.2)) continue
       forest.push(d)
-      push(d, rand() > 0.2 ? 'tall' : 'tree', 1 + rand() * 0.6)
+      push(d, pickKind([['tall', 4], ['birch', 2.5], ['tree', 2], ['poplar', 1]]), 1 + rand() * 0.6)
     }
     for (let k = 0, n = 0; k < 900 && n < 60; k++) {
       const i = Math.floor(rand() * CREEK.length)

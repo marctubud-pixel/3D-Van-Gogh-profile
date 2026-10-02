@@ -147,7 +147,7 @@ export function CreativeMuseum({ name }: { name: string }) {
       <Bx c={PAL.roofSlate} b={[-2.7, 2.7, 6.65, 6.72, 0.5, 3.0]} o={0} />
       <Bx c="#f5e6c4" b={[-1.7, 1.7, 0.12, 4.3, 2.9, 2.95]} o={0} />
       <Pane p={[0, 2.2, 2.97]} w={3.2} h={4.1} cols={4} rows={3} />
-      <EntryDoor p={[0, 0.12, 3.02]} k={modelScale('brand-museum')} leaf={PAL.navy} frame="#e6dfcf" />
+      <EntryDoor p={[0, 0.12, 3.02]} k={modelScale('brand-museum')} leaf="#a07a45" frame="#e6dfcf" trim="#d9b45c" glass />
       <Decal tex={title} p={[0, 5.35, 3.01]} w={4.8} h={1.6} />
       {[-2.3, 2.3].map((x) => (
         <Toon key={x} geometry={geo.cyl} color={W} position={[x, 2.25, 3.3]} scale={[0.36, 4.3, 0.36]} outline={0.02} />
@@ -302,7 +302,7 @@ export function Cinema({ name }: { name: string }) {
       <Pot p={[-0.8, 0.1, 1.3]} s={0.7} />
       <Pot p={[0.8, 0.1, 1.3]} s={0.7} />
       <Pane p={[0, 1.2, 2.1]} w={2.25} h={2.2} cols={4} rows={2} />
-      <EntryDoor p={[0, 0.1, 2.14]} k={modelScale('cinema')} leaf={N} frame="#e9dfca" />
+      <EntryDoor p={[0, 0.1, 2.14]} k={modelScale('cinema')} leaf="#a8323a" frame="#e9dfca" trim="#f0c75a" />
       {[-1.52, 1.52].map((x, i) => (
         <group key={x}>
           <Bx c={N} b={[x - 0.32, x + 0.32, 0.55, 1.85, 2.2, 2.24]} o={0} />
@@ -401,7 +401,7 @@ export function ExperimentLab({ name }: { name: string }) {
       {/* double door with transom */}
       <Bx c={N} b={[-0.75, 0.75, 0.12, 2.5, 1.9, 1.98]} o={0.02} />
       <Pane p={[0, 2.38, 1.99]} w={1.1} h={0.18} cols={1} solid />
-      <EntryDoor p={[0, 0.12, 2.02]} k={modelScale('experiment-lab')} leaf="#355f9c" frame={N} />
+      <EntryDoor p={[0, 0.12, 2.02]} k={modelScale('experiment-lab')} leaf="#e9eef0" frame={N} trim="#7fd0c8" glass />
       {/* roof plant: pipe gantry, stacks, HVAC, railing, palm */}
       <Bx c={P} b={[1.2, 1.6, 3.5, 5.4, -2.2, -1.8]} o={0.02} />
       <Bx c={P} b={[2.7, 3.1, 3.5, 5.4, -2.2, -1.8]} o={0.02} />
@@ -496,7 +496,7 @@ export function Arcade({ name }: { name: string }) {
         </group>
       ))}
       <Pane p={[1.0, 0.98, 2.15]} w={3.9} h={1.72} cols={5} rows={1} frame={BD} />
-      <EntryDoor p={[1.0, 0.12, 2.2]} k={modelScale('arcade')} leaf={BD} frame={N} />
+      <EntryDoor p={[1.0, 0.12, 2.2]} k={modelScale('arcade')} leaf="#6d3a96" frame={N} trim="#5fe0d2" />
       {/* sign + awning */}
       <Bx c="#d4452f" b={[-0.3, 3.1, 2.1, 2.95, 2.2, 2.35]} o={0.03} />
       <Decal tex={sign} p={[1.4, 2.52, 2.36]} w={3.35} h={0.82} />
@@ -616,7 +616,7 @@ export function Observatory({ name }: { name: string }) {
       ))}
       {/* entrance */}
       <Bx c="#e6dcc4" b={[-0.75, 0.75, T, T + 2.2, DR - 0.3, DR + 0.18]} o={0.03} />
-      <EntryDoor p={[0, T, DR + 0.22]} k={modelScale('observatory')} leaf="#7a5a3b" frame="#e6dcc4" />
+      <EntryDoor p={[0, T, DR + 0.22]} k={modelScale('observatory')} leaf="#7a5a3b" frame="#e6dcc4" trim="#c9a24a" />
       <Bx c="#34507c" b={[-1.05, 1.05, T + 2.25, T + 2.7, DR + 0.05, DR + 0.2]} o={0.02} />
       <Decal tex={sign} p={[0, T + 2.47, DR + 0.21]} w={2.0} h={0.4} />
       <WallLamp p={[-0.6, T + 2.95, DR + 0.05]} />
@@ -804,7 +804,7 @@ export function WriteHouse({ name }: { name: string }) {
           )}
           {i === 0 ? (
             <>
-              <EntryDoor p={[(a + b) / 2 + 0.1, 0.12, 1.16]} k={modelScale('print-house')} leaf="#3d6ea8" frame="#f3f1ea" />
+              <EntryDoor p={[(a + b) / 2 + 0.1, 0.12, 1.16]} k={modelScale('print-house')} leaf="#9a6a3c" frame="#f3f1ea" trim="#e9dcc0" />
               <Pot p={[b - 0.18, 0.12, 1.75]} s={0.7} tree />
               {[0, 1, 2, 3].map((k) => (
                 <Bx key={k} c="#3d6ea8" b={[a + 0.05 + k * 0.12, a + 0.1 + k * 0.12, 0.12, band - 0.05, F - 0.05 - (k % 2) * 0.12, F]} o={0} />
@@ -885,7 +885,7 @@ export function Studio({ name }: { name: string }) {
       <Steps x={[-3.0, -1.4]} z0={2.1} n={2} rise={deckY / 2} run={0.32} c="#dedbd2" />
       {/* left entry */}
       <Bx c={T} b={[-2.85, -1.35, deckY, deckY + 2.15, 1.18, 1.26]} o={0.02} />
-      <EntryDoor p={[-2.1, deckY, 1.3]} k={modelScale('my-studio')} leaf={T} frame="#f4efe0" />
+      <EntryDoor p={[-2.1, deckY, 1.3]} k={modelScale('my-studio')} leaf="#e2b13c" frame="#f4efe0" trim="#3f6e5c" />
       <Bx c="#f4efe0" b={[-3.0, -1.2, deckY + 2.25, deckY + 2.75, 1.2, 1.26]} o={0.02} />
       <Decal tex={sign} p={[-2.1, deckY + 2.5, 1.27]} w={1.75} h={0.44} />
       <WallLamp p={[-2.1, deckY + 3.05, 1.2]} c="#2a2f38" />
