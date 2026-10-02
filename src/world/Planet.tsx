@@ -25,13 +25,10 @@ import {
   surf,
 } from './island'
 import { townLots } from './townLayout'
-import { GroundPaint, type ScenerySpot } from './GroundPaint'
+import { GroundPaint, type ScenerySpot, meadowTone, meadowZone } from './GroundPaint'
 import { IslandTitle } from './IslandTitle'
 import { LINE_COLOR, Toon, geo, toonMaterial } from './toon'
 
-const GRASS = '#72b07e'
-const GRASS_DARK = '#5e9d6d'
-const LAWN = '#86bf84'
 const SAND = '#e3d8b8'
 const SEA = '#4f9fae'
 const SHALLOW = '#6fbcc0'
@@ -67,7 +64,6 @@ function PlanetBody() {
       const py = GROUND.y0 + (pos.getY(i) + 0.5) * (GROUND.y1 - GROUND.y0)
       const v = planPoint(px, py)
       const land = landValue(v)
-      const patch = Math.sin(px * 0.22) * Math.sin(py * 0.18) * Math.sin((px + py) * 0.12)
       let y = 0
       if (land < 0) {
         c.set(land > -2.5 ? SHALLOW : SEA)
@@ -78,8 +74,7 @@ function PlanetBody() {
       } else {
         const h = hillHeight(v)
         y = h
-        if (arc(v, PARK.center) < PARK.r) c.set(LAWN)
-        else c.set(patch > 0.25 || h > 0.5 ? GRASS_DARK : GRASS)
+        meadowTone(0.22 + meadowZone(v.x, v.z) * 0.4, c)
       }
       pos.setXYZ(i, v.x, y, v.z)
       colors.set([c.r, c.g, c.b], i * 3)

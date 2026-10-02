@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { NORTH, UP, flatDistance, yawQuaternion } from './plane'
@@ -14,16 +15,14 @@ import {
   groundHeight,
   landValue,
   landmarkBlockers,
-  locationPoint,
   nearestOnRoute,
-  type RouteHit,
 } from './island'
 import { type Ramp, type Stroke, Strokes, blob, column, pick, rng, rotateAbout, shade } from './strokes'
+import { playerPos } from './occlusion'
 import { townLots } from './townLayout'
 
 
 const ASPHALT: Ramp = { light: ['#8396a0', '#7a8e96'], mid: ['#6f848b', '#667a82', '#748990'], dark: ['#566870', '#5b6e76'] }
-const BLADE = { light: ['#a8d993', '#c2e3a0', '#8fcf8a'], mid: ['#6aa874', '#5e9d6d', '#7fb483'], dark: ['#3f7a55', '#346b52'] }
 const BUSH: Ramp = { light: ['#9fd48e', '#b7de9c', '#86c784'], mid: ['#5e9d6d', '#4f8f63', '#6aa874', '#3f7a55'], dark: ['#2f6650', '#28584a', '#244c46'] }
 const CANOPY: Ramp = { light: ['#8fcf8a', '#a8d993'], mid: ['#4f8f5f', '#5e9d6d', '#62a06c'], dark: ['#2f6650', '#28584a'] }
 const PINE: Ramp = { light: ['#6aa874', '#5e9d6d'], mid: ['#3f7a5a', '#386f52', '#447f5e'], dark: ['#244c46', '#2a5a48'] }
@@ -107,13 +106,6 @@ function dashStrokes(out: Stroke[]) {
   }
 }
 
-const LAWN = {
-  root: ['#2c5f4c', '#33684f', '#2a5a52'],
-  body: ['#4f8f63', '#5e9d6d', '#6aa874', '#57955f'],
-  tip: ['#8fcf8a', '#a8d993', '#c9df92', '#d9d48a'],
-  accent: ['#6f8fb0', '#8a86b8', '#e8e6c8'],
-}
-
 const MEADOW_TONES = ['#1f4a45', '#2f6454', '#4d8556', '#72a35c', '#98bf6c', '#bad289'].map((c) => new THREE.Color(c))
 
 /** 0 = deep teal shadow mass, 1 = sunlit yellow-green; large soft zones like blocked-in paint. */
@@ -136,7 +128,7 @@ const FLECK = ['#f2f0e2', '#b9d4e8', '#e6e8f2']
  * Painted meadow after Van Gogh's green wheat fields: sickle-shaped blades that sweep up and arc over
  * downwind, toned from the local light/shadow zone so strokes read as masses rather than confetti.
  */
-export function meadowBlades(out: Stroke[], r: () => number, x: number, z: number, count: number) {
+export function meadowBlades(out: Stroke[], r: () => number, x: number, z: number, count: number, y = 0, widen = 1) {
   const flow = windAngle(x, z)
   const zone = meadowZone(x, z)
   for (let b = 0; b < count; b++) {
@@ -149,9 +141,9 @@ export function meadowBlades(out: Stroke[], r: () => number, x: number, z: numbe
     const L = (arched ? 0.4 + r() * 0.3 : 0.22 + r() * 0.2) * (0.8 + zone * 0.4)
     const segs = arched ? 4 : 2
     const seg = L / segs
-    const wid = 0.09 + r() * 0.05
+    const wid = (0.09 + r() * 0.05) * widen
     const base = r() < 0.06 ? 0 : zone - 0.18 + (r() - 0.5) * 0.12
-    const p = new THREE.Vector3(x + (r() - 0.5) * 0.16, 0, z + (r() - 0.5) * 0.16)
+    const p = new THREE.Vector3(x + (r() - 0.5) * 0.16, y, z + (r() - 0.5) * 0.16)
     for (let k = 0; k < segs; k++) {
       const th = lean + bend * k
       const dir = UP.clone().multiplyScalar(Math.cos(th)).addScaledVector(w, Math.sin(th)).normalize()
@@ -164,61 +156,16 @@ export function meadowBlades(out: Stroke[], r: () => number, x: number, z: numbe
   if (zone > 0.45 && r() < 0.012) {
     for (let k = 0; k < 5; k++) {
       const a = r() * Math.PI * 2
-      out.push({ p: new THREE.Vector3(x + (r() - 0.5) * 0.5, 0.3 + r() * 0.2, z + (r() - 0.5) * 0.5), n: new THREE.Vector3(Math.cos(a), 0.6, Math.sin(a)).normalize(), dir: new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)), len: 0.09, wid: 0.07, color: new THREE.Color(pick(r, FLOWER)) })
+      out.push({ p: new THREE.Vector3(x + (r() - 0.5) * 0.5, y + 0.3 + r() * 0.2, z + (r() - 0.5) * 0.5), n: new THREE.Vector3(Math.cos(a), 0.6, Math.sin(a)).normalize(), dir: new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)), len: 0.09, wid: 0.07, color: new THREE.Color(pick(r, FLOWER)) })
     }
   } else if (r() < 0.01) {
-    out.push({ p: new THREE.Vector3(x, 0.25 + r() * 0.15, z), n: UP, dir: new THREE.Vector3(Math.cos(flow), 0, Math.sin(flow)), len: 0.07, wid: 0.05, color: new THREE.Color(pick(r, FLECK)) })
+    out.push({ p: new THREE.Vector3(x, y + 0.25 + r() * 0.15, z), n: UP, dir: new THREE.Vector3(Math.cos(flow), 0, Math.sin(flow)), len: 0.07, wid: 0.05, color: new THREE.Color(pick(r, FLECK)) })
   }
 }
 
 /** Shared wind field: neighbouring blades bend the same way, so the lawn reads as flowing clumps. */
 function windAngle(x: number, z: number) {
   return Math.sin(x * 0.21 + Math.cos(z * 0.17) * 1.3) * 1.4 + Math.cos(z * 0.13 - x * 0.07) * 0.9
-}
-
-/**
- * Van Gogh style lawn: clustered curved blades of varying length that bend with a shared flow,
- * some arching over and lying down, darker at the root and lighter toward the tip.
- */
-function lawnStrokes(out: Stroke[], c: Clear, centre: THREE.Vector3, radius: number) {
-  const r = rng(91)
-  const local: Stroke[] = []
-  const spacing = 0.42
-  const SEGS = 3
-  for (let x = -radius; x < radius; x += spacing) {
-    for (let z = -radius; z < radius; z += spacing) {
-      if (x * x + z * z > radius * radius) continue
-      const d = new THREE.Vector3(centre.x + x + (r() - 0.5) * spacing, 0, centre.z + z + (r() - 0.5) * spacing)
-      const hit = nearestOnRoute(d)
-      if (hit.dist < 2.1 || landValue(d, hit) < 2.6 || blocked(d, c, 0)) continue
-      local.length = 0
-      const flow = windAngle(d.x, d.z)
-      const clump = 0.7 + 0.6 * (0.5 + 0.5 * Math.sin(d.x * 0.9 + d.z * 0.7))
-      const blades = 2 + Math.floor(r() * 3)
-      for (let b = 0; b < blades; b++) {
-        const yaw = flow + (r() - 0.5) * 0.7
-        const w = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw))
-        const across = new THREE.Vector3(-w.z, 0, w.x)
-        const lying = r() < 0.3
-        const lean = lying ? 0.7 + r() * 0.5 : 0.1 + r() * 0.35
-        const bend = lying ? 0.35 + r() * 0.25 : 0.15 + r() * 0.3
-        const L = (0.28 + r() * 0.42) * clump
-        const seg = L / SEGS
-        const wid = 0.06 + r() * 0.03
-        const accent = r() < 0.05
-        const p = new THREE.Vector3((r() - 0.5) * 0.2, 0, (r() - 0.5) * 0.2)
-        for (let k = 0; k < SEGS; k++) {
-          const th = Math.min(lean + bend * k, 1.45)
-          const dir = UP.clone().multiplyScalar(Math.cos(th)).addScaledVector(w, Math.sin(th)).normalize()
-          const n = new THREE.Vector3().crossVectors(across, dir).normalize()
-          const ramp = accent && k === SEGS - 1 ? LAWN.accent : k === 0 ? LAWN.root : k === 1 ? LAWN.body : r() < 0.55 ? LAWN.tip : LAWN.body
-          local.push({ p: p.clone().addScaledVector(dir, seg / 2), n, dir, len: seg * 1.35, wid: wid * (1 - k * 0.22), color: new THREE.Color(pick(r, ramp)) })
-          p.addScaledVector(dir, seg)
-        }
-      }
-      place(out, local, d, NORTH)
-    }
-  }
 }
 
 interface Clear {
@@ -230,40 +177,6 @@ function blocked(d: THREE.Vector3, c: Clear, pad: number) {
   if (arc(d, PLAZA) < 7.5 + pad || arc(d, SERVICE_POINT) < 9 + pad) return true
   if (arc(d, POND.center) < POND.r + 0.8) return true
   return c.buildings.some((b) => arc(b, d) < 5 + pad) || c.lots.some((b) => arc(b, d) < 3 + pad)
-}
-
-/** Dense, short, near-upright grass along both verges, plus sparse flat dabs over the open meadows. */
-function grassStrokes(out: Stroke[], c: Clear, skip: (d: THREE.Vector3) => boolean) {
-  const r = rng(77)
-  const step = ROUTE_LEN / (ROUTE.length - 1)
-  const local: Stroke[] = []
-  const cell = 0.3
-  for (let i = 0; i < ROUTE.length - 1; i++) {
-    if (onDeck(i)) continue
-    for (let a = -step / 2; a < step / 2; a += cell) {
-      for (const sign of [-1, 1]) {
-        for (let off = 2.15; off < 9; off += cell) {
-          const o = sign * (off + r() * cell)
-          const along = a + r() * cell
-          const d = besideRoad(i, o, along)
-          const hit: RouteHit = { i, s: ROUTE_S[i], dist: Math.abs(o), sign }
-          if (landValue(d, hit) < 2.6) continue
-          if (blocked(d, c, 0) || skip(d)) continue
-          local.length = 0
-          const yaw = r() * Math.PI
-          const face = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw))
-          const across = new THREE.Vector3(-face.z, 0, face.x)
-          const dir = rotateAbout(UP, face, (r() - 0.5) * 0.25)
-          const len = 0.22 + r() * 0.16
-          const n = new THREE.Vector3().crossVectors(across, dir).normalize()
-          const tone = r()
-          const ramp = tone < 0.55 ? BLADE.mid : tone < 0.85 ? BLADE.light : BLADE.dark
-          local.push({ p: dir.clone().multiplyScalar(len / 2), n, dir, len, wid: 0.07 + r() * 0.03, color: new THREE.Color(pick(r, ramp)) })
-          place(out, local, d, ROUTE_TAN[i])
-        }
-      }
-    }
-  }
 }
 
 function sceneryStrokes(out: Stroke[], spots: ScenerySpot[]) {
@@ -306,28 +219,89 @@ function foamStrokes(out: Stroke[]) {
   }
 }
 
-/** Trial area of the curved, flowing lawn around the observatory. */
-const TUFT_RADIUS = 20
+const TILE = 12
+const NEAR = 24
+const FAR = 52
+const tileCache = new Map<string, Stroke[]>()
 
-/** Brush-stroke layer for the whole island ground: road grain, verge grass, meadows, foliage and sea foam. */
-export function GroundPaint({ locations, scenery }: { locations: WorldLocation[]; scenery: ScenerySpot[] }) {
-  const strokes = useMemo(() => {
-    const clear: Clear = {
-      buildings: locations.flatMap(landmarkBlockers),
-      lots: townLots(locations).map((l) => l.at),
+/** Painted meadow for one ground tile; `lod` 1 is a sparser, broader version for the middle distance. */
+function meadowTile(tx: number, tz: number, lod: number, c: Clear) {
+  const key = `${tx},${tz},${lod}`
+  let out = tileCache.get(key)
+  if (out) return out
+  out = []
+  const r = rng(tx * 7919 + tz * 104729 + lod * 31 + 17)
+  const spacing = lod === 0 ? 0.18 : 0.42
+  const d = new THREE.Vector3()
+  for (let x = tx * TILE; x < (tx + 1) * TILE; x += spacing) {
+    for (let z = tz * TILE; z < (tz + 1) * TILE; z += spacing) {
+      d.set(x + (r() - 0.5) * spacing, 0, z + (r() - 0.5) * spacing)
+      const hit = nearestOnRoute(d)
+      if (hit.dist < 2.15 || landValue(d, hit) < 2.6 || blocked(d, c, 0)) continue
+      meadowBlades(out, r, d.x, d.z, 2, groundHeight(d), lod === 0 ? 1 : 1.9)
     }
+  }
+  if (tileCache.size > 80) tileCache.delete(tileCache.keys().next().value as string)
+  tileCache.set(key, out)
+  return out
+}
+
+/** Streams dense meadow tiles around the player and sparser ones further out; the painted ground colour carries the distance. */
+function Meadow({ clear }: { clear: Clear }) {
+  const [tiles, setTiles] = useState<string[]>([])
+  const last = useRef(0)
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime
+    if (t - last.current < 0.4) return
+    last.current = t
+    const want: string[] = []
+    const reach = Math.ceil(FAR / TILE)
+    const px = Math.floor(playerPos.x / TILE)
+    const pz = Math.floor(playerPos.z / TILE)
+    for (let i = px - reach; i <= px + reach; i++) {
+      for (let j = pz - reach; j <= pz + reach; j++) {
+        const dist = Math.hypot((i + 0.5) * TILE - playerPos.x, (j + 0.5) * TILE - playerPos.z)
+        if (dist < FAR) want.push(`${i},${j},${dist < NEAR ? 0 : 1}`)
+      }
+    }
+    const next = want.join('|')
+    if (next !== tiles.join('|')) setTiles(want)
+  })
+  return (
+    <>
+      {tiles.map((k) => (
+        <MeadowTile key={k} id={k} clear={clear} />
+      ))}
+    </>
+  )
+}
+
+function MeadowTile({ id, clear }: { id: string; clear: Clear }) {
+  const strokes = useMemo(() => {
+    const [tx, tz, lod] = id.split(',').map(Number)
+    return meadowTile(tx, tz, lod, clear)
+  }, [id, clear])
+  return strokes.length ? <Strokes strokes={strokes} /> : null
+}
+
+/** Brush-stroke layer for the whole island ground: road grain, meadow, foliage and sea foam. */
+export function GroundPaint({ locations, scenery }: { locations: WorldLocation[]; scenery: ScenerySpot[] }) {
+  const clear = useMemo<Clear>(
+    () => ({ buildings: locations.flatMap(landmarkBlockers), lots: townLots(locations).map((l) => l.at) }),
+    [locations],
+  )
+  const strokes = useMemo(() => {
     const out: Stroke[] = []
-    const obs = locations.find((l) => l.id === 'observatory')
-    const tuftAt = obs ? locationPoint(obs) : null
-    const inTufts = (d: THREE.Vector3) => tuftAt !== null && arc(d, tuftAt) < TUFT_RADIUS
     roadStrokes(out)
     dashStrokes(out)
-    grassStrokes(out, clear, inTufts)
-    if (tuftAt) lawnStrokes(out, clear, tuftAt, TUFT_RADIUS)
     sceneryStrokes(out, scenery)
     foamStrokes(out)
     return out
-  }, [locations, scenery])
-  return <Strokes key={strokes.length} strokes={strokes} />
+  }, [scenery])
+  return (
+    <>
+      <Strokes key={strokes.length} strokes={strokes} />
+      <Meadow clear={clear} />
+    </>
+  )
 }
-
