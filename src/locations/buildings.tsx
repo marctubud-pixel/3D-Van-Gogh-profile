@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { type Stroke, StrokePaint, dab, painted, pick, useStrokeBuild } from '../world/strokes'
+import { type Stroke, StrokePaint, brushMat, dab, painted, pick, tintable, useStrokeBuild } from '../world/strokes'
 import { Toon, geo } from '../world/toon'
 import {
   Bench,
@@ -26,7 +27,6 @@ import {
 
 const torusGeo = new THREE.TorusGeometry(0.42, 0.2, 10, 24)
 const ribGeo = new THREE.TorusGeometry(1, 0.025, 4, 24, Math.PI)
-const halfDisc = new THREE.CylinderGeometry(0.5, 0.5, 1, 20, 1, false, -Math.PI / 2, Math.PI)
 
 function paintingTex(seed: number) {
   return canvasTex(`paint:${seed}`, 96, 128, (g) => {
@@ -953,33 +953,6 @@ export function Studio({ name }: { name: string }) {
 /* ------------------------------------------------------------------ */
 /* ISLAND SERVICE CENTER — Mediterranean hall, clock tower & fountain  */
 
-function clockTex() {
-  return canvasTex('clock', 128, 128, (g) => {
-    g.fillStyle = '#f7f3ea'
-    g.beginPath()
-    g.arc(64, 64, 60, 0, Math.PI * 2)
-    g.fill()
-    g.strokeStyle = '#8a8f96'
-    g.lineWidth = 5
-    g.stroke()
-    g.strokeStyle = '#2f4a78'
-    g.lineWidth = 3
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * Math.PI * 2
-      g.beginPath()
-      g.moveTo(64 + Math.sin(a) * 48, 64 - Math.cos(a) * 48)
-      g.lineTo(64 + Math.sin(a) * 54, 64 - Math.cos(a) * 54)
-      g.stroke()
-    }
-    g.lineWidth = 6
-    g.beginPath()
-    g.moveTo(64, 64)
-    g.lineTo(64 + 26, 64 - 18)
-    g.moveTo(64, 64)
-    g.lineTo(40, 40)
-    g.stroke()
-  })
-}
 
 function mapTex() {
   return canvasTex('islandmap', 192, 128, (g) => {
@@ -1001,40 +974,6 @@ function mapTex() {
 
 /* Hand-painted panels: each picture is laid down dab by dab in its local XY plane. */
 
-function clockStrokes() {
-  return painted('clock', (r) => {
-    const out: Stroke[] = []
-    const cream = ['#f7f3ea', '#efe6d2', '#fbf8ef', '#e6dcc6', '#f3ead8']
-    for (let rr = 0.04; rr < 0.45; rr += 0.055) {
-      const n = Math.max(3, Math.ceil((Math.PI * 2 * rr) / 0.07))
-      for (let i = 0; i < n; i++) {
-        const t = ((i + r() * 0.6) / n) * Math.PI * 2
-        const q = rr + (r() - 0.5) * 0.03
-        out.push(dab(Math.cos(t) * q, Math.sin(t) * q, 0.002 + r() * 0.006, t + Math.PI / 2 + (r() - 0.5) * 0.5, 0.1 + r() * 0.05, 0.045 + r() * 0.015, pick(r, cream)))
-      }
-    }
-    const rim = ['#7f8a96', '#6c7784', '#95a0aa', '#5f6a77']
-    for (let i = 0; i < 34; i++) {
-      const t = ((i + r() * 0.5) / 34) * Math.PI * 2
-      const q = 0.49 + (r() - 0.5) * 0.03
-      out.push(dab(Math.cos(t) * q, Math.sin(t) * q, 0.012 + r() * 0.004, t + Math.PI / 2 + (r() - 0.5) * 0.3, 0.13, 0.055 + r() * 0.015, pick(r, rim)))
-    }
-    for (let i = 0; i < 12; i++) {
-      const t = (i / 12) * Math.PI * 2
-      out.push(dab(Math.cos(t) * 0.37, Math.sin(t) * 0.37, 0.02, t + (r() - 0.5) * 0.25, i % 3 ? 0.06 : 0.09, i % 3 ? 0.03 : 0.04, '#2f4a78'))
-    }
-    const hand = (a: number, L: number, w: number) => {
-      for (let k = 0; k < 3; k++) {
-        const d = (L * (k + 0.5)) / 3
-        out.push(dab(Math.cos(a) * d, Math.sin(a) * d, 0.026 + k * 0.002, a + (r() - 0.5) * 0.12, (L / 3) * 1.35, w * (0.85 + r() * 0.3), pick(r, ['#2f4a78', '#263d63', '#34548a'])))
-      }
-    }
-    hand(Math.PI / 5, 0.24, 0.06)
-    hand((3 * Math.PI) / 4, 0.34, 0.045)
-    out.push(dab(0, 0, 0.034, r() * 3, 0.07, 0.06, '#c9a24a'))
-    return out
-  })
-}
 
 function sailStrokes() {
   return painted('sail', (r) => {
@@ -1134,119 +1073,138 @@ function mapStrokes() {
   })
 }
 
-function ShutterWindow({ p }: { p: [number, number, number] }) {
-  return (
-    <group position={p}>
-      <Pane p={[0, 0, 0]} w={0.55} h={0.8} cols={2} rows={2} frame="#2f4a78" solid />
-      <Bx c="#2f58a0" b={[-0.62, -0.32, -0.42, 0.42, 0, 0.05]} o={0.01} />
-      <Bx c="#2f58a0" b={[0.32, 0.62, -0.42, 0.42, 0, 0.05]} o={0.01} />
-      <Planter p={[0, -0.55, 0.12]} w={0.7} d={0.22} h={0.14} c={PAL.pot} flowers="#f4efe0" />
-    </group>
-  )
+
+const SPRAY = ['#f4fbfb', '#dff3f4', '#c4e8ec', '#a9dce2']
+const SPRAY_N = 420
+const GRAVITY = 3.2
+
+interface Jet {
+  o: THREE.Vector3
+  v: THREE.Vector3
+}
+
+/** Fountain jets: one tall centre plume, arcs off the upper bowl and a ring of jets from the basin rim, drawn as moving brush dabs. */
+function fountainJets(): Jet[] {
+  const jets: Jet[] = [{ o: new THREE.Vector3(0, 3.05, 0), v: new THREE.Vector3(0, 4.2, 0) }]
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2
+    const out = new THREE.Vector3(Math.sin(a), 0, Math.cos(a))
+    jets.push({ o: out.clone().multiplyScalar(0.45).setY(3.05), v: out.clone().multiplyScalar(1.1).setY(1.6) })
+  }
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 + 0.26
+    const out = new THREE.Vector3(Math.sin(a), 0, Math.cos(a))
+    jets.push({ o: out.clone().multiplyScalar(2.55).setY(0.7), v: out.clone().multiplyScalar(-1.15).setY(2.4) })
+  }
+  return jets
+}
+
+function FountainSpray() {
+  const ref = useRef<THREE.InstancedMesh>(null)
+  const data = useMemo(() => {
+    const jets = fountainJets()
+    let seed = 7
+    const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+    const drops = Array.from({ length: SPRAY_N }, (_, i) => {
+      const jet = jets[i % jets.length]
+      const v = jet.v.clone().multiplyScalar(0.9 + r() * 0.2).add(new THREE.Vector3((r() - 0.5) * 0.25, 0, (r() - 0.5) * 0.25))
+      const life = (2 * v.y) / GRAVITY + 0.15
+      return { o: jet.o, v, life, phase: r() * life, size: 0.08 + r() * 0.08 }
+    })
+    return { drops, geom: new THREE.PlaneGeometry(1, 1), mat: tintable(brushMat()) }
+  }, [])
+  const tmp = useMemo(() => ({ m: new THREE.Matrix4(), q: new THREE.Quaternion(), pq: new THREE.Quaternion(), p: new THREE.Vector3(), s: new THREE.Vector3(), c: new THREE.Color() }), [])
+  useFrame(({ clock, camera }) => {
+    const mesh = ref.current
+    if (!mesh) return
+    mesh.parent?.getWorldQuaternion(tmp.pq)
+    tmp.q.copy(tmp.pq).invert().multiply(camera.quaternion)
+    const t = clock.elapsedTime
+    data.drops.forEach((d, i) => {
+      const k = (t + d.phase) % d.life
+      tmp.p.copy(d.o).addScaledVector(d.v, k)
+      tmp.p.y -= 0.5 * GRAVITY * k * k
+      if (tmp.p.y < 0.68) tmp.p.y = 0.68
+      const fade = Math.min(1, (d.life - k) * 4)
+      tmp.s.set(d.size * 2.2 * fade, d.size * fade, 1)
+      tmp.m.compose(tmp.p, tmp.q, tmp.s)
+      mesh.setMatrixAt(i, tmp.m)
+    })
+    mesh.instanceMatrix.needsUpdate = true
+  })
+  const colored = (m: THREE.InstancedMesh | null) => {
+    ref.current = m
+    if (!m || m.instanceColor) return
+    data.drops.forEach((_, i) => m.setColorAt(i, tmp.c.set(SPRAY[i % SPRAY.length])))
+  }
+  return <instancedMesh ref={colored} args={[data.geom, data.mat, SPRAY_N]} frustumCulled={false} />
 }
 
 export function ServiceCenter() {
-  const W = '#f2ecdf'
   const sign = textTex(['ISLAND SERVICE CENTER'], 512, 64, { fg: '#f1ecdf', bg: '#2f4a78', border: '#c9d2dc', weight: 800 })
   const welcome = textTex(['WELCOME TO', 'MARC ISLAND'], 384, 160, { fg: '#2f4a78', weight: 800 })
   const about = textTex(['ABOUT MARC'], 192, 48, { fg: '#2f4a78', weight: 800 })
   const guide = textTex(['ISLAND GUIDE'], 192, 48, { fg: '#2f4a78', weight: 800 })
   const brushed = useStrokeBuild() !== null
-  const water = useMemo(() => new THREE.MeshBasicMaterial({ color: '#6fd0e0', toneMapped: false }), [])
-  const jet = useMemo(() => new THREE.MeshBasicMaterial({ color: '#e8fbff', transparent: true, opacity: 0.8, toneMapped: false }), [])
-  const H = 4.6
+  const W = '#f2ecdf'
+  const STONE = '#e2d8c2'
   return (
     <group>
-      <Bx c="#efe6d4" b={[-5.2, 5.2, -0.4, 0.12, -3.0, 4.2]} o={0.03} />
-      {/* main two-storey hall */}
-      <Bx c={W} b={[-3.3, 1.9, 0.12, H, -2.8, 0.4]} o={0.07} />
-      <group position={[-0.7, H + 0.7, -1.2]} scale={[2.85 / 0.509, 1.4, 1.85 / 0.509]}>
-        <Toon geometry={geo.roof} color={PAL.terracotta} rotation={[0, Math.PI / 4, 0]} outline={0.06} />
-      </group>
-      {[-2.4, 1.0].map((x) => (
-        <group key={x}>
-          <Bx c={W} b={[x - 0.3, x + 0.3, H + 0.4, H + 1.5, -1.5, -0.9]} o={0.03} />
-          <Bx c={PAL.terracotta} b={[x - 0.36, x + 0.36, H + 1.5, H + 1.62, -1.56, -0.84]} o={0.015} />
+      {/* open civic plaza */}
+      <Bx c="#efe6d4" b={[-6.6, 6.6, -0.4, 0.12, -4.2, 5.2]} o={0.03} />
+      {/* big fountain in the middle */}
+      <Toon geometry={geo.cyl} color={STONE} position={[0, 0.4, 0]} scale={[5.4, 0.56, 5.4]} outline={0.03} />
+      <Toon geometry={geo.cyl} color="#6fbcc0" position={[0, 0.66, 0]} scale={[4.9, 0.04, 4.9]} outline={0} />
+      <Toon geometry={geo.cyl} color={STONE} position={[0, 1.2, 0]} scale={[0.5, 1.4, 0.5]} outline={0.015} />
+      <Toon geometry={geo.cyl} color={STONE} position={[0, 1.95, 0]} scale={[2.3, 0.22, 2.3]} outline={0.02} />
+      <Toon geometry={geo.cyl} color="#7cc4c6" position={[0, 2.07, 0]} scale={[2.0, 0.03, 2.0]} outline={0} />
+      <Toon geometry={geo.cyl} color={STONE} position={[0, 2.5, 0]} scale={[0.28, 0.9, 0.28]} outline={0.01} />
+      <Toon geometry={geo.cyl} color={STONE} position={[0, 2.98, 0]} scale={[1.0, 0.14, 1.0]} outline={0.01} />
+      <FountainSpray />
+      {/* entrance gateway facing the road */}
+      {[-2.6, 2.6].map((x) => (
+        <Bx key={x} c={W} b={[x - 0.22, x + 0.22, 0.12, 3.2, 4.3, 4.7]} o={0.03} />
+      ))}
+      <Bx c="#2f4a78" b={[-2.95, 2.95, 3.0, 3.48, 4.35, 4.65]} o={0.015} />
+      <Decal tex={sign} p={[0, 3.24, 4.66]} w={2.6} h={0.42} />
+      <WallLamp p={[-2.6, 2.5, 4.72]} />
+      <WallLamp p={[2.6, 2.5, 4.72]} />
+      {/* info kiosk */}
+      <group position={[-4.6, 0.12, -2.6]}>
+        <Bx c={W} b={[-0.9, 0.9, 0, 2.0, -0.6, 0.6]} o={0.04} />
+        <Bx c="#8fb8c4" b={[-0.7, 0.7, 0.9, 1.7, 0.6, 0.62]} o={0} />
+        <Bx c="#2f4a78" b={[-1.0, 1.0, 0.85, 0.95, 0.6, 0.9]} o={0.01} />
+        <group position={[0, 2.25, 0]} scale={[1.2 / 0.509, 0.6, 0.9 / 0.509]}>
+          <Toon geometry={geo.roof} color={PAL.terracotta} rotation={[0, Math.PI / 4, 0]} outline={0.04} />
         </group>
-      ))}
-      {[-2.4, -0.7, 1.0].map((x) => (
-        <ShutterWindow key={x} p={[x, 3.4, 0.41]} />
-      ))}
-      {[-2.4, 1.0].map((x) => (
-        <ShutterWindow key={x} p={[x, 1.45, 0.41]} />
-      ))}
-      <Bx c="#2f4a78" b={[-1.7, 0.3, 2.35, 2.72, 0.4, 0.5]} o={0.015} />
-      <Decal tex={sign} p={[-0.7, 2.535, 0.51]} w={1.95} h={0.34} />
-      {/* arched door */}
-      <Bx c="#e4dac6" b={[-1.35, -0.05, 0.12, 1.75, 0.4, 0.55]} o={0.02} />
-      <Toon geometry={halfDisc} color="#e4dac6" position={[-0.7, 1.75, 0.47]} rotation={[Math.PI / 2, 0, 0]} scale={[1.3, 0.15, 1.3]} outline={0.02} />
-      <Bx c="#2f58a0" b={[-1.15, -0.25, 0.12, 1.7, 0.55, 0.58]} o={0.01} />
-      <Toon geometry={halfDisc} color="#2f58a0" position={[-0.7, 1.7, 0.56]} rotation={[Math.PI / 2, 0, 0]} scale={[0.9, 0.04, 0.9]} outline={0} />
-      <Bx c="#8fb8c4" b={[-1.05, -0.75, 0.9, 1.6, 0.58, 0.59]} o={0} />
-      <Bx c="#8fb8c4" b={[-0.65, -0.35, 0.9, 1.6, 0.58, 0.59]} o={0} />
-      <Bx c={PAL.gold} b={[-0.76, -0.73, 0.7, 1.0, 0.58, 0.62]} o={0} />
-      <Bx c={PAL.gold} b={[-0.67, -0.64, 0.7, 1.0, 0.58, 0.62]} o={0} />
-      <WallLamp p={[-1.65, 2.1, 0.4]} />
-      <WallLamp p={[0.25, 2.1, 0.4]} />
-      <Vines p={[1.75, H, 0.42]} w={0.3} len={2.4} />
-      {/* clock/bell tower */}
-      <Bx c={W} b={[1.9, 3.3, 0.12, 6.9, -1.8, -0.2]} o={0.07} />
-      <Bx c="#1f2733" b={[2.25, 2.95, 5.8, 6.6, -0.22, -0.18]} o={0} />
-      <Toon geometry={halfDisc} color="#1f2733" position={[2.6, 6.6, -0.2]} rotation={[Math.PI / 2, 0, 0]} scale={[0.7, 0.04, 0.7]} outline={0} />
-      <Toon geometry={geo.cone} color="#8a6b3a" position={[2.6, 6.1, -0.3]} scale={[0.35, 0.4, 0.35]} outline={0.01} />
-      <Bx c="#e4dac6" b={[1.85, 3.35, 6.9, 7.05, -1.85, -0.15]} o={0.02} />
-      <group position={[2.6, 7.6, -1.0]} scale={[0.95 / 0.509, 1.1, 1.05 / 0.509]}>
-        <Toon geometry={geo.roof} color={PAL.terracotta} rotation={[0, Math.PI / 4, 0]} outline={0.05} />
       </group>
-      <Toon geometry={geo.sphere} color={PAL.gold} position={[2.6, 8.25, -1.0]} scale={0.18} outline={0.01} />
-      {brushed ? <StrokePaint strokes={clockStrokes()} position={[2.6, 4.9, -0.165]} /> : <Decal tex={clockTex()} p={[2.6, 4.9, -0.18]} w={1.05} h={1.05} />}
-      <Vines p={[2.0, 4.2, -0.18]} w={0.25} len={2.2} />
       {/* welcome wall */}
-      <Bx c={W} b={[3.3, 5.1, 0.12, 2.5, -1.4, -0.9]} o={0.05} />
-      <Decal tex={welcome} p={[4.2, 1.5, -0.89]} w={1.7} h={0.72} />
-      {[3.7, 4.2, 4.7].map((x) => (
-        <WallLamp key={x} p={[x, 2.25, -0.9]} />
+      <Bx c={W} b={[3.0, 5.4, 0.12, 2.3, -3.4, -2.9]} o={0.05} />
+      <Decal tex={welcome} p={[4.2, 1.4, -2.89]} w={1.9} h={0.8} />
+      {[3.6, 4.8].map((x) => (
+        <WallLamp key={x} p={[x, 2.05, -2.9]} />
       ))}
-      <Cypress p={[5.3, 0.12, -1.6]} h={3.0} />
+      <Cypress p={[5.8, 0.12, -3.4]} h={3.0} />
+      <Cypress p={[2.5, 0.12, -3.5]} h={2.6} />
       {/* pergola on the left */}
       {[
-        [-4.9, 0.0],
-        [-3.5, 0.0],
-        [-4.9, 1.6],
-        [-3.5, 1.6],
+        [-6.0, 0.0],
+        [-4.6, 0.0],
+        [-6.0, 1.6],
+        [-4.6, 1.6],
       ].map(([x, z]) => (
         <Bx key={`${x}${z}`} c={PAL.woodDark} b={[x - 0.08, x + 0.08, 0.12, 2.2, z - 0.08, z + 0.08]} o={0.015} />
       ))}
       {[0.0, 1.6].map((z) => (
-        <Bx key={z} c={PAL.woodDark} b={[-5.1, -3.3, 2.2, 2.32, z - 0.08, z + 0.08]} o={0.015} />
+        <Bx key={z} c={PAL.woodDark} b={[-6.2, -4.4, 2.2, 2.32, z - 0.08, z + 0.08]} o={0.015} />
       ))}
-      {[-4.9, -4.5, -4.1, -3.7].map((x) => (
+      {[-6.0, -5.6, -5.2, -4.8].map((x) => (
         <Bx key={x} c={PAL.wood} b={[x - 0.05, x + 0.05, 2.32, 2.42, -0.2, 1.8]} o={0} />
       ))}
-      <Vines p={[-4.2, 2.45, 1.7]} w={1.4} len={0.8} />
-      <Bench p={[-4.2, 0.12, 0.8]} yaw={Math.PI / 2} w={1.2} />
-      {/* fountain */}
-      <group position={[-0.7, 0.12, 2.3]}>
-        <Toon geometry={geo.cyl} color="#e2d8c2" position={[0, 0.2, 0]} scale={[2.6, 0.4, 2.0]} outline={0.03} />
-        <mesh position={[0, 0.38, 0]} scale={[2.35, 1, 1.75]} rotation={[-Math.PI / 2, 0, 0]} material={water}>
-          <circleGeometry args={[0.5, 24]} />
-        </mesh>
-        <Toon geometry={geo.cyl} color="#e2d8c2" position={[0, 0.7, 0]} scale={[0.2, 0.8, 0.2]} outline={0.015} />
-        <Toon geometry={geo.cyl} color="#e2d8c2" position={[0, 1.1, 0]} scale={[0.9, 0.16, 0.9]} outline={0.02} />
-        <mesh position={[0, 1.2, 0]} rotation={[-Math.PI / 2, 0, 0]} material={water}>
-          <circleGeometry args={[0.4, 16]} />
-        </mesh>
-        <mesh position={[0, 1.55, 0]} material={jet}>
-          <cylinderGeometry args={[0.03, 0.06, 0.7, 6]} />
-        </mesh>
-        {[0, 1, 2, 3].map((i) => (
-          <mesh key={i} position={[Math.sin(i * 1.57 + 0.8) * 0.8, 0.6, Math.cos(i * 1.57 + 0.8) * 0.6]} material={jet}>
-            <cylinderGeometry args={[0.02, 0.04, 0.45, 6]} />
-          </mesh>
-        ))}
-      </group>
+      <Vines p={[-5.3, 2.45, 1.7]} w={1.4} len={0.8} />
+      <Bench p={[-5.3, 0.12, 0.8]} yaw={Math.PI / 2} w={1.2} />
       {/* guide board, about pillar, bike rack */}
-      <group position={[-3.4, 0.12, 2.8]} rotation={[0, 0.5, 0]}>
+      <group position={[-4.4, 0.12, 3.4]} rotation={[0, 0.5, 0]}>
         <Bx c="#e4dac6" b={[-0.55, 0.55, 0, 0.7, -0.15, 0.15]} o={brushed ? 0 : 0.02} />
         <group position={[0, 0.95, 0.05]} rotation={[-0.5, 0, 0]}>
           <Bx c="#e4dac6" b={[-0.6, 0.6, -0.4, 0.4, -0.05, 0.05]} o={brushed ? 0 : 0.02} />
@@ -1260,27 +1218,25 @@ export function ServiceCenter() {
           )}
         </group>
       </group>
-      <group position={[2.4, 0.12, 2.6]}>
+      <group position={[4.4, 0.12, 2.4]}>
         <Bx c="#f2ecdf" b={[-0.45, 0.45, 0, 2.0, -0.2, 0.2]} o={brushed ? 0 : 0.03} />
         <Decal tex={about} p={[0, 1.8, 0.21]} w={0.8} h={0.2} />
         {brushed ? <StrokePaint strokes={sailStrokes()} position={[0, 1.05, 0.235]} /> : <Decal tex={posterTex('sail')} p={[0, 1.05, 0.21]} w={0.55} h={1.0} />}
       </group>
       {[3.3, 3.7, 4.1].map((x) => (
-        <Toon key={x} geometry={geo.torusRack} color="#3f4a55" position={[x, 0.12, 3.1]} rotation={[0, Math.PI / 2, 0]} outline={0.015} radial={false} />
+        <Toon key={x} geometry={geo.torusRack} color="#3f4a55" position={[x + 1.4, 0.12, 4.0]} rotation={[0, Math.PI / 2, 0]} outline={0.015} radial={false} />
       ))}
       {/* benches, pots, greenery */}
-      <Bench p={[-2.4, 0.12, 1.1]} w={1.2} />
-      <Bench p={[1.0, 0.12, 1.1]} w={1.2} />
-      <Bench p={[-0.7, 0.12, 3.8]} w={1.3} />
-      <Pot p={[-2.1, 0.12, 3.4]} s={1.1} tree />
-      <Pot p={[0.9, 0.12, 3.4]} s={1.1} tree />
-      <Pot p={[-1.6, 0.12, 0.7]} s={0.8} tree />
-      <Pot p={[0.2, 0.12, 0.7]} s={0.8} tree />
-      <Planter p={[3.9, 0.12, 0.4]} w={2.0} d={0.8} flowers="#f4efe0" />
-      <Planter p={[-4.6, 0.12, 3.3]} w={1.0} d={0.6} flowers="#f4efe0" />
-      <Cypress p={[-3.5, 0.12, -0.4]} h={2.6} />
-      <Cypress p={[1.5, 0.12, 0.6]} h={2.4} />
-      <Tree p={[-4.8, 0.12, -1.8]} s={0.8} />
+      {[0.6, 2.0, 4.3, 5.7].map((a) => (
+        <Bench key={a} p={[Math.sin(a) * 3.7, 0.12, Math.cos(a) * 3.7]} yaw={a + Math.PI} w={1.3} />
+      ))}
+      {[1.3, 5.0].map((a) => (
+        <Pot key={a} p={[Math.sin(a) * 3.9, 0.12, Math.cos(a) * 3.9]} s={1.1} tree />
+      ))}
+      <Planter p={[3.9, 0.12, -1.0]} w={2.0} d={0.8} flowers="#f4efe0" />
+      <Planter p={[-3.0, 0.12, 4.4]} w={1.0} d={0.6} flowers="#f4efe0" />
+      <Tree p={[-6.0, 0.12, -1.0]} s={0.9} />
+      <Tree p={[6.0, 0.12, 0.4]} s={0.8} />
     </group>
   )
 }

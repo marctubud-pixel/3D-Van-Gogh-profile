@@ -7,7 +7,7 @@
   --orange: #e0773f;
   --sky: #9fdbd2;
   --yellow: #f0c24b;
-  --pixel: 'Silkscreen', 'Courier New', monospace;
+  --pixel: 'Trebuchet MS', 'Arial Black', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --hand: 'Gochi Hand', 'Comic Sans MS', cursive;
   --line: 2px solid var(--ink);
   font-family: 'Trebuchet MS', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
@@ -143,7 +143,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0.05em 0.4em; margin: 0 
 .explore canvas { touch-action: none; }
 .hud-top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 1rem; padding: 1rem 1.2rem; pointer-events: none; }
 .hud-top > * { pointer-events: auto; }
-.hud-top .brand { font-family: var(--pixel); font-weight: 700; font-size: 1rem; color: #f6f7f2; -webkit-text-stroke: 1px var(--ink); text-shadow: 2px 2px 0 var(--ink); text-decoration: none; letter-spacing: 0.08em; }
+.hud-top .brand { display: inline-flex; text-decoration: none; }
 .hud-menu { margin-left: auto; }
 .icon-btn { display: grid; place-items: center; width: 52px; height: 52px; border: 2.5px solid var(--ink); border-radius: 10px 12px 9px 13px; background: #f6f7f2; color: var(--ink); cursor: pointer; box-shadow: 2px 3px 0 var(--ink); text-decoration: none; position: relative; transition: transform 0.1s; }
 .icon-btn:hover { transform: translateY(-2px) rotate(-2deg); background: var(--yellow); }
@@ -151,7 +151,9 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0.05em 0.4em; margin: 0 
 .icon-btn small { position: absolute; right: calc(100% + 8px); font-family: var(--pixel); font-size: 0.7rem; background: var(--ink); color: #f6f7f2; padding: 0.15em 0.5em; border-radius: 4px; white-space: nowrap; opacity: 0; transition: opacity 0.12s; pointer-events: none; }
 .icon-btn:hover small { opacity: 1; }
 .hud-dock { position: absolute; right: 1.2rem; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 0.7rem; }
-.zone-label { position: absolute; left: 1.4rem; bottom: 1.2rem; margin: 0; font-family: var(--pixel); font-weight: 700; font-size: clamp(1.8rem, 4vw, 3.2rem); line-height: 0.95; color: #f6f7f2; -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; text-shadow: 3px 3px 0 var(--ink); letter-spacing: 0.04em; pointer-events: none; }
+.zone-label { position: absolute; left: 1.4rem; bottom: 1.2rem; margin: 0; display: flex; flex-direction: column; align-items: flex-start; color: #f6f7f2; pointer-events: none; filter: drop-shadow(2px 2px 0 var(--ink)) drop-shadow(-1px -1px 0 var(--ink)); }
+.hud-top .brand .brush-text { color: #f6f7f2; filter: drop-shadow(1.5px 1.5px 0 var(--ink)) drop-shadow(-1px -1px 0 var(--ink)); }
+.brush-text { display: inline-block; max-width: 100%; height: auto; vertical-align: middle; color: inherit; }
 .hud-state { position: absolute; bottom: 1rem; right: 1.2rem; font-family: var(--pixel); font-size: 0.75rem; letter-spacing: 0.15em; color: var(--ink); background: #f6f7f2; border: 2px solid var(--ink); padding: 0.1em 0.6em; border-radius: 6px; }
 .prompt { position: absolute; bottom: 16%; left: 50%; transform: translateX(-50%) rotate(-1deg); background: #f6f7f2; border: 2.5px solid var(--ink); border-radius: 16px 20px 15px 21px; padding: 0.5em 1.2em; font-family: var(--hand); font-size: 1.35rem; box-shadow: 3px 4px 0 var(--ink); white-space: nowrap; }
 .prompt::after { content: ''; position: absolute; left: 50%; bottom: -12px; width: 18px; height: 18px; background: #f6f7f2; border-right: 2.5px solid var(--ink); border-bottom: 2.5px solid var(--ink); transform: translateX(-50%) rotate(45deg); }

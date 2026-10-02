@@ -58,8 +58,30 @@ function brushTexture() {
 }
 
 let sharedBrush: THREE.MeshBasicMaterial | null = null
-const brushMat = () =>
+export const brushMat = () =>
   (sharedBrush ??= new THREE.MeshBasicMaterial({ map: brushTexture(), alphaTest: 0.5, side: THREE.DoubleSide, vertexColors: false }))
+
+let glowBrush: THREE.MeshBasicMaterial | null = null
+/** Brush material that ignores the night tint, for lamps and other light sources. */
+export const glowMat = () =>
+  (glowBrush ??= new THREE.MeshBasicMaterial({ map: brushTexture(), alphaTest: 0.5, side: THREE.DoubleSide, toneMapped: false }))
+
+const tinted = new Set<THREE.MeshBasicMaterial>()
+const tintColor = new THREE.Color(1, 1, 1)
+/** Registers an unlit material so it darkens with the night tint. */
+export function tintable<M extends THREE.MeshBasicMaterial>(m: M) {
+  if (!m.userData.base) m.userData.base = m.color.clone()
+  m.color.copy(m.userData.base as THREE.Color).multiply(tintColor)
+  tinted.add(m)
+  return m
+}
+/** Multiplies every unlit painted material by `c` (white = daylight). */
+export function setNightTint(c: THREE.Color) {
+  if (tintColor.equals(c)) return
+  tintColor.copy(c)
+  tintable(brushMat())
+  for (const m of tinted) m.color.copy(m.userData.base as THREE.Color).multiply(tintColor)
+}
 
 export function pick(r: () => number, palette: string[]) {
   return palette[Math.floor(r() * palette.length)]
@@ -91,10 +113,11 @@ export function painted(key: string, make: (r: () => number) => Stroke[]) {
   return s
 }
 
-export function Strokes({ strokes }: { strokes: Stroke[] }) {
+/** One instanced draw of brush strokes; `material` overrides the shared night-tinted brush (e.g. a lamp glow). */
+export function Strokes({ strokes, material }: { strokes: Stroke[]; material?: THREE.Material }) {
   const ref = useRef<THREE.InstancedMesh>(null)
   const geom = useMemo(() => new THREE.PlaneGeometry(1, 1), [])
-  const mat = useMemo(brushMat, [])
+  const mat = useMemo(() => material ?? tintable(brushMat()), [material])
   useLayoutEffect(() => {
     const m = ref.current
     if (!m) return
@@ -298,7 +321,7 @@ const baseCache = new Map<string, THREE.MeshBasicMaterial>()
 function baseMaterial(color: string) {
   let m = baseCache.get(color)
   if (!m) {
-    m = new THREE.MeshBasicMaterial({ color: rampFor(color).mid[1], polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 })
+    m = tintable(new THREE.MeshBasicMaterial({ color: rampFor(color).mid[1], polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 }))
     baseCache.set(color, m)
   }
   return m

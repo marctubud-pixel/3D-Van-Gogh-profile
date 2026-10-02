@@ -28,6 +28,8 @@ import { townLots } from './townLayout'
 import { GroundPaint, type ScenerySpot, meadowTone } from './GroundPaint'
 import { IslandTitle } from './IslandTitle'
 import { Toon, geo, toonMaterial } from './toon'
+import { brushify } from './brush'
+import { type Ramp, type Stroke, StrokeBuild, Strokes, rampFor, rng, rotateAbout, shade } from './strokes'
 
 const SAND = '#e3d8b8'
 const SEA = '#4f9fae'
@@ -113,9 +115,19 @@ function OpenSea() {
     g.computeVertexNormals()
     return g
   }, [])
-  return (
-    <mesh geometry={geometry} material={toonMaterial(SEA)} />
-  )
+  return <mesh geometry={geometry} material={paintedToon(SEA)} />
+}
+
+const paintedCache = new Map<string, THREE.MeshToonMaterial>()
+/** Toon material with the world-space brush-dab shader, for large flat surfaces like water. */
+function paintedToon(color: string) {
+  let m = paintedCache.get(color)
+  if (!m) {
+    m = toonMaterial(color).clone()
+    brushify(m)
+    paintedCache.set(color, m)
+  }
+  return m
 }
 
 /** Ribbon following the route between lateral offsets `a` and `b`; uv.x runs along the arc length. */
@@ -160,6 +172,29 @@ function Road() {
   )
 }
 
+const RAIL: Ramp = rampFor('#e36f4c')
+
+/** Freehand rail: a chain of overlapping, crossed strokes following the deck at `height`. */
+function railStrokes(out: Stroke[], r: () => number, off: number, height: number, wid: number) {
+  const at = (i: number) => {
+    const side = new THREE.Vector3().crossVectors(UP, ROUTE_TAN[i]).normalize()
+    return ROUTE[i].clone().addScaledVector(side, off).setY(deckHeight(i) + height)
+  }
+  for (let i = BRIDGE.a; i < BRIDGE.b; i++) {
+    const a = at(i)
+    const b = at(i + 1)
+    const dir = b.clone().sub(a)
+    const len = dir.length() * (1.3 + r() * 0.3)
+    dir.normalize()
+    const side = new THREE.Vector3().crossVectors(UP, dir).normalize()
+    const p = a.lerp(b, 0.5).add(new THREE.Vector3(0, (r() - 0.5) * 0.03, 0))
+    const tilt = rotateAbout(dir, side, (r() - 0.5) * 0.08)
+    const up = new THREE.Vector3().crossVectors(side, tilt).normalize()
+    out.push({ p, n: side, dir: tilt, len, wid: wid * (0.8 + r() * 0.4), color: shade(r, side, RAIL) })
+    out.push({ p: p.clone(), n: up, dir: tilt, len, wid: wid * (0.8 + r() * 0.4), color: shade(r, up, RAIL) })
+  }
+}
+
 function Bridge() {
   const parts = useMemo(() => {
     const deck = ribbon(-3.3, 3.3, 0.02, BRIDGE.a, BRIDGE.b)
@@ -174,34 +209,93 @@ function Bridge() {
       for (const s of [-1, 1]) posts.push({ pos: at.clone().addScaledVector(side, s * 3.1).setY(h), q, h })
       if ((i - BRIDGE.a) % 9 === 0) piers.push({ pos: at.clone(), q, h })
     }
-    const rails = [-1, 1].map((s) => ribbon(s * 3.05, s * 3.15, 0.95, BRIDGE.a, BRIDGE.b))
+    const r = rng(53)
+    const rails: Stroke[] = []
+    for (const s of [-1, 1]) {
+      railStrokes(rails, r, s * 3.1, 1.0, 0.12)
+      railStrokes(rails, r, s * 3.1, 0.55, 0.07)
+    }
     return { deck, posts, piers, rails }
   }, [])
   return (
     <group>
-      <mesh geometry={parts.deck} receiveShadow>
-        <meshToonMaterial color={DECK} gradientMap={toonMaterial('#fff').gradientMap} side={THREE.DoubleSide} />
-      </mesh>
-      {parts.rails.map((r, i) => (
-        <mesh key={i} geometry={r}>
-          <meshToonMaterial color="#e36f4c" gradientMap={toonMaterial('#fff').gradientMap} side={THREE.DoubleSide} />
-        </mesh>
-      ))}
-      {parts.posts.map((p, i) => (
-        <group key={i} position={p.pos} quaternion={p.q}>
-          <Toon geometry={geo.box} color="#e36f4c" position={[0, 0.5, 0]} scale={[0.14, 1, 0.14]} outline={0.015} />
-        </group>
-      ))}
-      {parts.piers.map((p, i) => (
-        <group key={i} position={p.pos} quaternion={p.q}>
-          <Toon geometry={geo.box} color="#b9ad97" position={[0, (p.h - 1.8) / 2, 0]} scale={[6.2, p.h + 1.6, 0.9]} outline={0.04} />
-        </group>
-      ))}
+      <StrokeBuild seed={61}>
+        <Toon geometry={parts.deck} color={DECK} outline={0} />
+        {parts.posts.map((p, i) => (
+          <group key={i} position={p.pos} quaternion={p.q}>
+            <Toon geometry={geo.box} color="#e36f4c" position={[0, 0.5, 0]} scale={[0.14, 1, 0.14]} outline={0} />
+          </group>
+        ))}
+        {parts.piers.map((p, i) => (
+          <group key={i} position={p.pos} quaternion={p.q}>
+            <Toon geometry={geo.box} color="#b9ad97" position={[0, (p.h - 1.8) / 2, 0]} scale={[6.2, p.h + 1.6, 0.9]} outline={0} />
+          </group>
+        ))}
+      </StrokeBuild>
+      <Strokes strokes={parts.rails} />
     </group>
   )
 }
 
+/** Beach spot nearest the service center: on the sand, facing the sea. */
+function loungeSpot() {
+  let best: { at: THREE.Vector3; d: number } | null = null
+  for (let a = 0; a < 72; a++) {
+    for (let rad = 8; rad < 45; rad += 1) {
+      const at = SERVICE_POINT.clone().add(new THREE.Vector3(Math.cos((a / 72) * Math.PI * 2) * rad, 0, Math.sin((a / 72) * Math.PI * 2) * rad))
+      const land = landValue(at)
+      if (land < 0.6 || land > beachWidth(at) * 0.75) continue
+      if (nearestOnRoute(at).dist < 5) continue
+      if (!best || rad < best.d) best = { at, d: rad }
+      break
+    }
+  }
+  if (!best) return null
+  const at = best.at
+  const e = 0.5
+  const gx = landValue(at.clone().add(new THREE.Vector3(e, 0, 0))) - landValue(at.clone().add(new THREE.Vector3(-e, 0, 0)))
+  const gz = landValue(at.clone().add(new THREE.Vector3(0, 0, e))) - landValue(at.clone().add(new THREE.Vector3(0, 0, -e)))
+  const seaward = new THREE.Vector3(-gx, 0, -gz).normalize()
+  return { at, seaward }
+}
 
+const LOUNGER = ['#e36f4c', '#3f78a8', '#e7b53f']
+
+/** Striped deck chairs under a parasol on the sand by the service center. */
+function BeachLounge() {
+  const spot = useMemo(loungeSpot, [])
+  if (!spot) return null
+  const q = yawQuaternion(spot.seaward)
+  return (
+    <group position={surf(spot.at)} quaternion={q}>
+      <StrokeBuild seed={71}>
+        {LOUNGER.map((c, i) => {
+          const x = (i - 1) * 1.6
+          return (
+            <group key={c} position={[x, 0, 0]} rotation={[0, (i - 1) * 0.12, 0]}>
+              <Toon geometry={geo.box} color="#c9a77a" position={[0, 0.3, 0]} scale={[0.75, 0.06, 1.3]} outline={0} />
+              <Toon geometry={geo.box} color={c} position={[0, 0.36, 0.15]} scale={[0.65, 0.04, 1.0]} outline={0} />
+              <group position={[0, 0.34, -0.6]} rotation={[-0.75, 0, 0]}>
+                <Toon geometry={geo.box} color={c} position={[0, 0.4, 0]} scale={[0.65, 0.8, 0.05]} outline={0} />
+              </group>
+              {[-0.32, 0.32].map((lx) =>
+                [-0.55, 0.55].map((lz) => <Toon key={`${lx}${lz}`} geometry={geo.box} color="#a4835a" position={[lx, 0.15, lz]} scale={[0.05, 0.3, 0.05]} outline={0} />),
+              )}
+            </group>
+          )
+        })}
+        <group position={[0.8, 0, -0.6]}>
+          <Toon geometry={geo.cyl} color="#f3efe4" position={[0, 1.2, 0]} scale={[0.06, 2.4, 0.06]} outline={0} />
+          <Toon geometry={geo.cone} color="#e36f4c" position={[0, 2.5, 0]} scale={[2.6, 0.55, 2.6]} outline={0} />
+        </group>
+        <group position={[-0.8, 0, -0.5]}>
+          <Toon geometry={geo.cyl} color="#f3efe4" position={[0, 0.25, 0]} scale={[0.5, 0.06, 0.5]} outline={0} />
+          <Toon geometry={geo.cyl} color="#a4835a" position={[0, 0.12, 0]} scale={[0.06, 0.25, 0.06]} outline={0} />
+        </group>
+      </StrokeBuild>
+    </group>
+  )
+}
 
 function randomHeading(rand: () => number) {
   return NORTH.clone().applyAxisAngle(UP, rand() * Math.PI * 2)
@@ -307,9 +401,8 @@ function Park() {
           <circleGeometry args={[POND.r + 0.5, 40]} />
           <meshToonMaterial color="#cfc6ab" gradientMap={toonMaterial('#fff').gradientMap} />
         </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]} material={paintedToon(SHALLOW)}>
           <circleGeometry args={[POND.r, 40]} />
-          <meshToonMaterial color={SHALLOW} gradientMap={toonMaterial('#fff').gradientMap} />
         </mesh>
       </group>
       {items.benches.map((b, i) => (
@@ -334,6 +427,7 @@ export function Planet({ locations }: { locations: WorldLocation[] }) {
       <Road />
       <Plaza />
       <Park />
+      <BeachLounge />
       <GroundPaint locations={locations} scenery={scenery} />
     </group>
   )

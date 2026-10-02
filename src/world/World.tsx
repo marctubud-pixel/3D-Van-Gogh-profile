@@ -1,8 +1,11 @@
 import { PerformanceMonitor } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Component, useLayoutEffect, useRef, type ReactNode } from 'react'
+import { Component, useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react'
 import * as THREE from 'three'
 import { QUALITY, useQuality, useQualityLevel } from './quality'
+import { dusk, nightOf, useDayNight } from './daynight'
+import { setNightTint } from './strokes'
+import { StreetLamps } from './StreetLamps'
 import type { WorldLocation } from '../../shared/types'
 import { useGame } from '../app/game'
 import { CAMERA } from '../camera/config'
@@ -28,8 +31,7 @@ class WorldBoundary extends Component<{ onError: () => void; children: ReactNode
 }
 
 /** Keeps a soft afternoon sun above the viewer wherever they are on the planet. */
-function SunRig() {
-  const sun = useRef<THREE.DirectionalLight>(null)
+function SunRig({ sun }: { sun: RefObject<THREE.DirectionalLight | null> }) {
   const size = QUALITY[useQualityLevel()].shadowMap
   useLayoutEffect(() => {
     const l = sun.current
@@ -37,7 +39,7 @@ function SunRig() {
     l.shadow.mapSize.set(size, size)
     l.shadow.map?.dispose()
     l.shadow.map = null
-  }, [size])
+  }, [size, sun])
   useFrame(({ camera }) => {
     const l = sun.current
     if (!l) return
@@ -68,6 +70,32 @@ function SunRig() {
   )
 }
 
+const DAY = { bg: new THREE.Color('#9fdbd2'), amb: new THREE.Color('#c9dcdc'), sun: new THREE.Color('#fff6e6'), tint: new THREE.Color(1, 1, 1) }
+const NIGHT = { bg: new THREE.Color('#1a2a48'), amb: new THREE.Color('#6f84b8'), sun: new THREE.Color('#9fb4e8'), tint: new THREE.Color(0.42, 0.48, 0.7) }
+
+/** Eases between day and night: background, light colour/intensity and the tint of every unlit painted material. */
+function DayNightRig({ ambient, sun }: { ambient: RefObject<THREE.AmbientLight | null>; sun: RefObject<THREE.DirectionalLight | null> }) {
+  const mode = useDayNight((s) => s.mode)
+  const tint = useRef(new THREE.Color())
+  useFrame(({ scene }, dt) => {
+    const target = nightOf(mode) ? 1 : 0
+    dusk.k = THREE.MathUtils.damp(dusk.k, target, 2.5, Math.min(dt, 0.1))
+    if (Math.abs(dusk.k - target) < 0.002) dusk.k = target
+    const k = dusk.k
+    if (scene.background instanceof THREE.Color) scene.background.lerpColors(DAY.bg, NIGHT.bg, k)
+    if (ambient.current) {
+      ambient.current.color.lerpColors(DAY.amb, NIGHT.amb, k)
+      ambient.current.intensity = THREE.MathUtils.lerp(1.2, 0.55, k)
+    }
+    if (sun.current) {
+      sun.current.color.lerpColors(DAY.sun, NIGHT.sun, k)
+      sun.current.intensity = THREE.MathUtils.lerp(1.9, 0.45, k)
+    }
+    setNightTint(tint.current.lerpColors(DAY.tint, NIGHT.tint, k))
+  })
+  return null
+}
+
 /** Samples the frame rate for the HUD and, in auto mode, steps quality down or up to keep it smooth. */
 function QualityGovernor() {
   const acc = useRef({ t: 0, n: 0 })
@@ -89,6 +117,8 @@ function QualityGovernor() {
 export function World({ locations, onError }: { locations: WorldLocation[]; onError: () => void }) {
   const routeTargetId = useGame((s) => s.routeTargetId)
   const dpr = QUALITY[useQualityLevel()].dpr
+  const ambient = useRef<THREE.AmbientLight>(null)
+  const sun = useRef<THREE.DirectionalLight>(null)
   return (
     <WorldBoundary onError={onError}>
       <Canvas
@@ -102,11 +132,13 @@ export function World({ locations, onError }: { locations: WorldLocation[]; onEr
         }}
       >
         <QualityGovernor />
-        <ambientLight intensity={1.2} color="#c9dcdc" />
+        <ambientLight ref={ambient} intensity={1.2} color="#c9dcdc" />
+        <DayNightRig ambient={ambient} sun={sun} />
         <Sky />
-        <SunRig />
+        <SunRig sun={sun} />
         <Planet locations={locations} />
         <StreetProps locations={locations} />
+        <StreetLamps locations={locations} />
         <Town locations={locations} />
         {locations.map((l) => (
           <Landmark key={l.id} loc={l} active={routeTargetId === l.id} />

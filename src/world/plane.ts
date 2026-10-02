@@ -78,4 +78,4 @@ export function landmarkSetback(id: string) {
 }
 
 /** ISLAND SERVICE CENTER beside the starting plaza (static, not CMS-driven). */
-export const SERVICE_CENTER = { radius: 7 } as const
+export const SERVICE_CENTER = { radius: 4.4 } as const

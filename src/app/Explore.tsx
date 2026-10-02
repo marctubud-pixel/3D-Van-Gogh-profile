@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { QualityToggle } from '../ui/QualityToggle'
+import { BrushText } from '../locations/interiors/common'
 import { ZONE_LABEL } from '../../shared/types'
 import { useContent } from '../data/content'
 import { LocationPanel } from '../locations/LocationPanel'
@@ -80,8 +81,8 @@ export default function Explore() {
       {!intro && (
       <>
       <div className="hud-top">
-        <Link to="/" className="brand">
-          MY WORLD
+        <Link to="/" className="brand" aria-label="MY WORLD">
+          <BrushText text="MY WORLD" size={22} />
         </Link>
         <QualityToggle />
         <Link className="icon-btn hud-menu" to="/index" aria-label="INDEX">
@@ -123,9 +124,7 @@ export default function Explore() {
         {zoneAt(content.locations, g.plan[0], g.plan[1])
           .split(' ')
           .map((w) => (
-            <span key={w} style={{ display: 'block' }}>
-              {w}
-            </span>
+            <BrushText key={w} text={w} size={46} />
           ))}
       </h2>
 

@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { STROKE_GLSL } from './brush'
+import { dusk } from './daynight'
 
 const vertex = /* glsl */ `
 varying vec3 vDir;
@@ -16,6 +17,7 @@ const fragment = /* glsl */ `
 uniform vec3 up;
 ${STROKE_GLSL}
 uniform float time;
+uniform float night;
 varying vec3 vDir;
 float hash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
 float noise(vec3 p) {
@@ -37,6 +39,14 @@ void main() {
   float band = smoothstep(-0.02, 0.18, h) * (1.0 - smoothstep(0.7, 0.95, h));
   float cloud = step(0.6, n * (0.55 + band * 0.6));
   col = mix(col, vec3(0.69, 0.90, 0.85), cloud);
+  // night: deep painted blue, dimmer cloud patches and a scatter of star dabs
+  vec3 nsky = mix(vec3(0.13, 0.20, 0.36), vec3(0.06, 0.10, 0.22), smoothstep(0.0, 0.8, h));
+  nsky *= 1.0 + k.y * k.x * 0.08;
+  nsky = mix(nsky, vec3(0.20, 0.28, 0.44), cloud * 0.8);
+  vec3 sd = floor(d * 160.0);
+  float star = step(0.9965, hash(sd)) * smoothstep(0.05, 0.3, h) * (1.0 - cloud);
+  nsky = mix(nsky, vec3(1.0, 0.95, 0.78), star);
+  col = mix(col, nsky, night);
   gl_FragColor = vec4(col, 1.0);
 }
 `
@@ -47,7 +57,7 @@ export function Sky() {
   const mat = useMemo(
     () =>
       new THREE.ShaderMaterial({
-        uniforms: { up: { value: new THREE.Vector3(0, 1, 0) }, time: { value: 0 } },
+        uniforms: { up: { value: new THREE.Vector3(0, 1, 0) }, time: { value: 0 }, night: { value: dusk.k } },
         vertexShader: vertex,
         fragmentShader: fragment,
         side: THREE.BackSide,
@@ -59,6 +69,7 @@ export function Sky() {
     ref.current?.position.copy(camera.position)
     mat.uniforms.up.value.copy(camera.up)
     mat.uniforms.time.value = clock.elapsedTime
+    mat.uniforms.night.value = dusk.k
   })
   return (
     <>

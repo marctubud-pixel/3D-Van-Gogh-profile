@@ -220,6 +220,27 @@ function sceneryStrokes(out: Stroke[], spots: ScenerySpot[]) {
   }
 }
 
+const SEA_DEEP: Ramp = { light: ['#62adb8', '#6cb5bd'], mid: ['#4f9fae', '#4896a6', '#57a5b2'], dark: ['#3f8a9c', '#3a8396'] }
+const SEA_SHALLOW: Ramp = { light: ['#8fd0cc', '#9ad6cf'], mid: ['#6fbcc0', '#78c3c4', '#66b4ba'], dark: ['#5aa9b2'] }
+
+/** Painted sea around the island: flat, wind-aligned dabs over the water body, paler in the shallows. */
+function seaStrokes(out: Stroke[]) {
+  const r = rng(91)
+  const step = 1.25
+  const wind = new THREE.Vector3(1, 0, 0.35).normalize()
+  for (let x = -110; x < 130; x += step) {
+    for (let z = -120; z < 128; z += step) {
+      const p = new THREE.Vector3(x + (r() - 0.5) * step, 0, z + (r() - 0.5) * step)
+      const land = landValue(p)
+      if (land > -0.3) continue
+      p.y = -THREE.MathUtils.clamp(0.3 - land * 0.25, 0.3, 0.9) + 0.04 + r() * 0.01
+      const dir = rotateAbout(wind, UP, Math.sin(x * 0.05 + z * 0.03) * 0.5 + (r() - 0.5) * 0.4)
+      const ramp = land > -2.8 ? SEA_SHALLOW : SEA_DEEP
+      out.push({ p, n: UP, dir, len: 1.1 + r() * 0.9, wid: 0.32 + r() * 0.2, color: shade(r, new THREE.Vector3(r() - 0.5, 1, 0).normalize(), ramp) })
+    }
+  }
+}
+
 /** Short white wave strokes drifting on the open sea. */
 function foamStrokes(out: Stroke[]) {
   const r = rng(5)
@@ -366,6 +387,7 @@ export function GroundPaint({ locations, scenery }: { locations: WorldLocation[]
     plazaStrokes(out)
     dashStrokes(out)
     sceneryStrokes(out, scenery)
+    seaStrokes(out)
     foamStrokes(out)
     return out
   }, [scenery])
