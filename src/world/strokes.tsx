@@ -153,8 +153,19 @@ function edgesOf(g: THREE.BufferGeometry) {
   return e
 }
 
+/** Per-point base colour for a painted part (e.g. shirt stripes), in the part's painted frame. */
+export type PaintFn = (p: THREE.Vector3) => string
+
+interface PaintOpts {
+  /** Dab size relative to the part's middle dimension. */
+  sizeK?: number
+  /** Lay dabs along the part's longest axis instead of world up (tubes, limbs). */
+  alongLong?: boolean
+  paint?: PaintFn
+}
+
 /** Cover a transformed geometry's surface with dabs; dab size follows the part's thickness. */
-function paintGeometry(out: Stroke[], r: () => number, g: THREE.BufferGeometry, m: THREE.Matrix4, color: string, outline: boolean) {
+function paintGeometry(out: Stroke[], r: () => number, g: THREE.BufferGeometry, m: THREE.Matrix4, color: string, outline: boolean, opts: PaintOpts = {}) {
   const pos = g.getAttribute('position')
   const idx = g.getIndex()
   const nTri = idx ? idx.count / 3 : pos.count / 3
@@ -163,7 +174,12 @@ function paintGeometry(out: Stroke[], r: () => number, g: THREE.BufferGeometry, 
   const box = new THREE.Box3().setFromPoints(verts)
   const size = box.getSize(new THREE.Vector3())
   const dims = [size.x, size.y, size.z].sort((a, b) => a - b)
-  const s = THREE.MathUtils.clamp(dims[1] * 0.6, 0.05, 0.55)
+  const s = THREE.MathUtils.clamp(dims[1] * (opts.sizeK ?? 0.6), opts.sizeK ? 0.03 : 0.05, 0.55)
+  const ref = UP.clone()
+  if (opts.alongLong && dims[2] > dims[1] * 2.2) {
+    if (size.x === dims[2]) ref.set(1, 0, 0)
+    else if (size.z === dims[2]) ref.set(0, 0, 1)
+  }
   const tris: [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vector3][] = []
   const cum: number[] = []
   let area = 0
@@ -203,8 +219,8 @@ function paintGeometry(out: Stroke[], r: () => number, g: THREE.BufferGeometry, 
     }
     const p = a.clone().addScaledVector(e1.subVectors(b, a), u).addScaledVector(e2.subVectors(c, a), v)
     const lift = 0.008 + r() * 0.02
-    const dir = UP.clone().addScaledVector(n, -n.y)
-    if (dir.lengthSq() < 0.04) dir.set(1, 0, 0).addScaledVector(n, -n.x)
+    const dir = ref.clone().addScaledVector(n, -n.dot(ref))
+    if (dir.lengthSq() < 0.04) dir.set(ref.y, ref.z, ref.x).addScaledVector(n, -n.dot(new THREE.Vector3(ref.y, ref.z, ref.x)))
     dir.normalize()
     const swirl = rotateAbout(dir, n, (r() - 0.5) * 0.5)
     let len = s * (0.7 + r() * 0.6)
@@ -220,7 +236,7 @@ function paintGeometry(out: Stroke[], r: () => number, g: THREE.BufferGeometry, 
       }
     }
     p.addScaledVector(n, lift)
-    out.push({ p, n, dir: swirl, len, wid, color: shade(r, n, ramp) })
+    out.push({ p, n, dir: swirl, len, wid, color: shade(r, n, opts.paint ? rampFor(opts.paint(p)) : ramp) })
   }
   if (!outline) return
   const centre = box.getCenter(new THREE.Vector3())
@@ -298,6 +314,35 @@ export function StrokePartMesh({ geometry, color, outline }: { geometry: THREE.B
     return () => reg.remove(part)
   }, [reg, geometry, color, outline])
   return <mesh ref={ref} geometry={geometry} material={baseMaterial(color)} />
+}
+
+const RigCtx = createContext(false)
+
+/** True inside a <StrokeRig>: each part carries its own strokes so animated joints keep them attached. */
+export function useStrokeRig() {
+  return useContext(RigCtx)
+}
+
+/** Animated subtree (avatar, bike) painted part-by-part with brush strokes. */
+export function StrokeRig({ children }: { children: ReactNode }) {
+  return <RigCtx.Provider value>{children}</RigCtx.Provider>
+}
+
+/** One rig part: flat base mesh plus strokes baked in its (unscaled) local frame, so they move with the part. */
+export function StrokeRigPart({ geometry, color, scale, outline, paint, seed = 1 }: { geometry: THREE.BufferGeometry; color: string; scale?: [number, number, number] | number; outline: boolean; paint?: PaintFn; seed?: number }) {
+  const sc = typeof scale === 'number' ? [scale, scale, scale] : (scale ?? [1, 1, 1])
+  const [sx, sy, sz] = sc
+  const strokes = useMemo(() => {
+    const out: Stroke[] = []
+    paintGeometry(out, rng(seed + Math.round((sx * 31 + sy * 17 + sz * 7) * 1000)), geometry, new THREE.Matrix4().makeScale(sx, sy, sz), color, outline, { sizeK: 0.42, alongLong: true, paint })
+    return out
+  }, [geometry, color, outline, paint, seed, sx, sy, sz])
+  return (
+    <>
+      <mesh geometry={geometry} material={baseMaterial(color)} scale={[sx, sy, sz]} castShadow />
+      <Strokes strokes={strokes} />
+    </>
+  )
 }
 
 /** Hand-placed strokes in this group's local frame, merged into the enclosing <StrokeBuild>. */

@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef, type RefObject } from 'react'
 import * as THREE from 'three'
 import { CRANK, GRIP_POS } from '../bike/Bike'
+import { StrokeRig } from '../world/strokes'
 import { Toon, geo, toonMaterial } from '../world/toon'
 
 const SKIN = '#f2d2b8'
@@ -85,6 +86,15 @@ function stripeMaterial(repeat: number) {
   return m
 }
 
+const TAU = Math.PI * 2
+/** Wide blue/cream stripes round the shirt and sleeves, matching the stripe texture's repeat. */
+const shirtPaint = (p: THREE.Vector3) => {
+  const u = (((Math.atan2(p.x, p.z) + TAU) % TAU) - OPEN) / (TAU - OPEN * 2)
+  return Math.floor(u * 14) % 2 === 0 ? STRIPE_BLUE : STRIPE_CREAM
+}
+const sleevePaint = (p: THREE.Vector3) =>
+  Math.floor((((Math.atan2(p.x, p.z) + TAU) % TAU) / TAU) * 6) % 2 === 0 ? STRIPE_BLUE : STRIPE_CREAM
+
 interface Joint {
   root: THREE.Group | null
   mid: THREE.Group | null
@@ -160,7 +170,7 @@ function Arm({ side, refs, sleeve }: { side: number; refs: RefObject<Joint>; sle
       }}
       position={[side * 0.22, 0.47, 0]}
     >
-      <Toon geometry={sleeveGeo} color="#fff" material={sleeve} position={[0, -0.1, 0]} scale={[0.15, 0.24, 0.16]} outline={0.016} radial={false} />
+      <Toon geometry={sleeveGeo} color={STRIPE_BLUE} material={sleeve} paint={sleevePaint} position={[0, -0.1, 0]} scale={[0.15, 0.24, 0.16]} outline={0.016} radial={false} />
       <Toon geometry={limb} color={SKIN} position={[0, -0.15, 0]} scale={[0.08, 0.16, 0.08]} outline={0.012} radial={false} />
       <group
         ref={(g) => {
@@ -244,44 +254,46 @@ export function Avatar({ pose, speed, crank, steer }: AvatarProps) {
   })
 
   return (
-    <group position={[0, 0, pose === 'ride' ? AVATAR_Z_RIDE : 0]}>
-      <Leg side={-1} refs={legL} hip={hip} hipX={hipX} />
-      <Leg side={1} refs={legR} hip={hip} hipX={hipX} />
-      <group position={[0, hip, 0]} rotation={[pose === 'ride' ? LEAN_RIDE : 0, 0, 0]}>
-        <Toon geometry={shortsLegGeo} color={SHORTS} position={[0, -0.02, 0]} scale={[0.36, 0.16, 0.22]} outline={0.015} radial={false} />
-        {/* cream tee + open striped shirt */}
-        <Toon geometry={torsoGeo} color={TEE} scale={[0.37, 1, 0.21]} outline={0} radial={false} />
-        <Toon geometry={shirtGeo} color="#fff" material={shirt} scale={[0.43, 1, 0.26]} outline={0.02} radial={false} />
-        {[-1, 1].map((s) => (
-          <Toon key={s} geometry={geo.box} color={STRIPE_CREAM} position={[s * 0.09, 0.5, 0.12]} rotation={[0.25, 0, s * -0.55]} scale={[0.09, 0.16, 0.015]} outline={0.008} />
-        ))}
-        {/* crossbody strap from right shoulder to left hip, small pouch on the left */}
-        <Toon geometry={geo.box} color={BAG} position={[-0.01, 0.3, 0.135]} rotation={[0, 0, -0.72]} scale={[0.035, 0.68, 0.015]} outline={0} />
-        <Toon geometry={geo.box} color={BAG} position={[-0.01, 0.3, -0.135]} rotation={[0, 0, 0.72]} scale={[0.035, 0.68, 0.015]} outline={0} />
-        <Toon geometry={geo.sphere} color={BAG} position={[-0.25, 0.04, 0.05]} scale={[0.1, 0.17, 0.16]} outline={0.016} radial={false} />
-        <Arm side={-1} refs={armL} sleeve={sleeve} />
-        <Arm side={1} refs={armR} sleeve={sleeve} />
-        {/* neck, head, hair, cap */}
-        <Toon geometry={geo.cyl} color={SKIN} position={[0, 0.62, 0]} scale={[0.09, 0.12, 0.09]} outline={0} />
-        <Toon geometry={geo.sphere} color={SKIN} position={[0, 0.79, 0.01]} scale={[0.24, 0.28, 0.25]} outline={0.018} radial={false} />
-        {[-1, 1].map((s) => (
-          <Toon key={s} geometry={geo.sphere} color={SKIN} position={[s * 0.12, 0.78, 0]} scale={[0.04, 0.07, 0.05]} outline={0.008} radial={false} />
-        ))}
-        {[-1, 1].map((s) => (
-          <Toon key={`eye${s}`} geometry={geo.sphere} color={HAIR} position={[s * 0.05, 0.78, 0.128]} scale={[0.028, 0.042, 0.02]} outline={0} radial={false} />
-        ))}
-        <Toon geometry={geo.box} color="#c98f7a" position={[0, 0.71, 0.128]} scale={[0.03, 0.008, 0.01]} outline={0} />
-        <Toon geometry={geo.sphere} color={HAIR} position={[0, 0.81, -0.03]} scale={[0.26, 0.26, 0.25]} outline={0.016} radial={false} />
-        {[-0.08, 0, 0.08].map((x, i) => (
-          <Toon key={x} geometry={geo.cone} color={HAIR} position={[x, 0.86, 0.11]} rotation={[Math.PI + 0.3, 0, (i - 1) * 0.3]} scale={[0.06, 0.09, 0.04]} outline={0} />
-        ))}
-        {[-1, 1].map((s) => (
-          <Toon key={s} geometry={geo.cone} color={HAIR} position={[s * 0.115, 0.8, 0.05]} rotation={[Math.PI, 0, 0]} scale={[0.04, 0.1, 0.05]} outline={0} />
-        ))}
-        <Toon geometry={geo.dome} color={CAP} position={[0, 0.86, 0]} scale={[0.27, 0.2, 0.28]} outline={0.016} radial={false} />
-        <Toon geometry={brim} color={CAP} position={[0, 0.87, 0.1]} scale={[0.23, 0.02, 0.3]} outline={0.01} radial={false} />
-        <Toon geometry={geo.sphere} color="#2c3437" position={[0, 0.94, -0.12]} scale={[0.07, 0.04, 0.03]} outline={0} radial={false} />
+    <StrokeRig>
+      <group position={[0, 0, pose === 'ride' ? AVATAR_Z_RIDE : 0]}>
+        <Leg side={-1} refs={legL} hip={hip} hipX={hipX} />
+        <Leg side={1} refs={legR} hip={hip} hipX={hipX} />
+        <group position={[0, hip, 0]} rotation={[pose === 'ride' ? LEAN_RIDE : 0, 0, 0]}>
+          <Toon geometry={shortsLegGeo} color={SHORTS} position={[0, -0.02, 0]} scale={[0.36, 0.16, 0.22]} outline={0.015} radial={false} />
+          {/* cream tee + open striped shirt */}
+          <Toon geometry={torsoGeo} color={TEE} scale={[0.37, 1, 0.21]} outline={0} radial={false} />
+          <Toon geometry={shirtGeo} color={STRIPE_BLUE} material={shirt} paint={shirtPaint} scale={[0.43, 1, 0.26]} outline={0.02} radial={false} />
+          {[-1, 1].map((s) => (
+            <Toon key={s} geometry={geo.box} color={STRIPE_CREAM} position={[s * 0.09, 0.5, 0.12]} rotation={[0.25, 0, s * -0.55]} scale={[0.09, 0.16, 0.015]} outline={0.008} />
+          ))}
+          {/* crossbody strap from right shoulder to left hip, small pouch on the left */}
+          <Toon geometry={geo.box} color={BAG} position={[-0.01, 0.3, 0.135]} rotation={[0, 0, -0.72]} scale={[0.035, 0.68, 0.015]} outline={0} />
+          <Toon geometry={geo.box} color={BAG} position={[-0.01, 0.3, -0.135]} rotation={[0, 0, 0.72]} scale={[0.035, 0.68, 0.015]} outline={0} />
+          <Toon geometry={geo.sphere} color={BAG} position={[-0.25, 0.04, 0.05]} scale={[0.1, 0.17, 0.16]} outline={0.016} radial={false} />
+          <Arm side={-1} refs={armL} sleeve={sleeve} />
+          <Arm side={1} refs={armR} sleeve={sleeve} />
+          {/* neck, head, hair, cap */}
+          <Toon geometry={geo.cyl} color={SKIN} position={[0, 0.62, 0]} scale={[0.09, 0.12, 0.09]} outline={0} />
+          <Toon geometry={geo.sphere} color={SKIN} position={[0, 0.79, 0.01]} scale={[0.24, 0.28, 0.25]} outline={0.018} radial={false} />
+          {[-1, 1].map((s) => (
+            <Toon key={s} geometry={geo.sphere} color={SKIN} position={[s * 0.12, 0.78, 0]} scale={[0.04, 0.07, 0.05]} outline={0.008} radial={false} />
+          ))}
+          {[-1, 1].map((s) => (
+            <Toon key={`eye${s}`} geometry={geo.sphere} color={HAIR} position={[s * 0.05, 0.78, 0.128]} scale={[0.028, 0.042, 0.02]} outline={0} radial={false} />
+          ))}
+          <Toon geometry={geo.box} color="#c98f7a" position={[0, 0.71, 0.128]} scale={[0.03, 0.008, 0.01]} outline={0} />
+          <Toon geometry={geo.sphere} color={HAIR} position={[0, 0.81, -0.03]} scale={[0.26, 0.26, 0.25]} outline={0.016} radial={false} />
+          {[-0.08, 0, 0.08].map((x, i) => (
+            <Toon key={x} geometry={geo.cone} color={HAIR} position={[x, 0.86, 0.11]} rotation={[Math.PI + 0.3, 0, (i - 1) * 0.3]} scale={[0.06, 0.09, 0.04]} outline={0} />
+          ))}
+          {[-1, 1].map((s) => (
+            <Toon key={s} geometry={geo.cone} color={HAIR} position={[s * 0.115, 0.8, 0.05]} rotation={[Math.PI, 0, 0]} scale={[0.04, 0.1, 0.05]} outline={0} />
+          ))}
+          <Toon geometry={geo.dome} color={CAP} position={[0, 0.86, 0]} scale={[0.27, 0.2, 0.28]} outline={0.016} radial={false} />
+          <Toon geometry={brim} color={CAP} position={[0, 0.87, 0.1]} scale={[0.23, 0.02, 0.3]} outline={0.01} radial={false} />
+          <Toon geometry={geo.sphere} color="#2c3437" position={[0, 0.94, -0.12]} scale={[0.07, 0.04, 0.03]} outline={0} radial={false} />
+        </group>
       </group>
-    </group>
+    </StrokeRig>
   )
 }

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import { BRUSH } from './brush'
-import { StrokePartMesh, useStrokeBuild } from './strokes'
+import { StrokePartMesh, StrokeRigPart, useStrokeBuild, useStrokeRig, type PaintFn } from './strokes'
 
 export const LINE_COLOR = BRUSH ? '#1f2d5a' : '#2c3437'
 
@@ -87,15 +87,25 @@ interface ToonProps {
   radial?: boolean
   material?: THREE.Material
   edges?: boolean
+  /** Per-point colour used when painted inside a <StrokeRig> (replaces `material`). */
+  paint?: PaintFn
 }
 
 /** A toon-shaded mesh with an inverted-hull, slightly wobbly charcoal outline. */
-export function Toon({ geometry, color, position, rotation, scale, outline = 0.06, radial = true, material, edges }: ToonProps) {
+export function Toon({ geometry, color, position, rotation, scale, outline = 0.06, radial = true, material, edges, paint }: ToonProps) {
   const mat = useMemo(() => material ?? toonMaterial(color), [material, color])
   const hull = outline * (BRUSH ? 0.9 : 0.55)
   const line = useMemo(() => outlineMaterial(hull, radial), [hull, radial])
   const showEdges = edges ?? (outline > 0 && CREASED.has(geometry))
   const stroked = useStrokeBuild() !== null && !material
+  const rig = useStrokeRig()
+  if (rig) {
+    return (
+      <group position={position} rotation={rotation}>
+        <StrokeRigPart geometry={geometry} color={color} scale={scale} outline={showEdges} paint={paint} />
+      </group>
+    )
+  }
   if (stroked) {
     return (
       <group position={position} rotation={rotation} scale={scale}>
