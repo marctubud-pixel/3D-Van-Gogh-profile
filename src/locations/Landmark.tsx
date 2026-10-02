@@ -8,6 +8,7 @@ import { SERVICE_POINT, locationAnchors, locationPoint, surf } from '../world/is
 import { Toon, geo, toonMaterial } from '../world/toon'
 import { type Stroke, StrokeBuild, StrokePaint, column, dab, painted, rampFor } from '../world/strokes'
 import { Decal, textTex } from './parts'
+import { Forecourt } from './Forecourt'
 import { Arcade, Cinema, CreativeMuseum, ExperimentLab, Observatory, ServiceCenter, Studio, WriteHouse } from './buildings'
 
 const CREAM = '#e1e1d9'
@@ -239,6 +240,7 @@ export function Landmark({ loc, active }: LandmarkProps) {
         </group>
         <Beacon active={active} height={(BEACON_HEIGHT[loc.id] ?? 9) * BUILDING_SCALE * fit} />
       </group>
+      {STROKED.has(loc.id) && <Forecourt id={loc.id} a={a} />}
       {loc.parking && (
         <group position={pPos} quaternion={parkingQ}>
           <ParkingSpot color="#4d6fa8" up={a.parking} />

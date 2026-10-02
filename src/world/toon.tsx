@@ -6,7 +6,7 @@ import { StrokePartMesh, StrokeRigPart, useStrokeBuild, useStrokeRig, type Paint
 export const LINE_COLOR = BRUSH ? '#1f2d5a' : '#2c3437'
 
 let gradient: THREE.DataTexture | null = null
-function toonGradient() {
+export function toonGradient() {
   if (!gradient) {
     const data = new Uint8Array([150, 150, 150, 255, 255, 255, 255, 255])
     gradient = new THREE.DataTexture(data, 2, 1, THREE.RGBAFormat)
