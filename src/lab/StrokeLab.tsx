@@ -1,7 +1,9 @@
 import { OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { Bike } from '../bike/Bike'
+import { Avatar } from '../player/Avatar'
 import { Arcade, Cinema, CreativeMuseum, ExperimentLab, Observatory, ServiceCenter, Studio, WriteHouse } from '../locations/buildings'
 import { meadowBlades, meadowTone, meadowZone } from '../world/GroundPaint'
 import { LIGHT, StrokeBuild, type Stroke, Strokes, blob, column, pick, rng, rotateAbout, shade } from '../world/strokes'
@@ -602,6 +604,34 @@ export default function StrokeLab() {
 
 const MEADOW_R = 11
 const HOUSE_Z = -6.2
+const LANE = 1.7
+const laneZ = (x: number) => Math.sin(x * 0.25) * 1.2
+const laneYaw = (x: number) => Math.atan2(0.3 * Math.cos(x * 0.25), 1)
+
+/** Sparse asphalt dabs and overlapping white centre dashes on the lab road. */
+function laneStrokes() {
+  const r = rng(23)
+  const out: Stroke[] = []
+  for (let x = -MEADOW_R; x < MEADOW_R; x += 0.1) {
+    const a = laneYaw(x)
+    const dir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a))
+    const side = new THREE.Vector3(-dir.z, 0, dir.x)
+    const at = (o: number) => new THREE.Vector3(x, 0, laneZ(x)).addScaledVector(side, o)
+    if (r() < 0.85) {
+      const p = at((r() * 2 - 1) * (LANE + 0.15))
+      p.y = 0.02 + r() * 0.01
+      out.push({ p, n: UP, dir: rotateAbout(dir, UP, (r() - 0.5) * 0.2), len: 0.8 * (0.7 + r() * 0.6), wid: 0.22 * (0.7 + r() * 0.6), color: shade(r, UP, ASPHALT) })
+    }
+    if ((x + MEADOW_R) % 2.8 < 1.6) {
+      for (let k = 0; k < 2; k++) {
+        const p = at((r() - 0.5) * 0.05)
+        p.y = 0.035
+        out.push({ p, n: UP, dir: rotateAbout(dir, UP, (r() - 0.5) * 0.08), len: 0.55 + r() * 0.2, wid: 0.13 + r() * 0.04, color: new THREE.Color(pick(r, PAINT)) })
+      }
+    }
+  }
+  return out
+}
 
 function meadowStrokes() {
   const r = rng(5)
@@ -609,7 +639,7 @@ function meadowStrokes() {
   const spacing = 0.16
   for (let x = -MEADOW_R; x < MEADOW_R; x += spacing) {
     for (let z = -MEADOW_R; z < MEADOW_R; z += spacing) {
-      if (x * x + z * z > MEADOW_R * MEADOW_R || Math.abs(z - Math.sin(x * 0.25) * 1.2) < 0.7) continue
+      if (x * x + z * z > MEADOW_R * MEADOW_R || Math.abs(z - laneZ(x)) < LANE + 0.1) continue
       if (Math.abs(x) < 4 && z > HOUSE_Z - 2.7 && z < HOUSE_Z + 3.1) continue
       meadowBlades(out, r, x + (r() - 0.5) * spacing, z + (r() - 0.5) * spacing, 2)
     }
@@ -620,7 +650,10 @@ function meadowStrokes() {
 /** Standalone meadow for judging grass density and brushwork up close. */
 function GrassLab() {
   const v = (new URLSearchParams(window.location.search).get('cam') ?? '3.5,1.7,3.5,0,1.4,-5').split(',').map(Number)
-  const strokes = useMemo(meadowStrokes, [])
+  const strokes = useMemo(() => [...meadowStrokes(), ...laneStrokes()], [])
+  const still = useRef(0)
+  const rolling = useRef(4)
+  const crank = useRef(0.8)
   const ground = useMemo(() => {
     const sub = new THREE.RingGeometry(0.01, MEADOW_R + 0.5, 160, 70)
     sub.rotateX(-Math.PI / 2)
@@ -638,9 +671,9 @@ function GrassLab() {
     const g = new THREE.BufferGeometry()
     const pos: number[] = []
     for (let x = -MEADOW_R; x < MEADOW_R; x += 0.25) {
-      const z0 = Math.sin(x * 0.25) * 1.2
-      const z1 = Math.sin((x + 0.25) * 0.25) * 1.2
-      pos.push(x, 0.01, z0 - 0.75, x, 0.01, z0 + 0.75, x + 0.25, 0.01, z1 - 0.75, x, 0.01, z0 + 0.75, x + 0.25, 0.01, z1 + 0.75, x + 0.25, 0.01, z1 - 0.75)
+      const z0 = laneZ(x)
+      const z1 = laneZ(x + 0.25)
+      pos.push(x, 0.01, z0 - LANE, x, 0.01, z0 + LANE, x + 0.25, 0.01, z1 - LANE, x, 0.01, z0 + LANE, x + 0.25, 0.01, z1 + LANE, x + 0.25, 0.01, z1 - LANE)
     }
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
     return g
@@ -659,13 +692,23 @@ function GrassLab() {
           <meshBasicMaterial vertexColors />
         </mesh>
         <mesh geometry={path}>
-          <meshBasicMaterial color="#9b8f74" side={THREE.DoubleSide} />
+          <meshBasicMaterial color="#6f848b" side={THREE.DoubleSide} />
         </mesh>
         <Strokes strokes={strokes} />
         <group position={[0, 0, HOUSE_Z]}>
           <StrokeBuild seed={11}>
             <WriteHouse name="WRITE HOUSE" />
           </StrokeBuild>
+        </group>
+        <group position={[2.9, 0, -2.75]} rotation={[0, Math.PI / 2, 0]}>
+          <Bike speed={still} steer={still} crank={crank} kickstand />
+        </group>
+        <group position={[0.9, 0, -2.55]} rotation={[0, Math.PI, 0]}>
+          <Avatar pose="walk" speed={still} />
+        </group>
+        <group position={[-3.5, 0, laneZ(-3.5) + 0.8]} rotation={[0, Math.PI / 2 - laneYaw(-3.5), 0]}>
+          <Bike speed={rolling} steer={still} crank={crank} />
+          <Avatar pose="ride" speed={rolling} crank={crank} steer={still} />
         </group>
         <OrbitControls target={[v[3], v[4], v[5]]} enableDamping />
       </Canvas>
