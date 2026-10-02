@@ -21,7 +21,7 @@ const BIKE_RADIUS = 1.8
 const TRANSITION_S = 0.55
 const UTURN_RATE = 3.4
 /** Overview of the whole island: orbit centre on the flat map, distance and pitch. */
-const INTRO = { x: 0, y: -40, dist: 290, pitch: 0.8 }
+const INTRO = { x: 0, y: -40, dist: 300, pitch: 0.3, aimAhead: 40 }
 const FLY_S = 2.8
 
 const keys = new Set<string>()
@@ -144,7 +144,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
       if (useGame.getState().phase === 'intro') {
         const o = orbit.current
         o.yaw -= e.movementX * 0.005
-        o.pitch = THREE.MathUtils.clamp(o.pitch + e.movementY * 0.003, 0.35, 1.35)
+        o.pitch = THREE.MathUtils.clamp(o.pitch + e.movementY * 0.003, 0.2, 1.35)
         return
       }
       if (inputLocked()) return
@@ -429,8 +429,9 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
         .addScaledVector(back, Math.cos(o.pitch) * INTRO.dist)
         .addScaledVector(UP, Math.sin(o.pitch) * INTRO.dist)
       camera.up.copy(UP)
-      camera.lookAt(center)
-      camTarget.current.copy(center)
+      const aim = center.clone().addScaledVector(back, INTRO.aimAhead)
+      camera.lookAt(aim)
+      camTarget.current.copy(aim)
       fly.current = null
     } else if (phase === 'flying') {
       if (!fly.current) fly.current = { t: 0, pos: camera.position.clone(), target: camTarget.current.clone() }

@@ -20,6 +20,7 @@ import {
 import { type Ramp, type Stroke, Strokes, blob, column, pick, rng, rotateAbout, shade } from './strokes'
 import { playerPos } from './occlusion'
 import { townLots } from './townLayout'
+import { LOW_END } from './quality'
 
 
 const ASPHALT: Ramp = { light: ['#8396a0', '#7a8e96'], mid: ['#6f848b', '#667a82', '#748990'], dark: ['#566870', '#5b6e76'] }
@@ -28,6 +29,7 @@ const CANOPY: Ramp = { light: ['#8fcf8a', '#a8d993'], mid: ['#4f8f5f', '#5e9d6d'
 const PINE: Ramp = { light: ['#6aa874', '#5e9d6d'], mid: ['#3f7a5a', '#386f52', '#447f5e'], dark: ['#244c46', '#2a5a48'] }
 const TRUNK: Ramp = { light: ['#8a7f76'], mid: ['#6e6660', '#655d57'], dark: ['#4b4440'] }
 const ROCK: Ramp = { light: ['#ece4cb', '#e3d8b8'], mid: ['#d9cfb2', '#cfc4a5'], dark: ['#b2a88c'] }
+const PAVING: Ramp = { light: ['#c6cabf', '#cbc9bd'], mid: ['#b8beb2', '#b2b8ad', '#bfbfb2'], dark: ['#a6ada3', '#adb0a4'] }
 const SEA_FOAM = ['#e9f5f0', '#d6efe9', '#f4faf6']
 
 const arc = flatDistance
@@ -63,6 +65,20 @@ function place(out: Stroke[], local: Stroke[], d: THREE.Vector3, fwd: THREE.Vect
   }
 }
 
+/** Service plaza paving: pale strokes swept in rings around the centre, ragged at the rim. */
+function plazaStrokes(out: Stroke[]) {
+  const r = rng(23)
+  const y = groundHeight(PLAZA) + 0.08
+  for (let k = 0; k < 1500; k++) {
+    const rad = 6.7 * Math.sqrt(r())
+    const a = r() * Math.PI * 2
+    const p = new THREE.Vector3(PLAZA.x + Math.cos(a) * rad, y + r() * 0.01, PLAZA.z + Math.sin(a) * rad)
+    if (nearestOnRoute(p).dist < 2.3) continue
+    const dir = rotateAbout(new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)), UP, (r() - 0.5) * 0.5)
+    out.push({ p, n: UP, dir, len: 0.35 + r() * 0.3, wid: 0.12 + r() * 0.08, color: shade(r, UP, PAVING) })
+  }
+}
+
 const onDeck = (i: number) => i >= BRIDGE.a - 2 && i <= BRIDGE.b + 2
 
 /** Sparse dabs over the solid asphalt, with ragged edges that blend into the verge grass. */
@@ -71,7 +87,7 @@ function roadStrokes(out: Stroke[]) {
   const step = ROUTE_LEN / (ROUTE.length - 1)
   const local: Stroke[] = []
   for (let i = 0; i < ROUTE.length - 1; i++) {
-    if (onDeck(i)) continue
+    if (onDeck(i) || arc(ROUTE[i], PLAZA) < 7) continue
     local.length = 0
     const band = (count: number, a: number, b: number, ramp: Ramp, lift: number, len: number, wid: number) => {
       for (let k = 0; k < count; k++) {
@@ -80,9 +96,9 @@ function roadStrokes(out: Stroke[]) {
         local.push({ p, n: UP, dir: rotateAbout(new THREE.Vector3(0, 0, 1), UP, (r() - 0.5) * 0.2), len: len * (0.7 + r() * 0.6), wid: wid * (0.7 + r() * 0.6), color: shade(r, UP, ramp) })
       }
     }
-    band(r() < 0.5 ? 4 : 3, -1.7, 1.7, ASPHALT, 0.1, 0.8, 0.22)
+    band(r() < 0.5 ? 3 : 2, -1.7, 1.7, ASPHALT, 0.1, 1.7, 0.13)
     for (const sgn of [-1, 1]) {
-      band(2, sgn * 1.75, sgn * 2.15, ASPHALT, 0.1, 0.7, 0.2)
+      band(1, sgn * 1.75, sgn * 2.15, ASPHALT, 0.1, 1.4, 0.13)
     }
     place(out, local, ROUTE[i], ROUTE_TAN[i])
   }
@@ -222,11 +238,11 @@ function foamStrokes(out: Stroke[]) {
 }
 
 const TILE = 12
-const NEAR = 24
-const FAR = 52
+const NEAR = LOW_END ? 14 : 24
+const FAR = LOW_END ? 36 : 52
 const ISLAND_TILES = { i0: -10, i1: 11, j0: -11, j1: 11 }
 const LOD = [
-  { spacing: 0.18, count: 2, scale: 1 },
+  { spacing: LOW_END ? 0.24 : 0.18, count: 2, scale: LOW_END ? 1.15 : 1 },
   { spacing: 0.42, count: 2, scale: 1.5 },
   { spacing: 1.0, count: 2, scale: 2.6 },
 ]
@@ -299,6 +315,7 @@ export function GroundPaint({ locations, scenery }: { locations: WorldLocation[]
   const strokes = useMemo(() => {
     const out: Stroke[] = []
     roadStrokes(out)
+    plazaStrokes(out)
     dashStrokes(out)
     sceneryStrokes(out, scenery)
     foamStrokes(out)

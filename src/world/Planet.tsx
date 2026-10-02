@@ -27,7 +27,7 @@ import {
 import { townLots } from './townLayout'
 import { GroundPaint, type ScenerySpot, meadowTone } from './GroundPaint'
 import { IslandTitle } from './IslandTitle'
-import { LINE_COLOR, Toon, geo, toonMaterial } from './toon'
+import { Toon, geo, toonMaterial } from './toon'
 
 const SAND = '#e3d8b8'
 const SEA = '#4f9fae'
@@ -272,33 +272,14 @@ function useProps(locations: WorldLocation[]) {
   }, [bl])
 }
 
-function checkerTexture() {
-  const c = document.createElement('canvas')
-  c.width = c.height = 264
-  const g = c.getContext('2d')!
-  for (let y = 0; y < 12; y++)
-    for (let x = 0; x < 12; x++) {
-      g.fillStyle = (x + y) % 2 ? '#e4e7df' : '#d3d8ce'
-      g.fillRect(x * 22, y * 22, 22, 22)
-    }
-  const t = new THREE.CanvasTexture(c)
-  t.colorSpace = THREE.SRGBColorSpace
-  return t
-}
-
 /** Starting plaza where the road begins, in front of the service center. */
 function Plaza() {
-  const checker = useMemo(() => checkerTexture(), [])
   const q = yawQuaternion(routeFrame(0).tan)
   return (
     <group position={PLAZA} quaternion={q}>
       <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[6.5, 48]} />
-        <meshToonMaterial map={checker} gradientMap={toonMaterial('#fff').gradientMap} />
-      </mesh>
-      <mesh position={[0, 0.055, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[6.5, 6.6, 48]} />
-        <meshBasicMaterial color={LINE_COLOR} />
+        <meshToonMaterial color="#dcdfd6" gradientMap={toonMaterial('#fff').gradientMap} />
       </mesh>
       <group position={[4.6, 0, 3.8]}>
         <Toon geometry={geo.cyl} color="#5a6670" position={[0, 1.4, 0]} scale={[0.12, 2.8, 0.12]} outline={0.02} />

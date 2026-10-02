@@ -1,6 +1,7 @@
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Component, useRef, type ReactNode } from 'react'
 import * as THREE from 'three'
+import { LOW_END } from './quality'
 import type { WorldLocation } from '../../shared/types'
 import { useGame } from '../app/game'
 import { CAMERA } from '../camera/config'
@@ -65,7 +66,7 @@ export function World({ locations, onError }: { locations: WorldLocation[]; onEr
     <WorldBoundary onError={onError}>
       <Canvas
         shadows={{ type: THREE.PCFShadowMap }}
-        dpr={[1, 2]}
+        dpr={LOW_END ? [1, 1.25] : [1, 2]}
         camera={{ fov: CAMERA.fov, near: 0.1, far: 3000, position: [0, 45, 12] }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         onCreated={({ gl, scene }) => {

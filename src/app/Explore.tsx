@@ -205,7 +205,7 @@ export default function Explore() {
       )}
 
       {location && (
-        <Overlay onClose={closeLocation} onBack={project ? () => g.openProject(null) : undefined}>
+        <Overlay onClose={closeLocation} onBack={project ? () => g.openProject(null) : undefined} place={location.id}>
           {project ? (
             <ProjectDetail project={project} location={location} />
           ) : (

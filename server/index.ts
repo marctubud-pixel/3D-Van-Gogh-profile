@@ -29,6 +29,9 @@ function kindOf(mime: string, name: string): AssetKind {
   if (mime.startsWith('image/')) return 'image'
   if (mime.startsWith('video/')) return 'video'
   if (mime.startsWith('audio/')) return 'audio'
+  if (/\.(png|jpe?g|gif|webp|avif|svg)$/i.test(name)) return 'image'
+  if (/\.(mp4|mov|webm|m4v|mkv)$/i.test(name)) return 'video'
+  if (/\.(mp3|wav|m4a|ogg|flac)$/i.test(name)) return 'audio'
   if (/\.(glb|gltf)$/i.test(name)) return 'model'
   if (/\.(pdf|docx?|pptx?|xlsx?|txt|md|key|pages)$/i.test(name) || mime.startsWith('application/') || mime.startsWith('text/'))
     return 'document'

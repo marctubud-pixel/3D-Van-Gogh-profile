@@ -16,7 +16,9 @@ export function LocationPanel({ content, location, onOpenProject }: Props) {
       <p className="eyebrow" style={{ color: location.color }}>
         {ZONE_LABEL[location.zone]} · {location.action}
       </p>
-      <h1>{location.name}</h1>
+      <h1 className="painted-title" style={{ ['--swatch' as string]: location.color }}>
+        <span>{location.name}</span>
+      </h1>
       <p className="question">{location.question}</p>
       <p className="muted">{location.description}</p>
       <div className="grid">

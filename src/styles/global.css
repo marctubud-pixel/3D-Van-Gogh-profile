@@ -175,3 +175,61 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0.05em 0.4em; margin: 0 
   .exp li { grid-template-columns: 1fr; gap: 0.2rem; }
   .overlay-body { padding: 1rem; }
 }
+
+/* Building interiors: hand-painted panels, one look per building */
+.paint-defs { position: absolute; width: 0; height: 0; }
+.overlay-panel.place { --panel-bg: var(--paper); --panel-ink: var(--ink); --panel-soft: var(--ink-soft); --card-bg: var(--cream); position: relative; isolation: isolate; background: transparent; border-color: transparent; box-shadow: none; color: var(--panel-ink); }
+.overlay-panel.place::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--panel-bg); border: 3.5px solid var(--ink); border-radius: 18px 26px 15px 24px; box-shadow: 6px 8px 0 var(--ink); filter: url(#paint-edge); }
+.place .overlay-bar { border-bottom: 2px dashed color-mix(in srgb, var(--panel-ink) 45%, transparent); }
+.place .btn.ghost { color: var(--panel-ink); border-color: var(--panel-ink); }
+.place .muted, .place .eyebrow:not([style]) { color: var(--panel-soft); }
+.place h3 { color: var(--panel-soft); }
+.painted-title { position: relative; display: inline-block; font-family: var(--hand); font-size: clamp(2rem, 4.5vw, 3.2rem); letter-spacing: 0.06em; padding: 0.05em 0.6em 0.1em 0.3em; color: #fbf7ec; }
+.painted-title::before { content: ''; position: absolute; inset: 0.08em -0.2em 0 -0.4em; z-index: -1; background: var(--swatch); border-radius: 40% 12% 35% 18% / 60% 30% 55% 35%; transform: rotate(-1.5deg); filter: url(#paint-edge); }
+.painted-title span { text-shadow: 2px 2px 0 color-mix(in srgb, var(--ink) 60%, transparent); }
+.place .card { position: relative; border-color: transparent; box-shadow: none; background: var(--card-bg); color: var(--ink); overflow: visible; border-radius: 6px; }
+.place .card::after { content: ''; position: absolute; inset: -3px; border: 3px solid var(--ink); border-radius: 12px 16px 10px 18px; pointer-events: none; filter: url(#paint-edge); }
+.place .card .cover { border-radius: 6px 6px 0 0; }
+.place .card-body h3 { color: var(--ink); }
+.place .card-body p, .place .card .eyebrow { color: var(--ink-soft); }
+.place .project h1 { font-family: var(--hand); font-size: 2.6rem; }
+.place .case section { border-top-color: color-mix(in srgb, var(--panel-ink) 30%, transparent); }
+
+/* WRITE HOUSE: lined notebook paper, projects as a reading list */
+.place.place-print-house { --panel-bg: repeating-linear-gradient(#fbf6ea 0 31px, #d9e3e6 31px 32px) ; }
+.place-print-house .location-panel .grid { grid-template-columns: 1fr; gap: 1rem; }
+.place-print-house .location-panel .card { display: grid; grid-template-columns: 220px 1fr; align-items: center; }
+.place-print-house .location-panel .card .cover { border-radius: 6px 0 0 6px; border-bottom: 0; border-right: var(--line); height: 100%; }
+.place-print-house .card-body h3 { font-family: var(--hand); font-size: 1.6rem; }
+
+/* BRAND MUSEUM: warm gallery wall, works hung in heavy frames */
+.place.place-brand-museum { --panel-bg: #efe4cf; }
+.place-brand-museum .location-panel .grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 2rem; }
+.place-brand-museum .location-panel .card { background: #fbf7ee; padding: 14px; box-shadow: 0 0 0 10px #8a5a3c, 4px 14px 0 10px #3b2b22; margin: 12px; }
+.place-brand-museum .location-panel .card::after { inset: -13px; }
+.place-brand-museum .location-panel .card .cover { border: 2px solid var(--ink); border-radius: 2px; }
+.place-brand-museum .card-body { text-align: center; }
+
+/* CINEMA: dark auditorium, each work a wide screen */
+.place.place-cinema { --panel-bg: radial-gradient(ellipse at 50% 0%, #4a3c46 0%, #2a2630 60%, #1f1c24 100%); --panel-ink: #f6eedc; --panel-soft: #d8c9a8; --card-bg: #f6eedc; }
+.place-cinema .location-panel .grid { grid-template-columns: 1fr; gap: 1.6rem; }
+.place-cinema .location-panel .card .cover { aspect-ratio: 21 / 9; }
+.place-cinema .location-panel .card { box-shadow: 0 0 0 6px #b5524a, 0 0 28px 6px #f0c24b55; }
+.place-cinema .painted-title::after { content: ''; position: absolute; left: 0; right: 0; bottom: -0.35em; height: 0.25em; background: radial-gradient(circle, #f6d77a 35%, transparent 40%) 0 0 / 0.5em 100% repeat-x; }
+
+/* ARCADE: bright cabinet colours, cartridges tilted at random */
+.place.place-arcade { --panel-bg: #ecd7ef; }
+.place-arcade .location-panel .card:nth-child(odd) { transform: rotate(-1.6deg); }
+.place-arcade .location-panel .card:nth-child(even) { transform: rotate(1.4deg); }
+.place-arcade .location-panel .card:hover { transform: rotate(0) scale(1.03); }
+.place-arcade .location-panel .card-body { background: #f0c24b; border-radius: 0 0 6px 6px; }
+
+/* EXPERIMENT LAB: graph paper, pinned notes */
+.place.place-experiment-lab { --panel-bg: linear-gradient(#cfe0dd 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(90deg, #cfe0dd 1px, transparent 1px) 0 0 / 22px 22px, #f3f6ee; }
+.place-experiment-lab .location-panel .card::before { content: ''; position: absolute; top: -9px; left: 50%; width: 16px; height: 16px; border-radius: 50%; background: #e0773f; border: 2px solid var(--ink); z-index: 2; }
+
+/* MY STUDIO: sea-side studio, soft aqua wash */
+.place.place-my-studio { --panel-bg: linear-gradient(170deg, #e6f3ee, #cfe7e2); }
+
+/* OBSERVATORY: night sky with painted stars */
+.place.place-observatory { --panel-bg: radial-gradient(circle, #f6efd2 1.2px, transparent 1.6px) 0 0 / 46px 52px, radial-gradient(circle, #cfe0ff 1px, transparent 1.4px) 23px 17px / 61px 47px, linear-gradient(#1f2b4a, #2c3d63); --panel-ink: #f2efe2; --panel-soft: #c4cde4; --card-bg: #f2efe2; }
