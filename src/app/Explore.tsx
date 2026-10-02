@@ -31,14 +31,20 @@ function zoneAt(locations: WorldLocation[], x: number, y: number) {
   return best ? ZONE_LABEL[best.zone] : ZONE_LABEL['main-town']
 }
 
+const HELP_SEEN = 'my-world-help-seen'
+
 export default function Explore() {
   const content = useContent((s) => s.content!)
   const navigate = useNavigate()
   const g = useGame()
   const [infoOpen, setInfoOpen] = useState(false)
-  const [helpOpen, setHelpOpen] = useState(true)
+  const [helpOpen, setHelpOpen] = useState(() => !localStorage.getItem(HELP_SEEN))
   const [mapPick, setMapPick] = useState<string | null>(null)
   const intro = g.phase !== 'play'
+  const closeHelp = () => {
+    localStorage.setItem(HELP_SEEN, '1')
+    setHelpOpen(false)
+  }
 
   useEffect(() => {
     useGame.getState().setPhase('intro')
@@ -51,7 +57,7 @@ export default function Explore() {
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (e.code === 'KeyM' && useGame.getState().phase === 'play' && !useGame.getState().openLocationId) useGame.getState().setMapOpen(!useGame.getState().mapOpen)
-      if (e.code === 'KeyW') setHelpOpen(false)
+      if (e.code === 'KeyW') closeHelp()
     }
     window.addEventListener('keydown', k)
     return () => window.removeEventListener('keydown', k)
@@ -80,55 +86,51 @@ export default function Explore() {
 
       {!intro && (
       <>
-      <div className="hud-top">
-        <Link to="/" className="brand" aria-label="MY WORLD">
-          <BrushText text="MY WORLD" size={22} />
-        </Link>
-        <QualityToggle />
-        <Link className="icon-btn hud-menu" to="/index" aria-label="INDEX">
-          <svg viewBox="0 0 24 24">
-            <path d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </Link>
+      <Link to="/" className="hud-brand" aria-label="MY WORLD">
+        <BrushText text="MY WORLD" size={18} />
+      </Link>
+
+      <div className="hud-zone">
+        <BrushText text={zoneAt(content.locations, g.plan[0], g.plan[1])} size={22} />
       </div>
 
-      <div className="hud-dock">
-        <button className="icon-btn" onClick={() => { setMapPick(null); g.setMapOpen(true) }} aria-label="MAP">
+      <nav className="hud-bar">
+        <button className="bar-btn" onClick={() => { setMapPick(null); g.setMapOpen(true) }} aria-label="MAP">
           <svg viewBox="0 0 24 24">
             <path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" />
           </svg>
-          <small>MAP · M</small>
+          <small>地图 · M</small>
         </button>
-        <Link className="icon-btn" to="/index" aria-label="INDEX">
+        <Link className="bar-btn" to="/index" aria-label="INDEX">
           <svg viewBox="0 0 24 24">
             <path d="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z" />
           </svg>
-          <small>INDEX</small>
+          <small>作品索引</small>
         </Link>
-        <button className="icon-btn" onClick={() => setInfoOpen(true)} aria-label="INFO">
+        <button className="bar-btn" onClick={() => setInfoOpen(true)} aria-label="INFO">
           <svg viewBox="0 0 24 24">
             <circle cx="12" cy="8" r="4" />
             <path d="M4 21c1-4 4-6 8-6s7 2 8 6" />
           </svg>
-          <small>INFO</small>
+          <small>关于我</small>
         </button>
-        <button className="icon-btn" onClick={() => g.returnToPlaza()} aria-label="PLAZA">
+        <i className="bar-sep" />
+        <QualityToggle />
+        <i className="bar-sep" />
+        <button className="bar-btn" onClick={() => setHelpOpen(!helpOpen)} aria-label="HELP">
           <svg viewBox="0 0 24 24">
-            <path d="M3 11l9-7 9 7 M6 9v11h12V9 M10 20v-6h4v6" />
+            <circle cx="12" cy="12" r="9" />
+            <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01" />
           </svg>
-          <small>RETURN TO PLAZA</small>
+          <small>操作说明</small>
         </button>
-      </div>
-
-      <h2 className="zone-label">
-        {zoneAt(content.locations, g.plan[0], g.plan[1])
-          .split(' ')
-          .map((w) => (
-            <BrushText key={w} text={w} size={46} />
-          ))}
-      </h2>
-
-      <div className="hud-state">{g.player}</div>
+        <button className="bar-btn" onClick={() => g.returnToPlaza()} aria-label="PLAZA">
+          <svg viewBox="0 0 24 24">
+            <path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4" />
+          </svg>
+          <small>回到出发点</small>
+        </button>
+      </nav>
 
       {g.prompt && !location && (
         <div className="prompt">
@@ -151,7 +153,7 @@ export default function Explore() {
           <p>
             <kbd>M</kbd> 地图 · <kbd>ESC</kbd> 关闭
           </p>
-          <button className="btn ghost" onClick={() => setHelpOpen(false)}>
+          <button className="btn ghost" onClick={closeHelp}>
             GOT IT
           </button>
         </div>

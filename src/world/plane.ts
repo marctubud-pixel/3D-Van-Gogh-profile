@@ -79,3 +79,9 @@ export function landmarkSetback(id: string) {
 
 /** ISLAND SERVICE CENTER beside the starting plaza (static, not CMS-driven). */
 export const SERVICE_CENTER = { radius: 7 } as const
+
+/** Every landmark entrance shares one world-space door size, taller than a rider on a bike. */
+export const DOOR = { w: 1.9, h: 2.9 } as const
+
+/** World units per model unit for a landmark (shared scale times its fit). */
+export const modelScale = (id: string) => BUILDING_SCALE * (LANDMARK_FIT[id]?.scale ?? 1)

@@ -1,6 +1,9 @@
-import { useMemo } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { type Stroke, StrokePaint, dab, litToon, painted, pick, rampFor, useStrokeBuild } from '../world/strokes'
+import { LANTERN, type Stroke, StrokePaint, StrokeRig, dab, litToon, painted, pick, rampFor, useStrokeBuild } from '../world/strokes'
+import { playerPos } from '../world/occlusion'
+import { DOOR, flatDistance } from '../world/plane'
 import { Toon, geo, toonMaterial } from '../world/toon'
 
 export type V3 = [number, number, number]
@@ -475,5 +478,53 @@ export function GableRoof({ w, h, ridge, d, over = 0.35, c = '#8f99a4', trim = P
       ))}
       <Toon geometry={geo.box} color="#6f7a85" position={[0, h + ridge + 0.14, 0]} scale={[0.22, 0.12, d + over * 1.6]} outline={0.015} />
     </>
+  )
+}
+
+const _door = new THREE.Vector3()
+
+/**
+ * Double entrance door at a uniform world size (see DOOR): frame, warm-lit vestibule and two
+ * hinged leaves that swing outward while the player stands nearby.
+ */
+export function EntryDoor({ p, k, leaf = PAL.navy, frame = PAL.cream }: { p: V3; k: number; leaf?: string; frame?: string }) {
+  const w = DOOR.w / k
+  const h = DOOR.h / k
+  const t = 0.07
+  const hw = w / 2
+  const root = useRef<THREE.Group>(null)
+  const left = useRef<THREE.Group>(null)
+  const right = useRef<THREE.Group>(null)
+  const open = useRef(0)
+  useFrame((_, dt) => {
+    const g = root.current
+    if (!g) return
+    g.getWorldPosition(_door)
+    const near = flatDistance(_door, playerPos) < 6 ? 1 : 0
+    open.current = THREE.MathUtils.damp(open.current, near, 4, Math.min(dt, 0.1))
+    const a = open.current * 1.35
+    if (left.current) left.current.rotation.y = -a
+    if (right.current) right.current.rotation.y = a
+  })
+  const panel = (
+    <>
+      <Bx c={leaf} b={[0, hw - 0.01, 0, h, -0.03, 0.03]} o={0.01} />
+      <Bx c={PAL.glass} b={[0.1, hw - 0.1, h * 0.42, h - 0.12, 0.03, 0.04]} o={0} />
+      <Bx c={PAL.gold} b={[hw - 0.12, hw - 0.08, h * 0.38, h * 0.5, 0.03, 0.08]} o={0} />
+    </>
+  )
+  return (
+    <group ref={root} position={p}>
+      <Bx c={frame} b={[-hw - t, hw + t, 0, h + t, -0.06, 0.06]} o={0.02} />
+      <Bx c={LANTERN} b={[-hw, hw, 0, h, -0.4, 0.07]} o={0} />
+      <StrokeRig>
+        <group ref={left} position={[-hw, 0, 0.1]}>
+          {panel}
+        </group>
+        <group ref={right} position={[hw, 0, 0.1]} scale={[-1, 1, 1]}>
+          {panel}
+        </group>
+      </StrokeRig>
+    </group>
   )
 }

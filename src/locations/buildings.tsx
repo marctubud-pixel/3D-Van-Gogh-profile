@@ -3,12 +3,14 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { LANTERN, type Stroke, StrokePaint, brushMat, dab, painted, pick, tintable, useStrokeBuild } from '../world/strokes'
 import { Toon, geo } from '../world/toon'
+import { modelScale } from '../world/plane'
 import {
   Bench,
   Bush,
   Bx,
   Cypress,
   Decal,
+  EntryDoor,
   GableRoof,
   PAL,
   Pane,
@@ -145,11 +147,7 @@ export function CreativeMuseum({ name }: { name: string }) {
       <Bx c={PAL.roofSlate} b={[-2.7, 2.7, 6.65, 6.72, 0.5, 3.0]} o={0} />
       <Bx c="#f5e6c4" b={[-1.7, 1.7, 0.12, 4.3, 2.9, 2.95]} o={0} />
       <Pane p={[0, 2.2, 2.97]} w={3.2} h={4.1} cols={4} rows={3} />
-      <Bx c={PAL.navy} b={[-1.25, 1.25, 0.12, 3.5, 2.98, 3.04]} o={0} />
-      <Bx c="#9cc5cf" b={[-1.1, -0.06, 0.25, 3.35, 3.04, 3.05]} o={0} />
-      <Bx c="#9cc5cf" b={[0.06, 1.1, 0.25, 3.35, 3.04, 3.05]} o={0} />
-      <Bx c={PAL.gold} b={[-0.2, -0.14, 1.3, 2.1, 3.05, 3.09]} o={0} />
-      <Bx c={PAL.gold} b={[0.14, 0.2, 1.3, 2.1, 3.05, 3.09]} o={0} />
+      <EntryDoor p={[0, 0.12, 3.02]} k={modelScale('brand-museum')} leaf={PAL.navy} frame="#e6dfcf" />
       <Decal tex={title} p={[0, 5.35, 3.01]} w={4.8} h={1.6} />
       {[-2.3, 2.3].map((x) => (
         <Toon key={x} geometry={geo.cyl} color={W} position={[x, 2.25, 3.3]} scale={[0.36, 4.3, 0.36]} outline={0.02} />
@@ -304,11 +302,7 @@ export function Cinema({ name }: { name: string }) {
       <Pot p={[-0.8, 0.1, 1.3]} s={0.7} />
       <Pot p={[0.8, 0.1, 1.3]} s={0.7} />
       <Pane p={[0, 1.2, 2.1]} w={2.25} h={2.2} cols={4} rows={2} />
-      <Bx c={N} b={[-0.45, 0.45, 0.1, 1.9, 2.08, 2.16]} o={0} />
-      <Bx c="#9cc5cf" b={[-0.4, -0.03, 0.2, 1.8, 2.16, 2.17]} o={0} />
-      <Bx c="#9cc5cf" b={[0.03, 0.4, 0.2, 1.8, 2.16, 2.17]} o={0} />
-      <Bx c={PAL.gold} b={[-0.12, -0.08, 0.8, 1.2, 2.17, 2.22]} o={0} />
-      <Bx c={PAL.gold} b={[0.08, 0.12, 0.8, 1.2, 2.17, 2.22]} o={0} />
+      <EntryDoor p={[0, 0.1, 2.14]} k={modelScale('cinema')} leaf={N} frame="#e9dfca" />
       {[-1.52, 1.52].map((x, i) => (
         <group key={x}>
           <Bx c={N} b={[x - 0.32, x + 0.32, 0.55, 1.85, 2.2, 2.24]} o={0} />
@@ -405,15 +399,9 @@ export function ExperimentLab({ name }: { name: string }) {
       <Pane p={[-1.97, 1.3, 1.88]} w={2.2} h={2.0} cols={2} />
       <Pane p={[1.92, 1.3, 1.88]} w={2.1} h={2.0} cols={2} />
       {/* double door with transom */}
-      <Bx c={N} b={[-0.6, 0.6, 0.12, 2.5, 1.9, 1.98]} o={0.02} />
-      <Pane p={[0, 2.3, 1.99]} w={1.0} h={0.3} cols={1} solid />
-      {[-0.28, 0.28].map((x) => (
-        <group key={x}>
-          <Bx c="#355f9c" b={[x - 0.26, x + 0.26, 0.2, 2.1, 1.98, 2.0]} o={0.01} />
-          <Bx c="#7fa1b8" b={[x - 0.16, x + 0.16, 1.1, 1.9, 2.0, 2.01]} o={0} />
-          <Bx c={PAL.gold} b={[x * 0.25 - 0.02, x * 0.25 + 0.02, 0.9, 1.3, 2.0, 2.05]} o={0} />
-        </group>
-      ))}
+      <Bx c={N} b={[-0.75, 0.75, 0.12, 2.5, 1.9, 1.98]} o={0.02} />
+      <Pane p={[0, 2.38, 1.99]} w={1.1} h={0.18} cols={1} solid />
+      <EntryDoor p={[0, 0.12, 2.02]} k={modelScale('experiment-lab')} leaf="#355f9c" frame={N} />
       {/* roof plant: pipe gantry, stacks, HVAC, railing, palm */}
       <Bx c={P} b={[1.2, 1.6, 3.5, 5.4, -2.2, -1.8]} o={0.02} />
       <Bx c={P} b={[2.7, 3.1, 3.5, 5.4, -2.2, -1.8]} o={0.02} />
@@ -508,8 +496,7 @@ export function Arcade({ name }: { name: string }) {
         </group>
       ))}
       <Pane p={[1.0, 0.98, 2.15]} w={3.9} h={1.72} cols={5} rows={1} frame={BD} />
-      <Bx c={PAL.gold} b={[0.97, 1.0, 0.7, 1.2, 2.16, 2.2]} o={0} />
-      <Bx c={PAL.gold} b={[1.03, 1.06, 0.7, 1.2, 2.16, 2.2]} o={0} />
+      <EntryDoor p={[1.0, 0.12, 2.2]} k={modelScale('arcade')} leaf={BD} frame={N} />
       {/* sign + awning */}
       <Bx c="#d4452f" b={[-0.3, 3.1, 2.1, 2.95, 2.2, 2.35]} o={0.03} />
       <Decal tex={sign} p={[1.4, 2.52, 2.36]} w={3.35} h={0.82} />
@@ -629,11 +616,7 @@ export function Observatory({ name }: { name: string }) {
       ))}
       {/* entrance */}
       <Bx c="#e6dcc4" b={[-0.75, 0.75, T, T + 2.2, DR - 0.3, DR + 0.18]} o={0.03} />
-      <Bx c="#7a5a3b" b={[-0.55, 0.55, T, T + 1.9, DR + 0.18, DR + 0.22]} o={0.015} />
-      <Bx c="#4f7f95" b={[-0.45, -0.05, T + 1.1, T + 1.7, DR + 0.22, DR + 0.23]} o={0} />
-      <Bx c="#4f7f95" b={[0.05, 0.45, T + 1.1, T + 1.7, DR + 0.22, DR + 0.23]} o={0} />
-      <Bx c={PAL.gold} b={[-0.08, -0.04, T + 0.7, T + 1.1, DR + 0.22, DR + 0.26]} o={0} />
-      <Bx c={PAL.gold} b={[0.04, 0.08, T + 0.7, T + 1.1, DR + 0.22, DR + 0.26]} o={0} />
+      <EntryDoor p={[0, T, DR + 0.22]} k={modelScale('observatory')} leaf="#7a5a3b" frame="#e6dcc4" />
       <Bx c="#34507c" b={[-1.05, 1.05, T + 2.25, T + 2.7, DR + 0.05, DR + 0.2]} o={0.02} />
       <Decal tex={sign} p={[0, T + 2.47, DR + 0.21]} w={2.0} h={0.4} />
       <WallLamp p={[-0.6, T + 2.95, DR + 0.05]} />
@@ -809,16 +792,20 @@ export function WriteHouse({ name }: { name: string }) {
               {!brushed && <Decal tex={tiles} p={[(a + b) / 2, sill / 2 + 0.06, F + 0.01]} w={b - a} h={sill - 0.06} />}
             </>
           )}
-          <Bx c={PAL.wood} b={[a + 0.25, b - 0.25, 0.8, 0.88, 1.2, 1.7]} o={0.01} />
-          <Bx c={PAL.woodDark} b={[a + 0.35, a + 0.4, 0.12, 0.8, 1.3, 1.6]} o={0} />
-          <Bx c={PAL.woodDark} b={[b - 0.4, b - 0.35, 0.12, 0.8, 1.3, 1.6]} o={0} />
-          <Toon geometry={geo.cone} color="#f3e2a8" position={[(a + b) / 2 + 0.3, 1.1, 1.45]} scale={[0.26, 0.2, 0.26]} outline={0.01} />
-          <Toon geometry={geo.cyl} color="#3d4a52" position={[(a + b) / 2 + 0.3, 0.95, 1.45]} scale={[0.03, 0.18, 0.03]} outline={0} />
-          <Bush p={[b - 0.35, 1.1, 1.35]} s={0.22} />
+          {i > 0 && (
+            <>
+              <Bx c={PAL.wood} b={[a + 0.25, b - 0.25, 0.8, 0.88, 1.2, 1.7]} o={0.01} />
+              <Bx c={PAL.woodDark} b={[a + 0.35, a + 0.4, 0.12, 0.8, 1.3, 1.6]} o={0} />
+              <Bx c={PAL.woodDark} b={[b - 0.4, b - 0.35, 0.12, 0.8, 1.3, 1.6]} o={0} />
+              <Toon geometry={geo.cone} color="#f3e2a8" position={[(a + b) / 2 + 0.3, 1.1, 1.45]} scale={[0.26, 0.2, 0.26]} outline={0.01} />
+              <Toon geometry={geo.cyl} color="#3d4a52" position={[(a + b) / 2 + 0.3, 0.95, 1.45]} scale={[0.03, 0.18, 0.03]} outline={0} />
+              <Bush p={[b - 0.35, 1.1, 1.35]} s={0.22} />
+            </>
+          )}
           {i === 0 ? (
             <>
-              <Bx c="#e7ddc8" b={[a + 0.3, a + 0.9, 0.12, 0.8, 1.4, 1.95]} o={0.01} />
-              <Pot p={[b - 0.35, 0.12, 1.6]} s={0.9} tree />
+              <EntryDoor p={[(a + b) / 2 + 0.1, 0.12, 1.16]} k={modelScale('print-house')} leaf="#3d6ea8" frame="#f3f1ea" />
+              <Pot p={[b - 0.18, 0.12, 1.75]} s={0.7} tree />
               {[0, 1, 2, 3].map((k) => (
                 <Bx key={k} c="#3d6ea8" b={[a + 0.05 + k * 0.12, a + 0.1 + k * 0.12, 0.12, band - 0.05, F - 0.05 - (k % 2) * 0.12, F]} o={0} />
               ))}
@@ -898,12 +885,7 @@ export function Studio({ name }: { name: string }) {
       <Steps x={[-3.0, -1.4]} z0={2.1} n={2} rise={deckY / 2} run={0.32} c="#dedbd2" />
       {/* left entry */}
       <Bx c={T} b={[-2.85, -1.35, deckY, deckY + 2.15, 1.18, 1.26]} o={0.02} />
-      {[-2.48, -1.72].map((x) => (
-        <Bx key={x} c="#f3e2bf" b={[x - 0.3, x + 0.3, deckY + 0.12, deckY + 2.0, 1.26, 1.27]} o={0} />
-      ))}
-      <Bx c={T} b={[-2.13, -2.07, deckY, deckY + 2.15, 1.27, 1.3]} o={0} />
-      <Bx c={PAL.gold} b={[-2.2, -2.16, deckY + 0.8, deckY + 1.2, 1.27, 1.32]} o={0} />
-      <Bx c={PAL.gold} b={[-2.04, -2.0, deckY + 0.8, deckY + 1.2, 1.27, 1.32]} o={0} />
+      <EntryDoor p={[-2.1, deckY, 1.3]} k={modelScale('my-studio')} leaf={T} frame="#f4efe0" />
       <Bx c="#f4efe0" b={[-3.0, -1.2, deckY + 2.25, deckY + 2.75, 1.2, 1.26]} o={0.02} />
       <Decal tex={sign} p={[-2.1, deckY + 2.5, 1.27]} w={1.75} h={0.44} />
       <WallLamp p={[-2.1, deckY + 3.05, 1.2]} c="#2a2f38" />

@@ -5,13 +5,12 @@ import type { WorldLocation } from '../../shared/types'
 import { inputLocked, useGame } from '../app/game'
 import { Bike } from '../bike/Bike'
 import { CAMERA } from '../camera/config'
-import { BUILDING_RADIUS, NORTH, SERVICE_CENTER, UP, flatDir, flatDistance, planPoint, pointToPlan, yawQuaternion } from '../world/plane'
+import { BUILDING_RADIUS, LANDMARK_FIT, NORTH, SERVICE_CENTER, UP, flatDir, flatDistance, planPoint, pointToPlan, modelScale, yawQuaternion } from '../world/plane'
 import { SERVICE_POINT, groundHeight, landmarkColliders, locationAnchors, locationPoint, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
 import { camFocus, playerPos } from '../world/occlusion'
 import { LOT_RADIUS, townLots } from '../world/townLayout'
 import { dusk } from '../world/daynight'
 import { useQualityLevel } from '../world/quality'
-import { glowPoolMat } from '../world/strokes'
 import { Avatar } from './Avatar'
 
 const RIDE_MAX = 6
@@ -84,6 +83,8 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
   const uturn = useRef(0)
   /** Walking camera heading (tangent), independent of where the avatar faces. */
   const camHead = useRef(new THREE.Vector3())
+  const frameAt = useRef<(typeof anchors)[number] | null>(null)
+  const frameK = useRef(0)
   /** Pose at the landmark door the rider walks to after auto-parking. */
   const doorPose = useRef<Body | null>(null)
   const park = useRef<{ from: Body; to: Body } | null>(null)
@@ -407,17 +408,31 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
       }
       lk.pitch = THREE.MathUtils.damp(lk.pitch, cfg.pitch, 1.5, dt)
     }
+    // near an entrance on foot (or while parking), pull back to show the whole building front-on
+    const fa = riding ? undefined : anchors.find((a) => flatDistance(a.door, cb.pos) < FRAME_RANGE)
+    if (fa) frameAt.current = fa
+    frameK.current = THREE.MathUtils.damp(frameK.current, fa ? 1 : 0, 2.2, dt)
+    const fk = frameK.current
     const focus = surf(cb.pos, cfg.focusHeight)
     const dirBack = riding ? cb.fwd.clone().applyAxisAngle(UP, lk.yaw) : ch.clone()
-    let dist = cfg.distance
+    let dist: number = cfg.distance
+    let pitch = lk.pitch
+    const fr = frameAt.current
+    if (fr && fk > 0.001) {
+      const k = modelScale(fr.loc.id)
+      focus.lerp(surf(fr.building, 2.2 * k), fk)
+      dirBack.lerp(fr.facing.clone().negate(), fk).normalize()
+      dist = THREE.MathUtils.lerp(dist, Math.max(10 * k, (LANDMARK_FIT[fr.loc.id]?.halfWidth ?? 4) * k * 1.3), fk)
+      pitch = THREE.MathUtils.lerp(pitch, 0.26, fk)
+    }
     const desired = new THREE.Vector3()
     for (let i = 0; i < 6; i++) {
       desired
         .copy(focus)
-        .addScaledVector(dirBack, -Math.cos(lk.pitch) * dist)
-        .addScaledVector(UP, Math.sin(lk.pitch) * dist)
+        .addScaledVector(dirBack, -Math.cos(pitch) * dist)
+        .addScaledVector(UP, Math.sin(pitch) * dist)
       const blocked = colliders.some((c) => flatDistance(desired, c.at) < c.r + 0.4 && desired.y - groundHeight(c.at) < 10)
-      if (!blocked) break
+      if (!blocked || fk > 0.5) break
       dist *= 0.75
     }
     desired.y = Math.max(desired.y, groundHeight(desired) + 1.2)
@@ -485,11 +500,86 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
 
 const LAMP_AT = new THREE.Vector3(0, 0.9, 0.6)
 const FLAT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2)
+/** Walking within this distance of a door frames the whole building. */
+const FRAME_RANGE = 7
+const BEAM_LEN = 11
+const BEAM_TILT = 0.12
 
-/** Bike headlamp: a glowing lens and, above low quality, a real spot light aimed down the road ahead. */
+/** Open cone with its apex at the origin, opening toward +z. */
+const beamGeo = (() => {
+  const g = new THREE.ConeGeometry(1.7, BEAM_LEN, 32, 1, true)
+  g.rotateX(-Math.PI / 2)
+  g.translate(0, 0, BEAM_LEN / 2)
+  return g
+})()
+
+/** Volumetric-looking light cone: brightest at the lamp and along the axis, fading toward the rim and the far end. */
+function beamMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: { k: { value: 0 }, color: { value: new THREE.Color('#ffe7b0') } },
+    vertexShader: /* glsl */ `
+      varying float vT;
+      varying float vFacing;
+      void main() {
+        vT = uv.y;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vec3 n = normalize(normalMatrix * normal);
+        vFacing = abs(dot(n, normalize(-mv.xyz)));
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float k;
+      uniform vec3 color;
+      varying float vT;
+      varying float vFacing;
+      void main() {
+        float along = pow(vT, 1.6);
+        float core = pow(vFacing, 2.0);
+        gl_FragColor = vec4(color * k * 0.5 * along * core, 1.0);
+      }`,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  })
+}
+
+/** Smooth elliptical light spot (no brush texture) for where the beam meets the road. */
+let spotTex: THREE.CanvasTexture | null = null
+function spotMaterial() {
+  if (!spotTex) {
+    const c = document.createElement('canvas')
+    c.width = c.height = 128
+    const g = c.getContext('2d')!
+    const r = g.createRadialGradient(64, 64, 0, 64, 64, 64)
+    r.addColorStop(0, 'rgba(255,255,255,1)')
+    r.addColorStop(0.45, 'rgba(255,255,255,0.55)')
+    r.addColorStop(1, 'rgba(255,255,255,0)')
+    g.fillStyle = r
+    g.fillRect(0, 0, 128, 128)
+    spotTex = new THREE.CanvasTexture(c)
+  }
+  return new THREE.MeshBasicMaterial({
+    map: spotTex,
+    color: '#ffe3a6',
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+  })
+}
+
+/** Bike headlamp: bright lens, a geometric light cone and, above low quality, a real spot light down the road. */
 function BikeLamp({ on }: { on: boolean }) {
   const real = useQualityLevel() !== 'low'
-  const lens = useMemo(() => glowPoolMat('#fff1c8'), [])
+  const beam = useMemo(beamMaterial, [])
+  const lens = useMemo(() => new THREE.MeshBasicMaterial({ color: '#fff4d6', toneMapped: false }), [])
+  const group = useRef<THREE.Group>(null)
   const spot = useRef<THREE.SpotLight>(null)
   const target = useMemo(() => {
     const o = new THREE.Object3D()
@@ -498,53 +588,41 @@ function BikeLamp({ on }: { on: boolean }) {
   }, [])
   useFrame(() => {
     const k = on ? dusk.k : 0
-    lens.opacity = k
-    lens.visible = k > 0.01
-    if (spot.current) {
-      spot.current.intensity = k * 60
-      spot.current.visible = k > 0.01
-    }
+    beam.uniforms.k.value = k
+    if (group.current) group.current.visible = k > 0.01
+    if (spot.current) spot.current.intensity = k * 36
   })
   return (
-    <group position={LAMP_AT}>
-      <mesh material={lens} position={[0, 0, 0.06]} scale={0.7}>
-        <planeGeometry args={[1, 1]} />
+    <group ref={group} position={LAMP_AT}>
+      <mesh material={lens}>
+        <sphereGeometry args={[0.07, 10, 8]} />
       </mesh>
-      <primitive object={target} />
-      {real && <spotLight ref={spot} target={target} color="#ffe2a8" angle={0.55} penumbra={0.7} distance={18} decay={1.3} intensity={0} />}
+      <mesh geometry={beamGeo} material={beam} rotation={[BEAM_TILT, 0, 0]} />
+      <group rotation={[BEAM_TILT, 0, 0]}>
+        <primitive object={target} />
+      </group>
+      {real && <spotLight ref={spot} target={target} color="#ffe2a8" angle={0.42} penumbra={0.5} distance={20} decay={1.2} intensity={0} />}
     </group>
   )
 }
 
-/** Painted pool of headlight on the road surface in front of the bike, following the ground. */
+/** Light spot on the road where the headlamp beam lands, following the ground. */
 function HeadlightPool({ rider, on }: { rider: { current: Body }; on: boolean }) {
-  const far = useMemo(() => glowPoolMat('#ffe3a6'), [])
-  const near = useMemo(() => glowPoolMat('#fff2cc'), [])
-  const a = useRef<THREE.Mesh>(null)
-  const b = useRef<THREE.Mesh>(null)
+  const mat = useMemo(spotMaterial, [])
+  const ref = useRef<THREE.Mesh>(null)
   useFrame(() => {
     const k = on ? dusk.k : 0
-    far.opacity = k * 0.8
-    near.opacity = k * 0.7
-    far.visible = near.visible = k > 0.01
-    if (k <= 0.01) return
+    mat.opacity = k * 0.55
+    mat.visible = k > 0.01
+    const m = ref.current
+    if (k <= 0.01 || !m) return
     const r = rider.current
-    const q = yawQuaternion(r.fwd).multiply(FLAT)
-    for (const [m, dist] of [[a.current, 7.5], [b.current, 3.4]] as const) {
-      if (!m) continue
-      const at = r.pos.clone().addScaledVector(r.fwd, dist)
-      m.position.copy(surf(at, 0.06))
-      m.quaternion.copy(q)
-    }
+    m.position.copy(surf(r.pos.clone().addScaledVector(r.fwd, 7.2), 0.05))
+    m.quaternion.copy(yawQuaternion(r.fwd).multiply(FLAT))
   })
   return (
-    <>
-      <mesh ref={a} material={far} scale={[5, 10.5, 1]}>
-        <planeGeometry args={[1, 1]} />
-      </mesh>
-      <mesh ref={b} material={near} scale={[2.6, 4, 1]}>
-        <planeGeometry args={[1, 1]} />
-      </mesh>
-    </>
+    <mesh ref={ref} material={mat} scale={[3.6, 7.5, 1]}>
+      <planeGeometry args={[1, 1]} />
+    </mesh>
   )
 }
