@@ -272,6 +272,8 @@ interface Pad {
   back: number
   reach: number
   h: number
+  door: number
+  park: number
 }
 
 const PAD_FEATHER = 3
@@ -286,7 +288,8 @@ function landmarkPads() {
     const hw = (fit?.halfWidth ?? 4.2) * k + 0.8
     const front = flatDistance(a.door, a.building) + 0.6
     const back = (fit?.back ?? 3.3) * k + landmarkSetback(id) + 0.8
-    return { c: a.building, f: a.facing, side: new THREE.Vector3().crossVectors(UP, a.facing).normalize(), hw, front, back, reach: Math.hypot(hw, Math.max(front, back)) + PAD_FEATHER, h: hillHeight(a.door) }
+    const side = new THREE.Vector3().crossVectors(UP, a.facing).normalize()
+    return { c: a.building, f: a.facing, side, door: front - 0.6, park: a.parking.clone().sub(a.door).dot(side), hw, front, back, reach: Math.hypot(hw, Math.max(front, back)) + PAD_FEATHER, h: hillHeight(a.door) }
   })
   return pads
 }
@@ -300,6 +303,22 @@ export function forecourt(d: THREE.Vector3, pad = 0) {
     const x = Math.abs(dx * p.side.x + dz * p.side.z)
     const z = dx * p.f.x + dz * p.f.z
     if (x < p.hw + pad && z > -p.back - pad && z < p.front + 3 + pad) return true
+  }
+  return false
+}
+
+/** Paved part of a forecourt: the walk from door to road, the bicycle bay and the floor under the building. */
+export function forecourtWalk(d: THREE.Vector3) {
+  for (const p of landmarkPads()) {
+    if (flatDistance(d, p.c) > p.reach + 4) continue
+    const dx = d.x - p.c.x
+    const dz = d.z - p.c.z
+    const x = dx * p.side.x + dz * p.side.z
+    const z = (dx * p.f.x + dz * p.f.z) - p.door
+    if (Math.abs(x) > p.hw || z < -p.back - p.door || z > 3.8) continue
+    if (Math.abs(x) < 1.8 && z > -1.6) return true
+    if (Math.abs(x - p.park) < 1.7 && z > -1 && z < 1.7) return true
+    if (z < -1.4 && Math.abs(x) < p.hw - 0.8) return true
   }
   return false
 }

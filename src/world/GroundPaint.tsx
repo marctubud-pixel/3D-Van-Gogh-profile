@@ -11,6 +11,7 @@ import {
   ROUTE_TAN,
   SERVICE_POINT,
   forecourt,
+  forecourtWalk,
   groundHeight,
   landValue,
   landmarkBlockers,
@@ -528,6 +529,39 @@ function flatMeadow(c: Clear) {
   return out
 }
 
+/** A few flat lawn dabs on the green beside the paved forecourt walks; never grass blades. */
+function yardStrokes(c: Clear) {
+  const out: Stroke[] = []
+  const r = rng(977)
+  const step = 1.1
+  const d = new THREE.Vector3()
+  const { i0, i1, j0, j1 } = ISLAND_TILES
+  for (let x = i0 * TILE; x < (i1 + 1) * TILE; x += step) {
+    for (let z = j0 * TILE; z < (j1 + 1) * TILE; z += step) {
+      d.set(x + (r() - 0.5) * step, 0, z + (r() - 0.5) * step)
+      if (!forecourt(d, 0.6) || r() > 0.55) continue
+      if (forecourtWalk(d) || nearestOnRoute(d).dist < 2.2 || paved(d, 0) || onPath(d, c.paths, 0.2)) continue
+      const f = windAngle(d.x, d.z)
+      out.push(
+        conformToSlope({
+          p: new THREE.Vector3(d.x, groundHeight(d) + 0.03, d.z),
+          n: UP,
+          dir: new THREE.Vector3(Math.cos(f), 0, Math.sin(f)),
+          len: 0.7 + r() * 0.5,
+          wid: 0.18 + r() * 0.1,
+          color: meadowTone(0.35 + r() * 0.4),
+        }),
+      )
+    }
+  }
+  return out
+}
+
+function YardLawn({ clear }: { clear: Clear }) {
+  const strokes = useMemo(() => yardStrokes(clear), [clear])
+  return <Strokes key={strokes.length} strokes={strokes} />
+}
+
 function FlatMeadow({ clear }: { clear: Clear }) {
   const strokes = useMemo(() => flatMeadow(clear), [clear])
   return <Strokes key={strokes.length} strokes={strokes} />
@@ -602,6 +636,7 @@ export function GroundPaint({ locations, scenery }: { locations: WorldLocation[]
     <>
       <Strokes key={strokes.length} strokes={strokes} />
       <PathStones paths={clear.paths} />
+      <YardLawn clear={clear} />
       {grass ? <Meadow clear={clear} /> : <FlatMeadow clear={clear} />}
     </>
   )
