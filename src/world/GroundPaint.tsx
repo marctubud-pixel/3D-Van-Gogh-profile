@@ -1,10 +1,9 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { NORTH, UP, flatDistance, pointToPlan, yawQuaternion } from './plane'
+import { NORTH, UP, flatDistance, yawQuaternion } from './plane'
 import {
   BRIDGE,
-  PARK,
   PLAZA,
   POND,
   ROUTE,
@@ -22,10 +21,8 @@ import {
 import { type Ramp, type Stroke, Strokes, blob, column, pick, rng, rotateAbout, shade } from './strokes'
 import { townLots } from './townLayout'
 
-const flat = (colors: string[]): Ramp => ({ light: colors, mid: colors, dark: colors })
 
 const ASPHALT: Ramp = { light: ['#8396a0', '#7a8e96'], mid: ['#6f848b', '#667a82', '#748990'], dark: ['#566870', '#5b6e76'] }
-const MEADOW: Ramp = { light: ['#86bf84', '#9acb8c', '#7ab87e', '#a8d39a'], mid: ['#72b07e', '#5e9d6d', '#68a875'], dark: ['#4a8462', '#3f7a5c'] }
 const BLADE = { light: ['#a8d993', '#c2e3a0', '#8fcf8a'], mid: ['#6aa874', '#5e9d6d', '#7fb483'], dark: ['#3f7a55', '#346b52'] }
 const BUSH: Ramp = { light: ['#9fd48e', '#b7de9c', '#86c784'], mid: ['#5e9d6d', '#4f8f63', '#6aa874', '#3f7a55'], dark: ['#2f6650', '#28584a', '#244c46'] }
 const CANOPY: Ramp = { light: ['#8fcf8a', '#a8d993'], mid: ['#4f8f5f', '#5e9d6d', '#62a06c'], dark: ['#2f6650', '#28584a'] }
@@ -87,7 +84,6 @@ function roadStrokes(out: Stroke[]) {
     band(r() < 0.5 ? 4 : 3, -1.7, 1.7, ASPHALT, 0.1, 0.8, 0.22)
     for (const sgn of [-1, 1]) {
       band(2, sgn * 1.75, sgn * 2.15, ASPHALT, 0.1, 0.7, 0.2)
-      band(r() < 0.7 ? 1 : 0, sgn * 2, sgn * 2.4, MEADOW, 0.11, 0.6, 0.2)
     }
     place(out, local, ROUTE[i], ROUTE_TAN[i])
   }
@@ -111,34 +107,57 @@ function dashStrokes(out: Stroke[]) {
   }
 }
 
-const TUFT = { base: ['#2f6650', '#346b52', '#3f7a55'], mid: ['#5e9d6d', '#6aa874', '#4f8f63'], tip: ['#8fcf8a', '#a8d993', '#c2e3a0'] }
+const LAWN = {
+  root: ['#2c5f4c', '#33684f', '#2a5a52'],
+  body: ['#4f8f63', '#5e9d6d', '#6aa874', '#57955f'],
+  tip: ['#8fcf8a', '#a8d993', '#c9df92', '#d9d48a'],
+  accent: ['#6f8fb0', '#8a86b8', '#e8e6c8'],
+}
 
-/** Layered grass tufts: blades fanning out from one root, dark and short at the back, long and light on top. */
-function tuftStrokes(out: Stroke[], c: Clear, centre: THREE.Vector3, radius: number) {
+/** Shared wind field: neighbouring blades bend the same way, so the lawn reads as flowing clumps. */
+function windAngle(x: number, z: number) {
+  return Math.sin(x * 0.21 + Math.cos(z * 0.17) * 1.3) * 1.4 + Math.cos(z * 0.13 - x * 0.07) * 0.9
+}
+
+/**
+ * Van Gogh style lawn: clustered curved blades of varying length that bend with a shared flow,
+ * some arching over and lying down, darker at the root and lighter toward the tip.
+ */
+function lawnStrokes(out: Stroke[], c: Clear, centre: THREE.Vector3, radius: number) {
   const r = rng(91)
   const local: Stroke[] = []
-  const spacing = 0.55
+  const spacing = 0.42
+  const SEGS = 3
   for (let x = -radius; x < radius; x += spacing) {
     for (let z = -radius; z < radius; z += spacing) {
       if (x * x + z * z > radius * radius) continue
       const d = new THREE.Vector3(centre.x + x + (r() - 0.5) * spacing, 0, centre.z + z + (r() - 0.5) * spacing)
       const hit = nearestOnRoute(d)
-      if (hit.dist < 2.15 || landValue(d, hit) < 2.6 || blocked(d, c, 0)) continue
+      if (hit.dist < 2.1 || landValue(d, hit) < 2.6 || blocked(d, c, 0)) continue
       local.length = 0
-      const blades = 6 + Math.floor(r() * 5)
-      const scale = 0.75 + r() * 0.5
+      const flow = windAngle(d.x, d.z)
+      const clump = 0.7 + 0.6 * (0.5 + 0.5 * Math.sin(d.x * 0.9 + d.z * 0.7))
+      const blades = 2 + Math.floor(r() * 3)
       for (let b = 0; b < blades; b++) {
-        const layer = b / blades
-        const yaw = r() * Math.PI * 2
-        const out2 = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw))
-        const lean = 0.15 + r() * 0.45 * (1 - layer * 0.5)
-        const dir = UP.clone().multiplyScalar(Math.cos(lean)).addScaledVector(out2, Math.sin(lean)).normalize()
-        const across = new THREE.Vector3(-out2.z, 0, out2.x)
-        const n = new THREE.Vector3().crossVectors(across, dir).normalize()
-        const len = (0.3 + layer * 0.3 + r() * 0.15) * scale
-        const root = out2.clone().multiplyScalar(r() * 0.08)
-        const ramp = layer < 0.35 ? TUFT.base : layer < 0.75 ? TUFT.mid : r() < 0.6 ? TUFT.tip : TUFT.mid
-        local.push({ p: root.addScaledVector(dir, len / 2), n, dir, len, wid: 0.045 + r() * 0.025, color: new THREE.Color(pick(r, ramp)) })
+        const yaw = flow + (r() - 0.5) * 0.7
+        const w = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw))
+        const across = new THREE.Vector3(-w.z, 0, w.x)
+        const lying = r() < 0.3
+        const lean = lying ? 0.7 + r() * 0.5 : 0.1 + r() * 0.35
+        const bend = lying ? 0.35 + r() * 0.25 : 0.15 + r() * 0.3
+        const L = (0.28 + r() * 0.42) * clump
+        const seg = L / SEGS
+        const wid = 0.06 + r() * 0.03
+        const accent = r() < 0.05
+        const p = new THREE.Vector3((r() - 0.5) * 0.2, 0, (r() - 0.5) * 0.2)
+        for (let k = 0; k < SEGS; k++) {
+          const th = Math.min(lean + bend * k, 1.45)
+          const dir = UP.clone().multiplyScalar(Math.cos(th)).addScaledVector(w, Math.sin(th)).normalize()
+          const n = new THREE.Vector3().crossVectors(across, dir).normalize()
+          const ramp = accent && k === SEGS - 1 ? LAWN.accent : k === 0 ? LAWN.root : k === 1 ? LAWN.body : r() < 0.55 ? LAWN.tip : LAWN.body
+          local.push({ p: p.clone().addScaledVector(dir, seg / 2), n, dir, len: seg * 1.35, wid: wid * (1 - k * 0.22), color: new THREE.Color(pick(r, ramp)) })
+          p.addScaledVector(dir, seg)
+        }
       }
       place(out, local, d, NORTH)
     }
@@ -188,21 +207,6 @@ function grassStrokes(out: Stroke[], c: Clear, skip: (d: THREE.Vector3) => boole
       }
     }
   }
-  // open meadow: flat colour dabs flowing in soft swirls
-  const flow: Stroke[] = []
-  for (let k = 0; k < 26000; k++) {
-    const i = Math.floor(r() * (ROUTE.length - 1))
-    const o = (r() * 2 - 1) * 45
-    const d = besideRoad(i, o, (r() - 0.5) * step)
-    if (Math.abs(o) < 2.1 || onDeck(i)) continue
-    const hit: RouteHit = { i, s: ROUTE_S[i], dist: Math.abs(o), sign: o >= 0 ? 1 : -1 }
-    if (landValue(d, hit) < 2.6 || skip(d)) continue
-    const [px, py] = pointToPlan(d)
-    const f = Math.sin(px * 0.09) * 0.9 + Math.cos(py * 0.08) * 0.6
-    flow.length = 0
-    flow.push({ p: new THREE.Vector3(0, 0.03 + r() * 0.01, 0), n: UP, dir: new THREE.Vector3(Math.cos(f), 0, Math.sin(f)), len: 0.7 + r() * 0.7, wid: 0.22 + r() * 0.14, color: shade(r, UP, arc(d, PARK.center) < PARK.r ? flat(MEADOW.light) : MEADOW) })
-    place(out, flow, d, NORTH)
-  }
 }
 
 function sceneryStrokes(out: Stroke[], spots: ScenerySpot[]) {
@@ -245,7 +249,7 @@ function foamStrokes(out: Stroke[]) {
   }
 }
 
-/** Trial area of layered tufts around the observatory. */
+/** Trial area of the curved, flowing lawn around the observatory. */
 const TUFT_RADIUS = 20
 
 /** Brush-stroke layer for the whole island ground: road grain, verge grass, meadows, foliage and sea foam. */
@@ -262,7 +266,7 @@ export function GroundPaint({ locations, scenery }: { locations: WorldLocation[]
     roadStrokes(out)
     dashStrokes(out)
     grassStrokes(out, clear, inTufts)
-    if (tuftAt) tuftStrokes(out, clear, tuftAt, TUFT_RADIUS)
+    if (tuftAt) lawnStrokes(out, clear, tuftAt, TUFT_RADIUS)
     sceneryStrokes(out, scenery)
     foamStrokes(out)
     return out
