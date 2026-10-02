@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { playerPos } from '../world/occlusion'
 import { BUILDING_SCALE, LANDMARK_FIT, UP, flatDistance, landmarkSetback, yawQuaternion } from '../world/plane'
-import { CIVIC, HALL_BEARING as HALL_BEARING_DEG, PLAZA, SERVICE_FACING, SERVICE_POINT, SPOKES, locationAnchors, locationPoint, nearestOnRoute, routeFrame, routePoint, surf } from '../world/island'
+import { PLAZA, SERVICE_FACING, SERVICE_POINT, SPOKES, locationAnchors, locationPoint, nearestOnRoute, routeFrame, routePoint, surf } from '../world/island'
 import { Toon, geo, toonMaterial } from '../world/toon'
 import { type Stroke, StrokeBuild, StrokePaint, column, dab, painted, rampFor } from '../world/strokes'
 import { Decal, textTex } from './parts'
@@ -294,7 +294,7 @@ export function CivicPlazaSite() {
     <>
       <group position={surf(PLAZA)} scale={BUILDING_SCALE}>
         <StrokeBuild seed={12}>
-          <CivicPlaza ways={[...SPOKES.map((k) => k.bearing), HALL_BEARING_DEG]} r={CIVIC.r / BUILDING_SCALE} lawn={[CIVIC.lawnIn / BUILDING_SCALE, CIVIC.lawnOut / BUILDING_SCALE]} />
+          <CivicPlaza />
         </StrokeBuild>
       </group>
       <group position={sign.pos}>

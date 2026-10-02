@@ -14,7 +14,6 @@ import {
   ROUTE_S,
   ROUTE_TAN,
   BEACH_SPOT,
-  CIVIC,
   SERVICE_POINT,
   CREEK,
   SPOKES,
@@ -72,7 +71,6 @@ const arc = flatDistance
 const MEADOW_GROUND = meadowTone(0.42)
 const COURT = new THREE.Color('#cfc9b6')
 const LAWN = meadowTone(0.55)
-const PAVING = new THREE.Color('#ddd6c4')
 const AVENUE = new THREE.Color('#6f848b')
 const GROUND = { x0: -110, x1: 130, y0: -128, y1: 120, step: 0.8 }
 
@@ -99,8 +97,8 @@ function PlanetBody() {
       } else {
         const h = terrainHeight(v)
         y = h
-        if (onServiceSquare(v, 0.2)) c.copy(civicLawn(v) ? LAWN : PAVING)
-        else if (onSpoke(v, 0.1)) c.copy(PAVING).lerp(AVENUE, THREE.MathUtils.smoothstep(flatDistance(v, PLAZA), CIVIC.r - 0.5, CIVIC.r + 3))
+        if (onServiceSquare(v, 0.2)) c.copy(civicLawn(v) ? LAWN : AVENUE)
+        else if (onSpoke(v, 0.1)) c.copy(AVENUE)
         else c.copy(forecourt(v, -0.2) ? (forecourtWalk(v) ? COURT : LAWN) : MEADOW_GROUND)
         const e = creekEdge(v)
         if (e < 0.6) {
@@ -393,13 +391,13 @@ function avenueRibbon() {
     let open = false
     for (let i = 0; i <= n; i++) {
       const c = k.a.clone().addScaledVector(along, (len * i) / n)
-      if (creekEdge(c) < 3 || flatDistance(c, PLAZA) < CIVIC.r + 2.5) {
+      if (creekEdge(c) < 3 || i > n - (ROAD_HALF - 0.3)) {
         open = false
         continue
       }
       for (const o of [-SPOKE_HALF, SPOKE_HALF]) {
         const d = c.clone().addScaledVector(side, o)
-        pos.push(d.x, groundHeight(d) + 0.07, d.z)
+        pos.push(d.x, groundHeight(d) + 0.06, d.z)
       }
       const v = pos.length / 3
       if (open) idx.push(v - 4, v - 2, v - 3, v - 3, v - 2, v - 1)

@@ -22,7 +22,6 @@ const brim = new THREE.CylinderGeometry(0.5, 0.5, 1, 20, 1, false, -Math.PI / 2,
 const sleeveGeo = new THREE.CylinderGeometry(0.5, 0.62, 1, 14, 1, true)
 const shortsLegGeo = new THREE.CylinderGeometry(0.5, 0.56, 1, 14, 1, false)
 const OPEN = 0.42
-const LEG_LENGTH = 0.86
 const HIP_WALK = 0.86
 const HIP_RIDE = 1.02
 const HIP_X_RIDE = 0.13
@@ -129,7 +128,6 @@ interface AvatarProps {
 }
 
 function Leg({ side, refs, hip, hipX }: { side: number; refs: RefObject<Joint>; hip: number; hipX: number }) {
-  const floor = -LEG_LENGTH
   return (
     <group
       ref={(g) => {
@@ -153,8 +151,8 @@ function Leg({ side, refs, hip, hipX }: { side: number; refs: RefObject<Joint>; 
           }}
           position={[0, -SHIN, 0]}
         >
-          <Toon geometry={limb} color={SHOE} position={[0, floor + LEG_LENGTH - 0.79, 0.05]} rotation={[Math.PI / 2, 0, 0]} scale={[0.14, 0.1, 0.12]} outline={0.018} radial={false} />
-          <Toon geometry={geo.box} color={SOLE} position={[0, -0.06, 0.05]} scale={[0.14, 0.04, 0.3]} outline={0} />
+          <Toon geometry={limb} color={SHOE} position={[0, 0.02, 0.05]} rotation={[Math.PI / 2, 0, 0]} scale={[0.14, 0.1, 0.12]} outline={0.018} radial={false} />
+          <Toon geometry={geo.box} color={SOLE} position={[0, -0.02, 0.05]} scale={[0.14, 0.04, 0.3]} outline={0} />
           <Toon geometry={geo.box} color="#c9cccd" position={[side * 0.07, -0.01, 0.06]} scale={[0.01, 0.05, 0.14]} outline={0} />
         </group>
       </group>

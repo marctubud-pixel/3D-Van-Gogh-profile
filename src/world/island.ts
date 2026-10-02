@@ -101,7 +101,7 @@ export const STOPS = {
   arcade: { s: 110 * ROUTE_K, side: -1, off: 9.5 },
   'experiment-lab': { s: 134 * ROUTE_K, side: 1, off: 11 },
   'my-studio': { s: 158 * ROUTE_K, side: -1, off: 9.5 },
-  observatory: { s: SUMMIT_S, side: 1, off: 10 },
+  observatory: { s: SUMMIT_S, side: -1, off: 10 },
 } as const
 
 export const ROUTE_ORDER = ['print-house', 'brand-museum', 'cinema', 'arcade', 'experiment-lab', 'my-studio', 'observatory']
@@ -139,6 +139,9 @@ export const serviceColliders = () => [
   { at: servicePoint(0.6, -1.2), r: 2.9 },
   { at: servicePoint(2.6, -1), r: 2.2 },
   { at: servicePoint(4.2, -1.15), r: 1.5 },
+  { at: servicePoint(-4.2, 0.6), r: 1.4 },
+  { at: servicePoint(-2.6, 0.75), r: 1 },
+  { at: servicePoint(2.6, 0.6), r: 0.8 },
 ]
 
 export interface Spoke {
@@ -149,17 +152,17 @@ export interface Spoke {
   label: string
 }
 export const SPOKE_HALF = 2
-/** Stone avenues from the plaza rim to the ring road; the first leads to WRITE HOUSE. */
+/** Asphalt avenues from the plaza rim straight to the door of a landmark across the ring road; the first leads to WRITE HOUSE. */
 export const SPOKES: Spoke[] = ([
-  [33, 'WRITE HOUSE'],
-  [122, 'CINEMA'],
-  [200, 'ARCADE · LAB'],
-  [290, 'STUDIO · OBSERVATORY'],
-] as [number, string][]).map(([s, label]) => {
-  const b = routePoint(s)
+  ['print-house', 'WRITE HOUSE'],
+  ['arcade', 'ARCADE'],
+  ['my-studio', 'MY STUDIO'],
+  ['observatory', 'OBSERVATORY'],
+] as [keyof typeof STOPS, string][]).map(([id, label]) => {
+  const b = routePoint(STOPS[id].s)
   const dir = flatDir(b.clone().sub(PLAZA))
   const [x, y] = pointToPlan(dir)
-  return { a: PLAZA.clone().addScaledVector(dir, CIVIC.r - 0.4), b: b.addScaledVector(dir, -3.4), bearing: THREE.MathUtils.radToDeg(Math.atan2(y, x)), label }
+  return { a: PLAZA.clone().addScaledVector(dir, CIVIC.r - 0.4), b, bearing: THREE.MathUtils.radToDeg(Math.atan2(y, x)), label }
 })
 
 const segDist = (d: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3) => {

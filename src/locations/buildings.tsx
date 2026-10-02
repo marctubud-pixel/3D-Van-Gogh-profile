@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { LANTERN, type Stroke, StrokePaint, brushMat, dab, painted, pick, tintable, useStrokeBuild } from '../world/strokes'
 import { Toon, geo, toonMaterial } from '../world/toon'
 import { modelScale } from '../world/plane'
+import { civicLayout } from '../world/civicLayout'
 import {
   Bench,
   Bush,
@@ -1277,50 +1278,43 @@ const faceIn = (deg: number) => Math.atan2(-Math.cos((deg * Math.PI) / 180), Mat
 
 const FLOWERS = ['#e36f4c', '#f4efe0', '#e7b53f', '#c45c9a', '#3f78a8']
 
-/**
- * Round civic plaza in model units (radius `r`): fountain in the middle, benches round it, flower beds on the lawn ring,
- * and kiosks, a café terrace, flags and lamps on the outer paving between the avenues.
- */
-export function CivicPlaza({ ways, r, lawn }: { ways: number[]; r: number; lawn: [number, number] }) {
-  const sorted = [...ways].map((b) => (b + 360) % 360).sort((a, b) => a - b)
-  const gaps = sorted.map((b, i) => {
-    const n = i + 1 < sorted.length ? sorted[i + 1] : sorted[0] + 360
-    return { mid: (b + n) / 2, span: n - b }
-  })
-  const band = (lawn[1] + r) / 2
-  const bed = (lawn[0] + lawn[1]) / 2
+/** Round civic plaza in model units: fountain in the middle, benches round it, beds, kiosks, a café terrace and lamps on the lawn wedges. */
+export function CivicPlaza() {
+  const props = useMemo(() => civicLayout(), [])
   return (
     <group>
       <group scale={0.9}>
         <Fountain />
       </group>
-      {gaps.map((g, i) => (
-        <group key={g.mid}>
-          <Bench p={polar(g.mid, 4.2)} yaw={faceIn(g.mid)} w={1.1} />
-          <group position={polar(g.mid, bed)} rotation={[0, faceIn(g.mid), 0]}>
-            <Planter p={[0, 0, 0]} w={1.6} d={0.7} h={0.35} flowers={FLOWERS[i % FLOWERS.length]} />
-          </group>
-          {[-1, 1].map((k) => (
-            <Cypress key={k} p={polar(g.mid + k * g.span * 0.28, bed)} h={2.2 + (i % 2) * 0.4} />
-          ))}
-        </group>
-      ))}
-      {gaps.map((g) => (
-        <SquareLamp key={g.mid} p={polar(g.mid + g.span * 0.33, r - 0.7)} />
-      ))}
-      {gaps[0] && (
-        <group position={polar(gaps[0].mid, band)} rotation={[0, faceIn(gaps[0].mid), 0]}>
-          <Newsstand p={[0, 0, 0]} label="PRESSE" />
-        </group>
-      )}
-      {gaps[1] &&
-        [-9, 0, 9].map((o, k) => <CafeTable key={o} p={polar(gaps[1].mid + o, band)} c={['#c8553d', '#3f78a8', '#e7b53f'][k]} />)}
-      {gaps[2] && (
-        <group position={polar(gaps[2].mid, band)} rotation={[0, faceIn(gaps[2].mid), 0]}>
-          <Newsstand p={[0, 0, 0]} label="FLEURS" />
-        </group>
-      )}
-      {gaps.slice(3).flatMap((g) => [-7, 7].map((o) => <Tree key={`${g.mid}${o}`} p={polar(g.mid + o, band)} s={0.8} />))}
+      {props.map((p, k) => {
+        const at = polar(p.deg, p.rad)
+        const yaw = faceIn(p.deg)
+        switch (p.kind) {
+          case 'bench':
+            return <Bench key={k} p={at} yaw={yaw} w={1.1} />
+          case 'planter':
+            return (
+              <group key={k} position={at} rotation={[0, yaw, 0]}>
+                <Planter p={[0, 0, 0]} w={1.6} d={0.7} h={0.35} flowers={FLOWERS[p.i % FLOWERS.length]} />
+              </group>
+            )
+          case 'cypress':
+            return <Cypress key={k} p={at} h={2.2 + (p.i % 2) * 0.4} />
+          case 'lamp':
+            return <SquareLamp key={k} p={at} />
+          case 'newsstand':
+            return (
+              <group key={k} position={at} rotation={[0, yaw, 0]}>
+                <Newsstand p={[0, 0, 0]} label={p.label} />
+              </group>
+            )
+          case 'cafe':
+            return <CafeTable key={k} p={at} c={['#c8553d', '#3f78a8'][p.i]} />
+          case 'tree':
+            return <Tree key={k} p={at} s={0.8} />
+        }
+        return null
+      })}
     </group>
   )
 }
@@ -1404,7 +1398,7 @@ export function ServiceCenter() {
       <Vines p={[-4.2, 2.45, 1.7]} w={1.4} len={0.8} />
       <Bench p={[-4.2, 0.12, 0.8]} yaw={Math.PI / 2} w={1.2} />
       {/* guide board, about pillar, bike rack */}
-      <group position={[-3.4, 0.12, 2.8]} rotation={[0, 0.5, 0]}>
+      <group position={[-2.6, 0.12, 0.75]} rotation={[0, 0.3, 0]}>
         <Bx c="#e4dac6" b={[-0.55, 0.55, 0, 0.7, -0.15, 0.15]} o={brushed ? 0 : 0.02} />
         <group position={[0, 0.95, 0.05]} rotation={[-0.5, 0, 0]}>
           <Bx c="#e4dac6" b={[-0.6, 0.6, -0.4, 0.4, -0.05, 0.05]} o={brushed ? 0 : 0.02} />
@@ -1418,14 +1412,11 @@ export function ServiceCenter() {
           )}
         </group>
       </group>
-      <group position={[2.4, 0.12, 2.6]}>
+      <group position={[2.6, 0.12, 0.6]}>
         <Bx c="#f2ecdf" b={[-0.45, 0.45, 0, 2.0, -0.2, 0.2]} o={brushed ? 0 : 0.03} />
         <Decal tex={about} p={[0, 1.8, 0.21]} w={0.8} h={0.2} />
         {brushed ? <StrokePaint strokes={sailStrokes()} position={[0, 1.05, 0.235]} /> : <Decal tex={posterTex('sail')} p={[0, 1.05, 0.21]} w={0.55} h={1.0} />}
       </group>
-      {[3.3, 3.7, 4.1].map((x) => (
-        <Toon key={x} geometry={geo.torusRack} color="#3f4a55" position={[x, 0.12, 3.1]} rotation={[0, Math.PI / 2, 0]} outline={0.015} radial={false} />
-      ))}
       <Planter p={[3.9, 0.12, 0.4]} w={2.0} d={0.8} flowers="#f4efe0" />
       <Cypress p={[-3.5, 0.12, -0.4]} h={2.6} />
       <Tree p={[-4.8, 0.12, -1.8]} s={0.8} />

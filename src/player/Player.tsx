@@ -8,6 +8,7 @@ import { CAMERA } from '../camera/config'
 import { BUILDING_RADIUS, LANDMARK_FIT, NORTH, UP, flatDir, flatDistance, planPoint, pointToPlan, modelScale, yawQuaternion } from '../world/plane'
 import { CIVIC, MESAS, PLAZA, SPOKES, groundHeight, serviceColliders, landmarkColliders, locationAnchors, locationPoint, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
 import { camFocus, playerFwd, playerPos } from '../world/occlusion'
+import { civicColliders } from '../world/civicLayout'
 import { LOT_RADIUS, townLots } from '../world/townLayout'
 import { dusk, useDayNight } from '../world/daynight'
 import { useQualityLevel } from '../world/quality'
@@ -66,7 +67,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     () => [
       ...anchors.flatMap((a) => landmarkColliders(a, a.loc.id)),
       ...serviceColliders(),
-      { at: PLAZA, r: 3.1 },
+      ...civicColliders(),
       ...MESAS.map((m) => ({ at: m.at, r: m.r })),
       ...townLots(locations)
         .filter((l) => l.kind !== 'garden')

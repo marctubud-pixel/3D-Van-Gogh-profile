@@ -11,7 +11,6 @@ import {
   ROUTE_TAN,
   CIVIC,
   SPOKES,
-  onSpoke,
   civicLawn,
   creekEdge,
   forecourt,
@@ -26,7 +25,7 @@ import {
   onServiceSquare,
   wildBlocked,
 } from './island'
-import { type Ramp, type Stroke, Strokes, blob, column, pick, rng, rotateAbout, shade } from './strokes'
+import { type Ramp, type Stroke, Strokes, blob, column, pick, rng, rotateAbout } from './strokes'
 import { playerPos } from './occlusion'
 import { townLots } from './townLayout'
 import { toonMaterial } from './toon'
@@ -43,7 +42,6 @@ const BIRCH_LEAF: Ramp = { light: ['#d5e08e', '#c9db84'], mid: ['#a5c46c', '#97b
 const BIRCH_BARK: Ramp = { light: ['#f4f1e8', '#ece8dc'], mid: ['#e2ddcf', '#d9d3c4'], dark: ['#3f3a36', '#c8c1b2'] }
 const TRUNK: Ramp = { light: ['#8a7f76'], mid: ['#6e6660', '#655d57'], dark: ['#4b4440'] }
 const ROCK: Ramp = { light: ['#ece4cb', '#e3d8b8'], mid: ['#d9cfb2', '#cfc4a5'], dark: ['#b2a88c'] }
-const PAVING: Ramp = { light: ['#c6cabf', '#cbc9bd'], mid: ['#b8beb2', '#b2b8ad', '#bfbfb2'], dark: ['#a6ada3', '#adb0a4'] }
 const SEA_FOAM = ['#e9f5f0', '#d6efe9', '#f4faf6']
 
 const arc = flatDistance
@@ -102,18 +100,20 @@ function place(out: Stroke[], local: Stroke[], d: THREE.Vector3, fwd: THREE.Vect
 /** Service plaza paving: pale strokes swept in rings around the centre, ragged at the rim. */
 function plazaStrokes(out: Stroke[]) {
   const r = rng(23)
-  const STEP = 0.95
-  for (let rad = 2.9; rad < CIVIC.r + 3; rad += STEP) {
-    const n = Math.round((Math.PI * 2 * rad) / STEP)
-    const a0 = r() * Math.PI * 2
+  const rings: [number, number][] = [
+    [CIVIC.lawnIn - 0.7, 1],
+    [CIVIC.lawnOut + 0.7, 1],
+    [(CIVIC.lawnOut + CIVIC.r) / 2 + 0.4, 0.55],
+  ]
+  for (const [rad, on] of rings) {
+    const n = Math.round((Math.PI * 2 * rad) / 1.1)
     for (let i = 0; i < n; i++) {
-      const a = a0 + (i / n) * Math.PI * 2
+      if (on < 1 && i % 2) continue
+      const a = (i / n) * Math.PI * 2
       const p = new THREE.Vector3(PLAZA.x + Math.cos(a) * rad, 0, PLAZA.z + Math.sin(a) * rad)
-      if (civicLawn(p)) continue
-      if (rad > CIVIC.r - 0.3 && (!onSpoke(p) || r() > 1 - (rad - CIVIC.r + 0.3) / 3.3)) continue
-      p.y = groundHeight(p) + 0.08 + r() * 0.01
-      const dir = rotateAbout(new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)), UP, (r() - 0.5) * 0.25)
-      out.push({ p, n: UP, dir, len: 0.72 + r() * 0.12, wid: 0.62 + r() * 0.1, color: shade(r, UP, PAVING) })
+      p.y = groundHeight(p) + 0.1 + r() * 0.01
+      const dir = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a))
+      out.push({ p, n: UP, dir, len: on < 1 ? 0.9 : 1.25, wid: 0.13 + r() * 0.03, color: new THREE.Color(pick(r, DASH)) })
     }
   }
 }
@@ -138,10 +138,10 @@ function dashStrokes(out: Stroke[]) {
   for (const k of SPOKES) {
     const len = flatDistance(k.a, k.b)
     const along = flatDir(k.b.clone().sub(k.a))
-    for (let s = 1; s < len - 1; s += 0.6) {
+    for (let s = 1; s < len - 2.6; s += 0.6) {
       if (s % DASH_PERIOD > DASH_ON) continue
       const at = k.a.clone().addScaledVector(along, s)
-      if (creekEdge(at) < 3 || flatDistance(at, PLAZA) < CIVIC.r + 3) continue
+      if (creekEdge(at) < 3) continue
       local.length = 0
       for (let j = 0; j < 2; j++) {
         local.push({ p: new THREE.Vector3((r() - 0.5) * 0.05, 0.12 + r() * 0.01, (r() - 0.5) * 0.2), n: UP, dir: rotateAbout(new THREE.Vector3(0, 0, 1), UP, (r() - 0.5) * 0.08), len: 0.55 + r() * 0.2, wid: 0.13 + r() * 0.04, color: new THREE.Color(pick(r, DASH)) })
