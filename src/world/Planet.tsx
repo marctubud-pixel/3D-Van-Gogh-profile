@@ -16,6 +16,8 @@ import {
   BEACH_SPOT,
   SERVICE_POINT,
   CREEK,
+  SPOKES,
+  SPOKE_HALF,
   civicLawn,
   onSpoke,
   FOREST,
@@ -70,7 +72,7 @@ const MEADOW_GROUND = meadowTone(0.42)
 const COURT = new THREE.Color('#cfc9b6')
 const LAWN = meadowTone(0.55)
 const PAVING = new THREE.Color('#ddd6c4')
-const AVENUE = new THREE.Color('#c9c1ab')
+const AVENUE = new THREE.Color('#6f848b')
 const GROUND = { x0: -110, x1: 130, y0: -128, y1: 120, step: 0.8 }
 
 function PlanetBody() {
@@ -378,12 +380,48 @@ function ribbon(a: number, b: number, lift: number, from = 0, to = ROUTE.length 
   return g
 }
 
+/** Asphalt strips of the plaza avenues, broken where the creek footbridge carries them. */
+function avenueRibbon() {
+  const pos: number[] = []
+  const idx: number[] = []
+  for (const k of SPOKES) {
+    const len = flatDistance(k.a, k.b)
+    const along = flatDir(k.b.clone().sub(k.a))
+    const side = new THREE.Vector3().crossVectors(UP, along)
+    const n = Math.ceil(len)
+    let open = false
+    for (let i = 0; i <= n; i++) {
+      const c = k.a.clone().addScaledVector(along, (len * i) / n)
+      if (creekEdge(c) < 3) {
+        open = false
+        continue
+      }
+      for (const o of [-SPOKE_HALF, SPOKE_HALF]) {
+        const d = c.clone().addScaledVector(side, o)
+        pos.push(d.x, groundHeight(d) + 0.07, d.z)
+      }
+      const v = pos.length / 3
+      if (open) idx.push(v - 4, v - 2, v - 3, v - 3, v - 2, v - 1)
+      open = true
+    }
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setIndex(idx)
+  g.computeVertexNormals()
+  return g
+}
+
 /** The single winding island road, with a bridge across the bay. */
 function Road() {
   const road = useMemo(() => ribbon(-ROAD_HALF, ROAD_HALF, 0.07), [])
+  const avenues = useMemo(avenueRibbon, [])
   return (
     <group>
       <mesh geometry={road} receiveShadow>
+        <meshToonMaterial color={ASPHALT} gradientMap={toonMaterial('#fff').gradientMap} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={avenues} receiveShadow>
         <meshToonMaterial color={ASPHALT} gradientMap={toonMaterial('#fff').gradientMap} side={THREE.DoubleSide} />
       </mesh>
       <Bridge />

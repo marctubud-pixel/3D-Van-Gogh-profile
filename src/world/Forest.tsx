@@ -122,7 +122,7 @@ function creekStrokes(out: Stroke[]) {
 
 const BRIDGE_AT = CREEK_CROSSING
 const SPAN = 5.6
-const DECK_W = 2.6
+const DECK_W = 4.4
 const RISE = 0.9
 
 /** Little arched footbridge over the creek, built from plank and rail strokes. */

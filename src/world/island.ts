@@ -148,7 +148,7 @@ export interface Spoke {
   bearing: number
   label: string
 }
-export const SPOKE_HALF = 1.3
+export const SPOKE_HALF = 2
 /** Stone avenues from the plaza rim to the ring road; the first leads to WRITE HOUSE. */
 export const SPOKES: Spoke[] = ([
   [33, 'WRITE HOUSE'],

@@ -10,7 +10,6 @@ import {
   ROUTE_S,
   ROUTE_TAN,
   SPOKES,
-  SPOKE_HALF,
   civicLawn,
   creekEdge,
   forecourt,
@@ -129,6 +128,20 @@ function dashStrokes(out: Stroke[]) {
     }
     place(out, local, ROUTE[i], ROUTE_TAN[i], 1, true)
   }
+  for (const k of SPOKES) {
+    const len = flatDistance(k.a, k.b)
+    const along = flatDir(k.b.clone().sub(k.a))
+    for (let s = 1; s < len - 1; s += 0.6) {
+      if (s % DASH_PERIOD > DASH_ON) continue
+      const at = k.a.clone().addScaledVector(along, s)
+      if (creekEdge(at) < 3) continue
+      local.length = 0
+      for (let j = 0; j < 2; j++) {
+        local.push({ p: new THREE.Vector3((r() - 0.5) * 0.05, 0.12 + r() * 0.01, (r() - 0.5) * 0.2), n: UP, dir: rotateAbout(new THREE.Vector3(0, 0, 1), UP, (r() - 0.5) * 0.08), len: 0.55 + r() * 0.2, wid: 0.13 + r() * 0.04, color: new THREE.Color(pick(r, DASH)) })
+      }
+      place(out, local, at, along, 1, true)
+    }
+  }
 }
 
 const MEADOW_TONES = ['#1f4a45', '#2f6454', '#4d8556', '#72a35c', '#98bf6c', '#bad289'].map((c) => new THREE.Color(c))
@@ -211,7 +224,7 @@ const SLAB = ['#d9d2bf', '#cfc8b4', '#e2dccb', '#c6c0ad', '#d6cdb6']
 
 /** Footpaths from the road to entrances set well back from it, with a cross path halfway along long ones. */
 function footpaths(locations: WorldLocation[]): PathSeg[] {
-  const out: PathSeg[] = SPOKES.map((k) => ({ a: k.a.clone(), b: k.b.clone(), half: SPOKE_HALF }))
+  const out: PathSeg[] = []
   for (const l of locations) {
     const a = locationAnchors(locationPoint(l), l.id)
     const dir = flatDir(a.door.clone().sub(a.road))
