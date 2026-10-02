@@ -291,6 +291,19 @@ function landmarkPads() {
   return pads
 }
 
+/** Inside a landmark's footprint or the paved apron in front of its door. */
+export function forecourt(d: THREE.Vector3, pad = 0) {
+  for (const p of landmarkPads()) {
+    if (flatDistance(d, p.c) > p.reach + 4) continue
+    const dx = d.x - p.c.x
+    const dz = d.z - p.c.z
+    const x = Math.abs(dx * p.side.x + dz * p.side.z)
+    const z = dx * p.f.x + dz * p.f.z
+    if (x < p.hw + pad && z > -p.back - pad && z < p.front + 3 + pad) return true
+  }
+  return false
+}
+
 /** Terrain with landmark plots levelled so building floors sit flush with the ground around them. */
 export function terrainHeight(d: THREE.Vector3) {
   let h = hillHeight(d)

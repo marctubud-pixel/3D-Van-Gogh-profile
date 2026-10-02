@@ -53,6 +53,7 @@ void main() {
   float wy = hh - 0.21 - 0.05 * sin(az * 3.0 + 1.3) - (flow - 0.5) * 0.08;
   float pale = 0.18 + 0.6 * exp(-wy * wy / 0.005);
   float warm = 0.0;
+  float swirl = 0.0;
   // the painting's interlocking double curl plus a few lesser curls round the horizon
   for (int i = 0; i < 4; i++) {
     float fi = float(i);
@@ -66,6 +67,7 @@ void main() {
       // spiral lanes: radius drifts with angle so the strokes wind inward
       uv = vec2(ang * rr / 2.4, rr + ang * 1.3);
       pale = 0.45 + 0.4 * smoothstep(R, R * 0.3, r);
+      swirl = smoothstep(R, R * 0.8, r);
     }
   }
   // big haloed stars: concentric dabs round a bright core
@@ -79,6 +81,7 @@ void main() {
     float ang = atan(so.y, so.x);
     uv = vec2(ang * sr * 92.0 / 2.0, sr * 92.0);
     warm = smoothstep(0.055, 0.025, sr);
+    swirl = smoothstep(0.055, 0.045, sr);
   }
   // crescent moon fixed in the sky, wrapped in its own rings of strokes
   float ma = view + 0.55;
@@ -88,6 +91,7 @@ void main() {
     float ang = atan(mo.y, mo.x);
     uv = vec2(ang * mr * 92.0 / 2.2, mr * 92.0);
     warm = max(warm, smoothstep(0.15, 0.06, mr));
+    swirl = smoothstep(0.15, 0.13, mr);
   }
   // one dab per staggered cell, leaving dark sky between strokes
   float row = floor(uv.y);
@@ -104,7 +108,7 @@ void main() {
   vec3 light = mix(vec3(0.52, 0.70, 0.86), vec3(0.84, 0.90, 0.86), tone);
   vec3 sCol = mix(cool, light, step(1.0 - pale, tone));
   sCol = mix(sCol, mix(vec3(0.93, 0.80, 0.36), vec3(0.98, 0.94, 0.72), tone), step(0.25, warm));
-  nsky = mix(nsky, sCol, dab);
+  nsky = mix(nsky, sCol, dab * swirl);
   nsky = mix(nsky, vec3(1.0, 0.97, 0.82), on * smoothstep(0.014, 0.008, sr));
   float star = step(0.997, hash(floor(d * 150.0))) * smoothstep(0.05, 0.3, hh);
   nsky = mix(nsky, vec3(1.0, 0.95, 0.75), star);

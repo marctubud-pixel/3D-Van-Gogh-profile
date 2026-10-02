@@ -24,6 +24,7 @@ import {
   locationAnchors,
   locationPoint,
   terrainHeight,
+  forecourt,
   landValue,
   landmarkBlockers,
   nearestOnRoute,
@@ -63,6 +64,7 @@ const arc = flatDistance
 
 /** Flat-map extent of the detailed island ground; the open sea continues beyond it. */
 const MEADOW_GROUND = meadowTone(0.42)
+const COURT = new THREE.Color('#cfc9b6')
 const GROUND = { x0: -110, x1: 130, y0: -128, y1: 120, step: 0.8 }
 
 function PlanetBody() {
@@ -88,7 +90,7 @@ function PlanetBody() {
       } else {
         const h = terrainHeight(v)
         y = h
-        c.copy(MEADOW_GROUND)
+        c.copy(forecourt(v, -0.2) ? COURT : MEADOW_GROUND)
         const e = creekEdge(v)
         if (e < 0.6) {
           y = h - 0.42 * THREE.MathUtils.smoothstep(0.6 - e, 0, 1.2)

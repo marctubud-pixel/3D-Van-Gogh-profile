@@ -10,6 +10,7 @@ import {
   ROUTE_S,
   ROUTE_TAN,
   SERVICE_POINT,
+  forecourt,
   groundHeight,
   landValue,
   landmarkBlockers,
@@ -331,6 +332,9 @@ function paved(d: THREE.Vector3, pad: number) {
   return arc(d, PLAZA) < 7.5 + pad || arc(d, SERVICE_POINT) < 6 + pad || onServiceSquare(d, pad + 0.4) || arc(d, POND.center) < POND.r + 0.8
 }
 
+/** Bare ground round buildings: no grass in landmark forecourts or house front yards. */
+const bareYard = (d: THREE.Vector3, c: Clear) => forecourt(d, 0.6) || c.lots.some((b) => arc(b, d) < 6.5)
+
 function nearBuilding(d: THREE.Vector3, c: Clear, pad: number) {
   return c.buildings.some((b) => arc(b, d) < 5 + pad) || c.lots.some((b) => arc(b, d) < 3 + pad)
 }
@@ -484,7 +488,7 @@ function meadowTile(tx: number, tz: number, lod: number, q: QualityLevel, c: Cle
     for (let z = tz * TILE; z < (tz + 1) * TILE; z += spacing) {
       d.set(x + (r() - 0.5) * spacing, 0, z + (r() - 0.5) * spacing)
       const hit = nearestOnRoute(d)
-      if (hit.dist < 2.15 || landValue(d, hit) < 2.6 || paved(d, 0) || wildBlocked(d, 0.3) || onPath(d, c.paths, 0.1)) continue
+      if (hit.dist < 2.15 || landValue(d, hit) < 2.6 || paved(d, 0) || bareYard(d, c) || wildBlocked(d, 0.3) || onPath(d, c.paths, 0.1)) continue
       const low = nearBuilding(d, c, -1.8) ? 0.3 : nearBuilding(d, c, 0) ? 0.5 : 1
       meadowBlades(out, r, d.x, d.z, count, groundHeight(d), scale * low)
     }
@@ -506,7 +510,7 @@ function flatMeadow(c: Clear) {
     for (let z = j0 * TILE; z < (j1 + 1) * TILE; z += step) {
       d.set(x + (r() - 0.5) * step, 0, z + (r() - 0.5) * step)
       const hit = nearestOnRoute(d)
-      if (hit.dist < 2.1 || landValue(d, hit) < 2.6 || paved(d, 0) || nearBuilding(d, c, -1.8) || wildBlocked(d, 0.3) || onPath(d, c.paths, 0.1)) continue
+      if (hit.dist < 2.1 || landValue(d, hit) < 2.6 || paved(d, 0) || bareYard(d, c) || wildBlocked(d, 0.3) || onPath(d, c.paths, 0.1)) continue
       const f = windAngle(d.x, d.z)
       const zone = meadowZone(d.x, d.z)
       out.push(

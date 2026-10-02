@@ -2,7 +2,7 @@ import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { LANTERN, type Stroke, StrokePaint, brushMat, dab, painted, pick, tintable, useStrokeBuild } from '../world/strokes'
-import { Toon, geo } from '../world/toon'
+import { Toon, geo, toonMaterial } from '../world/toon'
 import { modelScale } from '../world/plane'
 import {
   Bench,
@@ -135,7 +135,7 @@ export function CreativeMuseum({ name }: { name: string }) {
   }
   return (
     <group>
-      <Bx c="#efe9dc" b={[-10, 10, -0.4, 0.12, -6.2, 3.8]} o={0.03} />
+      <Bx c="#efe9dc" b={[-10, 10, -0.4, 0.12, -6.2, 3.8]} o={0.03} material={toonMaterial('#efe9dc')} />
       {/* back hall */}
       <Bx c={W} b={[-2.8, 2.8, 0.12, 5.4, -5.5, 0.5]} o={0.05} />
       <Bx c={PAL.roofSlate} b={[-2.65, 2.65, 5.4, 5.48, -5.35, 0.4]} o={0} />
@@ -223,7 +223,7 @@ export function Cinema({ name }: { name: string }) {
   const drumWindows = [-0.9, -0.45, 0, 0.45, 0.9]
   return (
     <group>
-      <Bx c="#ece5d4" b={[-8.8, 8.8, -0.4, 0.1, -3.1, 3.7]} o={0.03} />
+      <Bx c="#ece5d4" b={[-8.8, 8.8, -0.4, 0.1, -3.1, 3.7]} o={0.03} material={toonMaterial('#ece5d4')} />
       {/* flat-roofed deco wings joined to the hall */}
       {[-1, 1].map((sd) => {
         const lo = sd > 0 ? 2.4 : -8.4
@@ -370,7 +370,7 @@ export function ExperimentLab({ name }: { name: string }) {
   const P = '#646f78'
   return (
     <group>
-      <Bx c="#b9bfc1" b={[-3.8, 3.9, -0.4, 0.12, -2.9, 3.2]} o={0.03} />
+      <Bx c="#b9bfc1" b={[-3.8, 3.9, -0.4, 0.12, -2.9, 3.2]} o={0.03} material={toonMaterial('#b9bfc1')} />
       {/* volumes */}
       <Bx c={W} b={[-3.5, -1.3, 0.12, 4.3, -2.6, 1.1]} o={0.06} />
       <Bx c={W} b={[-1.3, 3.2, 0.12, 3.5, -2.6, 1.1]} o={0.06} />
@@ -480,7 +480,7 @@ export function Arcade({ name }: { name: string }) {
   const run = 0.26
   return (
     <group>
-      <Bx c="#e9e3d4" b={[-3.8, 3.8, -0.4, 0.12, -2.8, 3.1]} o={0.03} />
+      <Bx c="#e9e3d4" b={[-3.8, 3.8, -0.4, 0.12, -2.8, 3.1]} o={0.03} material={toonMaterial('#e9e3d4')} />
       {/* shop box with recessed glazed ground floor */}
       <Bx c={B} b={[-1.2, 3.2, 0.12, 3.0, -2.4, 1.2]} o={0.06} />
       <Bx c={B} b={[-1.2, 3.2, 1.9, 3.0, 1.2, 2.2]} o={0.05} />
@@ -760,7 +760,7 @@ export function WriteHouse({ name }: { name: string }) {
   ]
   return (
     <group>
-      <Bx c="#ece6d8" b={[-3.9, 3.9, -0.4, 0.12, -2.6, 3.0]} o={0.03} />
+      <Bx c="#ece6d8" b={[-3.9, 3.9, -0.4, 0.12, -2.6, 3.0]} o={0.03} material={toonMaterial('#ece6d8')} />
       <Bx c="#f0ebdf" b={[-3.6, 3.6, 0.12, H, -2.4, 1.1]} o={0.06} />
       <Bx c={PAL.roofSlate} b={[-3.45, 3.45, H, H + 0.05, -2.25, F - 0.15]} o={0} />
       <Bx c="#f0ebdf" b={[-3.6, 3.6, band, H, 1.1, F]} o={0.05} />
@@ -859,7 +859,7 @@ export function Studio({ name }: { name: string }) {
   const deckY = 0.55
   return (
     <group>
-      <Bx c="#dcd9cf" b={[-3.9, 3.9, -0.4, 0.1, -2.8, 3.2]} o={0.03} />
+      <Bx c="#dcd9cf" b={[-3.9, 3.9, -0.4, 0.1, -2.8, 3.2]} o={0.03} material={toonMaterial('#dcd9cf')} />
       {/* left gable (ridge front-to-back) */}
       <group position={[-2.1, deckY, -0.6]}>
         <Toon geometry={gableGeo(2.6, 2.6, 1.3, 3.6)} color={MINT} outline={0.05} edges />
@@ -1310,7 +1310,7 @@ export function ServiceCenter() {
   return (
     <group>
       {/* civic square: the hall's forecourt plus two side wings */}
-      <Bx c="#efe6d4" b={[-10, 10, -0.4, 0.12, -1.6, 5.2]} o={0.03} />
+      <Bx c="#efe6d4" b={[-10, 10, -0.4, 0.12, -1.6, 5.2]} o={0.03} material={toonMaterial('#efe6d4')} />
       <Bx c="#efe6d4" b={[-4.5, 4.5, -0.4, 0.11, -3.4, -1.5]} o={0.03} />
       {/* main two-storey hall */}
       <Bx c={W} b={[-3.3, 1.9, 0.12, H, -2.8, 0.4]} o={0.07} />

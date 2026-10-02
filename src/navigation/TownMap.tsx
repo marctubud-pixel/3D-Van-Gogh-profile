@@ -36,14 +36,17 @@ export function routeSorted(locations: WorldLocation[]) {
   return [...locations].sort((a, b) => rank(a.id) - rank(b.id))
 }
 
-function useIslandImage() {
+const PAPER = { sea: '#8cc3c9', beach: '#e8dfc4', land: '#a9cf93', casing: '#2c3437', road: '#f3ecd8', dash: '#c9a15d' }
+const MINI_INK = { sea: 'rgba(0,0,0,0)', beach: '#4a5363', land: '#3e4757', casing: '#3e4757', road: '#9aa3b1', dash: '' }
+
+function useIslandImage(ink = PAPER) {
   return useMemo(() => {
     const c = document.createElement('canvas')
     const step = 2
     c.width = W
     c.height = H
     const g = c.getContext('2d')!
-    g.fillStyle = '#8cc3c9'
+    g.fillStyle = ink.sea
     g.fillRect(0, 0, W, H)
     for (let y = 0; y < H; y += step) {
       for (let x = 0; x < W; x += step) {
@@ -51,7 +54,7 @@ function useIslandImage() {
         const py = VIEW.y1 - ((y + step / 2) / H) * (VIEW.y1 - VIEW.y0)
         const v = landValue(planPoint(px, py))
         if (v < 0) continue
-        g.fillStyle = v < 2.4 ? '#e8dfc4' : '#a9cf93'
+        g.fillStyle = v < 2.4 ? ink.beach : ink.land
         g.fillRect(x, y, step, step)
       }
     }
@@ -70,30 +73,31 @@ function useIslandImage() {
     g.lineCap = 'round'
     g.lineJoin = 'round'
     path(0, ROUTE.length - 1)
-    g.strokeStyle = '#2c3437'
+    g.strokeStyle = ink.casing
     g.lineWidth = 9
     g.stroke()
-    g.strokeStyle = '#f3ecd8'
+    g.strokeStyle = ink.road
     g.lineWidth = 6
     g.stroke()
+    if (!ink.dash) return c.toDataURL()
     path(BRIDGE.a, BRIDGE.b)
     g.strokeStyle = '#e36f4c'
     g.lineWidth = 6
     g.stroke()
     g.setLineDash([5, 6])
     path(0, ROUTE.length - 1)
-    g.strokeStyle = '#c9a15d'
+    g.strokeStyle = ink.dash
     g.lineWidth = 1.5
     g.stroke()
     return c.toDataURL()
-  }, [])
+  }, [ink])
 }
 
 const MINI = { size: 148, reach: 45 }
 
 /** Round corner map centred on the player, turning with their heading arrow; click opens the full map. */
 export function MiniMap({ locations, you, onOpen }: { locations: WorldLocation[]; you: [number, number]; onOpen: () => void }) {
-  const img = useIslandImage()
+  const img = useIslandImage(MINI_INK)
   const ppu = MINI.size / (MINI.reach * 2)
   const half = MINI.size / 2
   const bx = half - (you[0] - VIEW.x0) * ppu
