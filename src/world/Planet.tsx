@@ -13,6 +13,8 @@ import {
   ROUTE_S,
   ROUTE_TAN,
   SERVICE_POINT,
+  beachWidth,
+  deckHeight,
   groundHeight,
   hillHeight,
   landValue,
@@ -71,9 +73,9 @@ function PlanetBody() {
       if (land < 0) {
         c.set(land > -2.5 ? SHALLOW : SEA)
         y = -THREE.MathUtils.clamp(0.3 - land * 0.25, 0.3, 0.9)
-      } else if (land < 2.4) {
+      } else if (land < beachWidth(v)) {
         c.set(SAND)
-        y = -0.3 + (land / 2.4) * 0.3
+        y = -0.3 + (land / beachWidth(v)) * 0.3
       } else {
         const h = hillHeight(v)
         y = h
@@ -133,7 +135,7 @@ function ribbon(a: number, b: number, lift: number, from = 0, to = ROUTE.length 
     for (const off of [a, b]) {
       const d = at.clone().addScaledVector(side, off)
       const onDeck = i >= BRIDGE.a && i <= BRIDGE.b
-      const p = d.setY((onDeck ? 0 : groundHeight(d)) + lift)
+      const p = d.setY((onDeck ? deckHeight(i) : groundHeight(d)) + lift)
       pos.push(p.x, p.y, p.z)
       uv.push(ROUTE_S[i], off === a ? 0 : 1)
     }
@@ -209,15 +211,16 @@ function Road() {
 function Bridge() {
   const parts = useMemo(() => {
     const deck = ribbon(-3.3, 3.3, 0.02, BRIDGE.a, BRIDGE.b)
-    const posts: { pos: THREE.Vector3; q: THREE.Quaternion }[] = []
-    const piers: { pos: THREE.Vector3; q: THREE.Quaternion }[] = []
+    const posts: { pos: THREE.Vector3; q: THREE.Quaternion; h: number }[] = []
+    const piers: { pos: THREE.Vector3; q: THREE.Quaternion; h: number }[] = []
     for (let i = BRIDGE.a; i <= BRIDGE.b; i += 3) {
       const at = ROUTE[i]
       const tan = ROUTE_TAN[i]
       const side = new THREE.Vector3().crossVectors(UP, tan).normalize()
       const q = yawQuaternion(tan)
-      for (const s of [-1, 1]) posts.push({ pos: at.clone().addScaledVector(side, s * 3.1), q })
-      if ((i - BRIDGE.a) % 9 === 0) piers.push({ pos: at.clone(), q })
+      const h = deckHeight(i)
+      for (const s of [-1, 1]) posts.push({ pos: at.clone().addScaledVector(side, s * 3.1).setY(h), q, h })
+      if ((i - BRIDGE.a) % 9 === 0) piers.push({ pos: at.clone(), q, h })
     }
     const rails = [-1, 1].map((s) => ribbon(s * 3.05, s * 3.15, 0.95, BRIDGE.a, BRIDGE.b))
     return { deck, posts, piers, rails }
@@ -239,7 +242,7 @@ function Bridge() {
       ))}
       {parts.piers.map((p, i) => (
         <group key={i} position={p.pos} quaternion={p.q}>
-          <Toon geometry={geo.box} color="#b9ad97" position={[0, -0.9, 0]} scale={[6.2, 1.6, 0.9]} outline={0.04} />
+          <Toon geometry={geo.box} color="#b9ad97" position={[0, (p.h - 1.8) / 2, 0]} scale={[6.2, p.h + 1.6, 0.9]} outline={0.04} />
         </group>
       ))}
     </group>

@@ -117,7 +117,7 @@ export const SERVICE_POINT = routePoint(-2, -11.2)
 const plazaCenter = PLAZA
 /** Observatory hilltop: the road climbs over its shoulder and winds back down. */
 export const HILL_TOP = routePoint(SUMMIT_S, 5)
-const HILL = { plateau: 10, radius: 38, height: 10 }
+const HILL = { plateau: 12, radius: 58, height: 13 }
 
 /** Park around the lab: open lawn with a pond. */
 export const PARK = { center: routePoint(STOPS['experiment-lab'].s, 12), r: 14 }
@@ -133,6 +133,18 @@ export function noise(d: THREE.Vector3) {
     Math.sin(x * 23 + y * 17) * 0.25 +
     Math.sin(y * 29 - x * 7) * 0.15
   )
+}
+
+/** Broad headlands and coves around the shore. */
+function coves(d: THREE.Vector3) {
+  const [px, py] = pointToPlan(d)
+  const a = Math.atan2(py, px)
+  return Math.sin(a * 5 + 0.7) * 0.6 + Math.sin(a * 9 - 1.1) * 0.4
+}
+
+/** Width of the sand band at `d` (beaches widen in coves, narrow on headlands). */
+export function beachWidth(d: THREE.Vector3) {
+  return 2.4 - coves(d) * 1.1 + noise(d) * 0.4
 }
 
 const arc = flatDistance
@@ -153,7 +165,7 @@ function insideLoop(d: THREE.Vector3) {
 }
 
 export function landValue(d: THREE.Vector3, hit = nearestOnRoute(d)) {
-  let w = 21 + noise(d) * 2
+  let w = 21 + noise(d) * 2 + coves(d) * 2.2
   if (hit.sign === STUDIO.side) {
     const k = Math.max(0, 1 - Math.abs(hit.s - STUDIO.s) / 16)
     w = THREE.MathUtils.lerp(w, 15.2, k)
@@ -182,6 +194,16 @@ export function onBridge(d: THREE.Vector3, hit = nearestOnRoute(d)) {
   return hit.i >= BRIDGE.a && hit.i <= BRIDGE.b && hit.dist < 2.3
 }
 
+const BRIDGE_RISE = 1.5
+const BRIDGE_MID = ROUTE[(BRIDGE.a + BRIDGE.b) >> 1]
+const BRIDGE_REACH = (ROUTE_S[BRIDGE.b] - ROUTE_S[BRIDGE.a]) / 2 + 4
+
+/** Arched deck height at road sample `i` (0 at both abutments). */
+export function deckHeight(i: number) {
+  const t = THREE.MathUtils.clamp((i - BRIDGE.a) / (BRIDGE.b - BRIDGE.a), 0, 1)
+  return BRIDGE_RISE * Math.sin(Math.PI * t)
+}
+
 /** Terrain elevation above the base radius (only the observatory hill rises). */
 export function hillHeight(d: THREE.Vector3) {
   const r = arc(d, HILL_TOP)
@@ -195,8 +217,12 @@ export function walkable(d: THREE.Vector3) {
   return landValue(d, hit) > 0.8 || onBridge(d, hit)
 }
 
-/** Ground height at `d` for bodies and props (bridge deck = 0). */
+/** Ground height at `d` for bodies and props (arched on the bridge deck). */
 export function groundHeight(d: THREE.Vector3) {
+  if (flatDistance(d, BRIDGE_MID) < BRIDGE_REACH) {
+    const hit = nearestOnRoute(d)
+    if (onBridge(d, hit)) return deckHeight(hit.i)
+  }
   return hillHeight(d)
 }
 

@@ -6,7 +6,7 @@ import { inputLocked, useGame } from '../app/game'
 import { Bike } from '../bike/Bike'
 import { CAMERA } from '../camera/config'
 import { BUILDING_RADIUS, NORTH, SERVICE_CENTER, UP, flatDir, flatDistance, planPoint, pointToPlan, yawQuaternion } from '../world/plane'
-import { SERVICE_POINT, landmarkColliders, locationAnchors, locationPoint, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
+import { SERVICE_POINT, groundHeight, landmarkColliders, locationAnchors, locationPoint, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
 import { camFocus, playerPos } from '../world/occlusion'
 import { LOT_RADIUS, townLots } from '../world/townLayout'
 import { Avatar } from './Avatar'
@@ -413,10 +413,11 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
         .copy(focus)
         .addScaledVector(dirBack, -Math.cos(lk.pitch) * dist)
         .addScaledVector(UP, Math.sin(lk.pitch) * dist)
-      const blocked = colliders.some((c) => flatDistance(desired, c.at) < c.r + 0.4 && desired.y < 10)
+      const blocked = colliders.some((c) => flatDistance(desired, c.at) < c.r + 0.4 && desired.y - groundHeight(c.at) < 10)
       if (!blocked) break
       dist *= 0.75
     }
+    desired.y = Math.max(desired.y, groundHeight(desired) + 1.2)
     const phase = g.phase
     if (phase === 'intro') {
       const o = orbit.current
