@@ -114,6 +114,36 @@ const LAWN = {
   accent: ['#6f8fb0', '#8a86b8', '#e8e6c8'],
 }
 
+/**
+ * Dense painted meadow: overlapping flat blades of varying height, most standing with a slight
+ * bend downwind, a share lying flat, so the sward closes over the ground like the wheat in the reference.
+ */
+export function meadowBlades(out: Stroke[], r: () => number, x: number, z: number, count: number) {
+  const flow = windAngle(x, z)
+  const clump = 0.75 + 0.5 * (0.5 + 0.5 * Math.sin(x * 1.3 + z * 0.9) * Math.cos(z * 1.1 - x * 0.4))
+  for (let b = 0; b < count; b++) {
+    const yaw = flow + (r() - 0.5) * 0.9
+    const w = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw))
+    const across = new THREE.Vector3(-w.z, 0, w.x)
+    const lying = r() < 0.22
+    const lean = lying ? 1.15 + r() * 0.3 : (r() - 0.3) * 0.45
+    const bend = lying ? 0.05 : 0.12 + r() * 0.25
+    const L = (lying ? 0.3 + r() * 0.3 : 0.22 + r() * 0.38) * clump
+    const wid = 0.07 + r() * 0.05
+    const seg = L / 2
+    const tall = L / clump > 0.42
+    const p = new THREE.Vector3(x + (r() - 0.5) * 0.14, lying ? 0.02 + r() * 0.08 : 0, z + (r() - 0.5) * 0.14)
+    for (let k = 0; k < 2; k++) {
+      const th = lean + bend * k
+      const dir = UP.clone().multiplyScalar(Math.cos(th)).addScaledVector(w, Math.sin(th)).normalize()
+      const n = new THREE.Vector3().crossVectors(across, dir).normalize()
+      const ramp = lying ? (r() < 0.5 ? LAWN.body : LAWN.root) : k === 0 ? (r() < 0.6 ? LAWN.root : LAWN.body) : tall && r() < 0.7 ? LAWN.tip : r() < 0.04 ? LAWN.accent : LAWN.body
+      out.push({ p: p.clone().addScaledVector(dir, seg / 2), n, dir, len: seg * 1.4, wid: wid * (1 - k * 0.2), color: new THREE.Color(pick(r, ramp)) })
+      p.addScaledVector(dir, seg)
+    }
+  }
+}
+
 /** Shared wind field: neighbouring blades bend the same way, so the lawn reads as flowing clumps. */
 function windAngle(x: number, z: number) {
   return Math.sin(x * 0.21 + Math.cos(z * 0.17) * 1.3) * 1.4 + Math.cos(z * 0.13 - x * 0.07) * 0.9

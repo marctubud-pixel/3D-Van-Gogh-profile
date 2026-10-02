@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber'
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import { Arcade, Cinema, CreativeMuseum, ExperimentLab, Observatory, ServiceCenter, Studio, WriteHouse } from '../locations/buildings'
+import { meadowBlades } from '../world/GroundPaint'
 import { LIGHT, StrokeBuild, type Stroke, Strokes, blob, column, pick, rng, rotateAbout, shade } from '../world/strokes'
 
 const WALL = {
@@ -595,7 +596,62 @@ function BuildingLab({ which }: { which: string }) {
 
 export default function StrokeLab() {
   const b = new URLSearchParams(window.location.search).get('b')
+  if (b === 'grass') return <GrassLab />
   return b ? <BuildingLab which={b} /> : <StreetLab />
+}
+
+const MEADOW_R = 11
+
+function meadowStrokes() {
+  const r = rng(5)
+  const out: Stroke[] = []
+  const spacing = 0.15
+  for (let x = -MEADOW_R; x < MEADOW_R; x += spacing) {
+    for (let z = -MEADOW_R; z < MEADOW_R; z += spacing) {
+      if (x * x + z * z > MEADOW_R * MEADOW_R || Math.abs(z - Math.sin(x * 0.25) * 1.2) < 0.7) continue
+      meadowBlades(out, r, x + (r() - 0.5) * spacing, z + (r() - 0.5) * spacing, 3)
+    }
+  }
+  return out
+}
+
+/** Standalone meadow for judging grass density and brushwork up close. */
+function GrassLab() {
+  const v = (new URLSearchParams(window.location.search).get('cam') ?? '-6,1.4,1.2,2,0.4,0').split(',').map(Number)
+  const strokes = useMemo(meadowStrokes, [])
+  const path = useMemo(() => {
+    const g = new THREE.BufferGeometry()
+    const pos: number[] = []
+    for (let x = -MEADOW_R; x < MEADOW_R; x += 0.25) {
+      const z0 = Math.sin(x * 0.25) * 1.2
+      const z1 = Math.sin((x + 0.25) * 0.25) * 1.2
+      pos.push(x, 0.01, z0 - 0.75, x, 0.01, z0 + 0.75, x + 0.25, 0.01, z1 - 0.75, x, 0.01, z0 + 0.75, x + 0.25, 0.01, z1 + 0.75, x + 0.25, 0.01, z1 - 0.75)
+    }
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    return g
+  }, [])
+  return (
+    <div style={{ position: 'fixed', inset: 0 }}>
+      <Canvas
+        camera={{ fov: 50, position: [v[0], v[1], v[2]], near: 0.05, far: 200 }}
+        gl={{ antialias: true }}
+        onCreated={({ gl, scene }) => {
+          gl.toneMapping = THREE.NoToneMapping
+          scene.background = new THREE.Color('#8fd0c8')
+        }}
+      >
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[MEADOW_R + 0.5, 64]} />
+          <meshBasicMaterial color="#3f7a55" />
+        </mesh>
+        <mesh geometry={path}>
+          <meshBasicMaterial color="#9b8f74" side={THREE.DoubleSide} />
+        </mesh>
+        <Strokes strokes={strokes} />
+        <OrbitControls target={[v[3], v[4], v[5]]} enableDamping />
+      </Canvas>
+    </div>
+  )
 }
 
 function StreetLab() {
