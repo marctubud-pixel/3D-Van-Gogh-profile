@@ -36,8 +36,7 @@ const SAND = '#e3d8b8'
 const SEA = '#4f9fae'
 const SHALLOW = '#6fbcc0'
 const ASPHALT = '#6f848b'
-const SIDEWALK = '#d5dad1'
-const PAINT = '#eef1ea'
+const ROAD_HALF = 2
 const DECK = '#c9b79a'
 
 function mulberry32(seed: number) {
@@ -152,56 +151,13 @@ function ribbon(a: number, b: number, lift: number, from = 0, to = ROUTE.length 
   return g
 }
 
-function dashTexture() {
-  const c = document.createElement('canvas')
-  c.width = 64
-  c.height = 8
-  const g = c.getContext('2d')!
-  g.fillStyle = PAINT
-  g.fillRect(0, 0, 36, 8)
-  const t = new THREE.CanvasTexture(c)
-  t.wrapS = THREE.RepeatWrapping
-  t.repeat.set(0.4, 1)
-  t.colorSpace = THREE.SRGBColorSpace
-  return t
-}
-
 /** The single winding island road, with a bridge across the bay. */
 function Road() {
-  const g = useMemo(() => {
-    const dash = dashTexture()
-    return {
-      dash,
-      walk: ribbon(-3.2, 3.2, 0.04),
-      edgeL: ribbon(-3.26, -3.14, 0.05),
-      edgeR: ribbon(3.14, 3.26, 0.05),
-      road: ribbon(-1.9, 1.9, 0.07),
-      lineL: ribbon(-1.72, -1.6, 0.08),
-      lineR: ribbon(1.6, 1.72, 0.08),
-      center: ribbon(-0.07, 0.07, 0.085),
-    }
-  }, [])
-  const gradient = toonMaterial('#fff').gradientMap
+  const road = useMemo(() => ribbon(-ROAD_HALF, ROAD_HALF, 0.07), [])
   return (
     <group>
-      <mesh geometry={g.walk} receiveShadow>
-        <meshToonMaterial color={SIDEWALK} gradientMap={gradient} side={THREE.DoubleSide} />
-      </mesh>
-      {[g.edgeL, g.edgeR].map((e, i) => (
-        <mesh key={i} geometry={e}>
-          <meshBasicMaterial color={LINE_COLOR} side={THREE.DoubleSide} />
-        </mesh>
-      ))}
-      <mesh geometry={g.road} receiveShadow>
-        <meshToonMaterial color={ASPHALT} gradientMap={gradient} side={THREE.DoubleSide} />
-      </mesh>
-      {[g.lineL, g.lineR].map((e, i) => (
-        <mesh key={i} geometry={e}>
-          <meshBasicMaterial color={PAINT} side={THREE.DoubleSide} />
-        </mesh>
-      ))}
-      <mesh geometry={g.center}>
-        <meshBasicMaterial color="#ffffff" map={g.dash} transparent alphaTest={0.5} side={THREE.DoubleSide} />
+      <mesh geometry={road} receiveShadow>
+        <meshToonMaterial color={ASPHALT} gradientMap={toonMaterial('#fff').gradientMap} side={THREE.DoubleSide} />
       </mesh>
       <Bridge />
     </group>

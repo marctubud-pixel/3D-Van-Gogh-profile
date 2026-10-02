@@ -23,8 +23,6 @@ import { townLots } from './townLayout'
 const flat = (colors: string[]): Ramp => ({ light: colors, mid: colors, dark: colors })
 
 const ASPHALT: Ramp = { light: ['#8396a0', '#7a8e96'], mid: ['#6f848b', '#667a82', '#748990'], dark: ['#566870', '#5b6e76'] }
-const SIDEWALK: Ramp = { light: ['#e4e8de', '#dfe3d8'], mid: ['#d5dad1', '#cdd3ca'], dark: ['#b4bcb6'] }
-const CURB = ['#2c3437', '#343e42', '#252c2f']
 const MEADOW: Ramp = { light: ['#86bf84', '#9acb8c', '#7ab87e', '#a8d39a'], mid: ['#72b07e', '#5e9d6d', '#68a875'], dark: ['#4a8462', '#3f7a5c'] }
 const BLADE = { light: ['#a8d993', '#c2e3a0', '#8fcf8a'], mid: ['#6aa874', '#5e9d6d', '#7fb483'], dark: ['#3f7a55', '#346b52'] }
 const BUSH: Ramp = { light: ['#9fd48e', '#b7de9c', '#86c784'], mid: ['#5e9d6d', '#4f8f63', '#6aa874', '#3f7a55'], dark: ['#2f6650', '#28584a', '#244c46'] }
@@ -69,7 +67,7 @@ function place(out: Stroke[], local: Stroke[], d: THREE.Vector3, fwd: THREE.Vect
 
 const onDeck = (i: number) => i >= BRIDGE.a - 2 && i <= BRIDGE.b + 2
 
-/** Sparse dabs over solid road colours: asphalt grain, sidewalk flecks and dark curb contours. */
+/** Sparse dabs over the solid asphalt, with ragged edges that blend into the verge grass. */
 function roadStrokes(out: Stroke[]) {
   const r = rng(41)
   const step = ROUTE_LEN / (ROUTE.length - 1)
@@ -84,13 +82,10 @@ function roadStrokes(out: Stroke[]) {
         local.push({ p, n: UP, dir: rotateAbout(new THREE.Vector3(0, 0, 1), UP, (r() - 0.5) * 0.2), len: len * (0.7 + r() * 0.6), wid: wid * (0.7 + r() * 0.6), color: shade(r, UP, ramp) })
       }
     }
-    band(r() < 0.5 ? 3 : 2, -1.75, 1.75, ASPHALT, 0.1, 0.8, 0.22)
-    band(r() < 0.6 ? 1 : 0, 1.95, 3.1, SIDEWALK, 0.06, 0.6, 0.2)
-    band(r() < 0.6 ? 1 : 0, -3.1, -1.95, SIDEWALK, 0.06, 0.6, 0.2)
-    for (const x of [-1.9, 1.9]) {
-      for (let z = -step / 2; z < step / 2; z += 0.45) {
-        local.push({ p: new THREE.Vector3(x, 0.11, z), n: UP, dir: rotateAbout(new THREE.Vector3(0, 0, 1), UP, (r() - 0.5) * 0.1), len: 0.55, wid: 0.06 + r() * 0.03, color: new THREE.Color(pick(r, CURB)) })
-      }
+    band(r() < 0.5 ? 4 : 3, -1.7, 1.7, ASPHALT, 0.1, 0.8, 0.22)
+    for (const sgn of [-1, 1]) {
+      band(2, sgn * 1.75, sgn * 2.15, ASPHALT, 0.1, 0.7, 0.2)
+      band(r() < 0.7 ? 1 : 0, sgn * 2, sgn * 2.4, MEADOW, 0.11, 0.6, 0.2)
     }
     place(out, local, ROUTE[i], ROUTE_TAN[i])
   }
@@ -117,7 +112,7 @@ function grassStrokes(out: Stroke[], c: Clear) {
     if (onDeck(i)) continue
     for (let a = -step / 2; a < step / 2; a += cell) {
       for (const sign of [-1, 1]) {
-        for (let off = 3.45; off < 9; off += cell) {
+        for (let off = 2.15; off < 9; off += cell) {
           const o = sign * (off + r() * cell)
           const along = a + r() * cell
           const d = besideRoad(i, o, along)
@@ -145,7 +140,7 @@ function grassStrokes(out: Stroke[], c: Clear) {
     const i = Math.floor(r() * (ROUTE.length - 1))
     const o = (r() * 2 - 1) * 45
     const d = besideRoad(i, o, (r() - 0.5) * step)
-    if (Math.abs(o) < 3.4 || onDeck(i)) continue
+    if (Math.abs(o) < 2.1 || onDeck(i)) continue
     const hit: RouteHit = { i, s: ROUTE_S[i], dist: Math.abs(o), sign: o >= 0 ? 1 : -1 }
     if (landValue(d, hit) < 2.6) continue
     const [px, py] = pointToPlan(d)

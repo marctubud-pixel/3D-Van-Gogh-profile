@@ -6,7 +6,8 @@ import { playerPos } from '../world/occlusion'
 import { BUILDING_SCALE, LANDMARK_FIT, flatDir, flatDistance, landmarkSetback, yawQuaternion } from '../world/plane'
 import { SERVICE_POINT, locationAnchors, locationPoint, surf } from '../world/island'
 import { Toon, geo, toonMaterial } from '../world/toon'
-import { StrokeBuild } from '../world/strokes'
+import { type Stroke, StrokeBuild, StrokePaint, column, dab, painted, rampFor } from '../world/strokes'
+import { Decal, textTex } from './parts'
 import { Arcade, Cinema, CreativeMuseum, ExperimentLab, Observatory, ServiceCenter, Studio, WriteHouse } from './buildings'
 
 const CREAM = '#e1e1d9'
@@ -122,9 +123,44 @@ function BuildingBody({ loc }: { loc: WorldLocation }) {
   }
 }
 
+const signPostStrokes = () =>
+  painted('parking-post', (r) => {
+    const out: Stroke[] = []
+    column(out, r, new THREE.Vector3(0, 0, 0), 2.75, 0.06, rampFor('#5a6670'), 60)
+    return out
+  })
+
+/** Square sign plate painted from short horizontal dabs on both faces, with a darker rim. */
+function plateStrokes(color: string) {
+  return painted(`parking-plate:${color}`, (r) => {
+    const ramp = rampFor(color)
+    const pickC = (list: string[]) => list[Math.floor(r() * list.length)]
+    const out: Stroke[] = []
+    for (const z of [0.03, -0.03]) {
+      for (let y = -0.4; y <= 0.41; y += 0.09) {
+        for (let x = -0.36; x <= 0.37; x += 0.18) {
+          const s = dab(x + (r() - 0.5) * 0.04, y + (r() - 0.5) * 0.02, z, (r() - 0.5) * 0.15, 0.24 + r() * 0.06, 0.11, pickC(r() < 0.3 ? ramp.light : ramp.mid))
+          if (z < 0) s.n = s.n.clone().negate()
+          out.push(s)
+        }
+      }
+      for (let k = 0; k < 16; k++) {
+        const t = (k % 4) / 4 - 0.375
+        const side = Math.floor(k / 4)
+        const [x, y, a] = side === 0 ? [t * 0.9, 0.44, 0] : side === 1 ? [t * 0.9, -0.44, 0] : side === 2 ? [0.44, t * 0.9, Math.PI / 2] : [-0.44, t * 0.9, Math.PI / 2]
+        const s = dab(x, y, z * 1.2, a + (r() - 0.5) * 0.1, 0.28, 0.06, pickC(ramp.dark))
+        if (z < 0) s.n = s.n.clone().negate()
+        out.push(s)
+      }
+    }
+    return out
+  })
+}
+
 /** Roadside "P" sign that pulses when the rider is close enough to auto-park. */
 function ParkingSpot({ color, up }: { color: string; up: THREE.Vector3 }) {
-  const pTex = useMemo(() => signTexture('P', color), [color])
+  const pTex = useMemo(() => textTex(['P'], 96, 96, { fg: '#f4f1e6', weight: 900 }), [])
+  const plate = useMemo(() => plateStrokes(color), [color])
   const sign = useRef<THREE.Group>(null)
   useFrame(({ clock }) => {
     if (!sign.current) return
@@ -133,13 +169,14 @@ function ParkingSpot({ color, up }: { color: string; up: THREE.Vector3 }) {
   })
   return (
     <group>
-      <Toon geometry={geo.cyl} color="#5a6670" position={[0, 1.3, 0]} scale={[0.1, 2.6, 0.1]} outline={0.02} />
+      <StrokeBuild seed={5}>
+        <StrokePaint strokes={signPostStrokes()} />
+      </StrokeBuild>
       <group ref={sign} position={[0, 2.7, 0]}>
-        <Toon geometry={geo.box} color={color} scale={[0.9, 0.9, 0.08]} outline={0.025} />
-        <mesh position={[0, 0, 0.05]}>
-          <planeGeometry args={[0.66, 0.66]} />
-          <meshBasicMaterial map={pTex} />
-        </mesh>
+        <StrokeBuild seed={9}>
+          <StrokePaint strokes={plate} />
+          <Decal tex={pTex} p={[0, 0, 0.01]} w={0.62} h={0.62} />
+        </StrokeBuild>
       </group>
     </group>
   )

@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { flatDistance, yawQuaternion } from './plane'
 import { BRIDGE, PLAZA, ROUTE_K, ROUTE_LEN, ROUTE_S, SERVICE_POINT, landmarkBlockers, routeFrame, routePoint, surf } from './island'
-import { StrokeBuild } from './strokes'
+import { type Ramp, type Stroke, StrokeBuild, StrokePaint, column, dab, painted, shade } from './strokes'
 import { LINE_COLOR, Toon, geo } from './toon'
 
 interface Spot {
@@ -27,15 +27,39 @@ function Placed({ spot, lift = 0, children }: { spot: Spot; lift?: number; child
 
 const POLE_H = 7
 
+const POLE: Ramp = { light: ['#a7aea8', '#b3b9b2'], mid: ['#8f9893', '#858e89', '#969e98'], dark: ['#6a736f', '#5f6864'] }
+const ARM: Ramp = { light: ['#9aa29c'], mid: ['#7f8883', '#77807b'], dark: ['#5c6561'] }
+const CAN: Ramp = { light: ['#c3c9c3', '#b7beb8'], mid: ['#9aa29d', '#a4aba5'], dark: ['#757e7a'] }
+const INSULATOR: Ramp = { light: ['#f2efe6'], mid: ['#dcd8cc'], dark: ['#b9b5aa'] }
+const TAG = ['#e7b53f', '#efc456', '#d9a432']
+
+/** Horizontal bar of dabs wrapped around the z axis. */
+function bar(out: Stroke[], r: () => number, y: number, half: number, rad: number, ramp: Ramp, count: number) {
+  for (let i = 0; i < count; i++) {
+    const a = r() * Math.PI * 2
+    const n = new THREE.Vector3(Math.cos(a), Math.sin(a), 0)
+    out.push({ p: new THREE.Vector3(n.x * rad, y + n.y * rad, (r() * 2 - 1) * half), n, dir: new THREE.Vector3(0, 0, 1), len: 0.35 + r() * 0.25, wid: rad * 1.4, color: shade(r, n, ramp) })
+  }
+}
+
+/** Utility pole built entirely from brush strokes: shaft, crossarm, insulators, transformer and tag. */
+const poleStrokes = () =>
+  painted('utility-pole', (r) => {
+    const out: Stroke[] = []
+    column(out, r, new THREE.Vector3(0, 0, 0), POLE_H, 0.13, POLE, 190)
+    bar(out, r, POLE_H - 0.6, 0.9, 0.07, ARM, 46)
+    for (const z of [-0.8, -0.35, 0.35, 0.8]) column(out, r, new THREE.Vector3(0, POLE_H - 0.53, z), 0.22, 0.05, INSULATOR, 6)
+    column(out, r, new THREE.Vector3(0.36, POLE_H - 2, 0), 0.8, 0.22, CAN, 60)
+    for (const y of [POLE_H - 1.98, POLE_H - 1.2]) bar(out, r, y, 0.2, 0.03, ARM, 4)
+    for (let k = 0; k < 8; k++) {
+      const d = dab((r() - 0.5) * 0.12, 1.4 + r() * 0.8, 0.15, Math.PI / 2 + (r() - 0.5) * 0.2, 0.3 + r() * 0.15, 0.09, TAG[Math.floor(r() * TAG.length)])
+      out.push(d)
+    }
+    return out
+  })
+
 function UtilityPole() {
-  return (
-    <>
-      <Toon geometry={geo.cyl} color="#8f9893" position={[0, POLE_H / 2, 0]} scale={[0.26, POLE_H, 0.26]} outline={0.03} />
-      <Toon geometry={geo.box} color="#7f8883" position={[0, POLE_H - 0.6, 0]} scale={[0.12, 0.12, 1.8]} outline={0.02} />
-      <Toon geometry={geo.cyl} color="#9aa29d" position={[0.3, POLE_H - 1.6, 0]} scale={[0.45, 0.8, 0.45]} outline={0.03} />
-      <Toon geometry={geo.box} color="#e7b53f" position={[0, 1.8, 0.14]} scale={[0.2, 0.9, 0.04]} outline={0.015} />
-    </>
-  )
+  return <StrokePaint strokes={poleStrokes()} />
 }
 
 
