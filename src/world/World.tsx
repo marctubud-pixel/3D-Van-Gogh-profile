@@ -1,7 +1,8 @@
+import { PerformanceMonitor } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Component, useRef, type ReactNode } from 'react'
+import { Component, useLayoutEffect, useRef, type ReactNode } from 'react'
 import * as THREE from 'three'
-import { LOW_END } from './quality'
+import { QUALITY, useQuality, useQualityLevel } from './quality'
 import type { WorldLocation } from '../../shared/types'
 import { useGame } from '../app/game'
 import { CAMERA } from '../camera/config'
@@ -29,6 +30,14 @@ class WorldBoundary extends Component<{ onError: () => void; children: ReactNode
 /** Keeps a soft afternoon sun above the viewer wherever they are on the planet. */
 function SunRig() {
   const sun = useRef<THREE.DirectionalLight>(null)
+  const size = QUALITY[useQualityLevel()].shadowMap
+  useLayoutEffect(() => {
+    const l = sun.current
+    if (!l || !size) return
+    l.shadow.mapSize.set(size, size)
+    l.shadow.map?.dispose()
+    l.shadow.map = null
+  }, [size])
   useFrame(({ camera }) => {
     const l = sun.current
     if (!l) return
@@ -46,8 +55,7 @@ function SunRig() {
       ref={sun}
       intensity={1.9}
       color="#fff6e6"
-      castShadow
-      shadow-mapSize={[2048, 2048]}
+      castShadow={size > 0}
       shadow-bias={-0.0025}
       shadow-normalBias={0.12}
       shadow-camera-left={-28}
@@ -60,13 +68,32 @@ function SunRig() {
   )
 }
 
+/** Samples the frame rate for the HUD and, in auto mode, steps quality down or up to keep it smooth. */
+function QualityGovernor() {
+  const acc = useRef({ t: 0, n: 0 })
+  useFrame((_, dt) => {
+    const a = acc.current
+    a.t += dt
+    a.n++
+    if (a.t < 0.5) return
+    useQuality.getState().setFps(Math.round(a.n / a.t))
+    a.t = 0
+    a.n = 0
+  })
+  const auto = useQuality((s) => s.mode === 'auto')
+  const step = useQuality((s) => s.step)
+  if (!auto) return null
+  return <PerformanceMonitor bounds={() => [30, 55]} flipflops={4} onDecline={() => step(-1)} onIncline={() => step(1)} />
+}
+
 export function World({ locations, onError }: { locations: WorldLocation[]; onError: () => void }) {
   const routeTargetId = useGame((s) => s.routeTargetId)
+  const dpr = QUALITY[useQualityLevel()].dpr
   return (
     <WorldBoundary onError={onError}>
       <Canvas
         shadows={{ type: THREE.PCFShadowMap }}
-        dpr={LOW_END ? [1, 1.25] : [1, 2]}
+        dpr={[1, dpr]}
         camera={{ fov: CAMERA.fov, near: 0.1, far: 3000, position: [0, 45, 12] }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         onCreated={({ gl, scene }) => {
@@ -74,6 +101,7 @@ export function World({ locations, onError }: { locations: WorldLocation[]; onEr
           scene.background = new THREE.Color('#9fdbd2')
         }}
       >
+        <QualityGovernor />
         <ambientLight intensity={1.2} color="#c9dcdc" />
         <Sky />
         <SunRig />

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { QualityToggle } from '../ui/QualityToggle'
 import { ZONE_LABEL } from '../../shared/types'
 import { useContent } from '../data/content'
 import { LocationPanel } from '../locations/LocationPanel'
@@ -82,6 +83,7 @@ export default function Explore() {
         <Link to="/" className="brand">
           MY WORLD
         </Link>
+        <QualityToggle />
         <Link className="icon-btn hud-menu" to="/index" aria-label="INDEX">
           <svg viewBox="0 0 24 24">
             <path d="M4 6h16M4 12h16M4 18h16" />

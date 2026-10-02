@@ -233,3 +233,8 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0.05em 0.4em; margin: 0 
 
 /* OBSERVATORY: night sky with painted stars */
 .place.place-observatory { --panel-bg: radial-gradient(circle, #f6efd2 1.2px, transparent 1.6px) 0 0 / 46px 52px, radial-gradient(circle, #cfe0ff 1px, transparent 1.4px) 23px 17px / 61px 47px, linear-gradient(#1f2b4a, #2c3d63); --panel-ink: #f2efe2; --panel-soft: #c4cde4; --card-bg: #f2efe2; }
+.quality-ctl { margin-left: auto; display: flex; gap: 0.5rem; }
+.quality-btn { display: inline-flex; align-items: baseline; gap: 0.35rem; padding: 0.4rem 0.8rem; border: 2px solid var(--ink); border-radius: 999px; background: #f6f7f2; color: var(--ink); font-weight: 700; font-size: 0.85rem; cursor: pointer; box-shadow: 2px 2px 0 var(--ink); }
+.quality-btn span { font-weight: 400; }
+.quality-btn small { font-weight: 400; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.quality-ctl + .hud-menu { margin-left: 0; }

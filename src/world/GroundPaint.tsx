@@ -20,7 +20,7 @@ import {
 import { type Ramp, type Stroke, Strokes, blob, column, pick, rng, rotateAbout, shade } from './strokes'
 import { playerPos } from './occlusion'
 import { townLots } from './townLayout'
-import { LOW_END } from './quality'
+import { QUALITY, type QualityLevel, levelOf, useQuality } from './quality'
 
 
 const ASPHALT: Ramp = { light: ['#8396a0', '#7a8e96'], mid: ['#6f848b', '#667a82', '#748990'], dark: ['#566870', '#5b6e76'] }
@@ -238,24 +238,24 @@ function foamStrokes(out: Stroke[]) {
 }
 
 const TILE = 12
-const NEAR = LOW_END ? 14 : 24
-const FAR = LOW_END ? 36 : 52
 const ISLAND_TILES = { i0: -10, i1: 11, j0: -11, j1: 11 }
 const LOD = [
-  { spacing: LOW_END ? 0.24 : 0.18, count: 2, scale: LOW_END ? 1.15 : 1 },
-  { spacing: 0.42, count: 2, scale: 1.5 },
-  { spacing: 1.0, count: 2, scale: 2.6 },
+  (q: QualityLevel) => ({ spacing: QUALITY[q].grassSpacing, count: 2, scale: QUALITY[q].grassScale }),
+  () => ({ spacing: 0.42, count: 2, scale: 1.5 }),
+  () => ({ spacing: 1.0, count: 2, scale: 2.6 }),
 ]
+/** Distant tiles are batched FAR_CHUNK × FAR_CHUNK into one draw. */
+const FAR_CHUNK = 3
 const tileCache = new Map<string, Stroke[]>()
 
 /** Painted meadow for one ground tile; higher `lod` levels are sparser with broader blades for distance. */
-function meadowTile(tx: number, tz: number, lod: number, c: Clear) {
-  const key = `${tx},${tz},${lod}`
+function meadowTile(tx: number, tz: number, lod: number, q: QualityLevel, c: Clear) {
+  const key = `${tx},${tz},${lod},${q}`
   let out = tileCache.get(key)
   if (out) return out
   out = []
   const r = rng(tx * 7919 + tz * 104729 + lod * 31 + 17)
-  const { spacing, count, scale } = LOD[lod]
+  const { spacing, count, scale } = LOD[lod](q)
   const d = new THREE.Vector3()
   for (let x = tx * TILE; x < (tx + 1) * TILE; x += spacing) {
     for (let z = tz * TILE; z < (tz + 1) * TILE; z += spacing) {
@@ -272,6 +272,38 @@ function meadowTile(tx: number, tz: number, lod: number, c: Clear) {
 }
 
 /** Meadow over the whole island in tiles: dense around the player, sparser and broader further out. */
+/** Grass-free ground: flat, flowing colour dabs lying on the meadow, one draw for the whole island. */
+function flatMeadow(c: Clear) {
+  const out: Stroke[] = []
+  const r = rng(4242)
+  const step = 0.7
+  const d = new THREE.Vector3()
+  const { i0, i1, j0, j1 } = ISLAND_TILES
+  for (let x = i0 * TILE; x < (i1 + 1) * TILE; x += step) {
+    for (let z = j0 * TILE; z < (j1 + 1) * TILE; z += step) {
+      d.set(x + (r() - 0.5) * step, 0, z + (r() - 0.5) * step)
+      const hit = nearestOnRoute(d)
+      if (hit.dist < 2.1 || landValue(d, hit) < 2.6 || paved(d, 0) || nearBuilding(d, c, -1.8)) continue
+      const f = windAngle(d.x, d.z)
+      const zone = meadowZone(d.x, d.z)
+      out.push({
+        p: new THREE.Vector3(d.x, groundHeight(d) + 0.03 + r() * 0.01, d.z),
+        n: UP,
+        dir: new THREE.Vector3(Math.cos(f), 0, Math.sin(f)),
+        len: 0.8 + r() * 0.7,
+        wid: 0.24 + r() * 0.14,
+        color: meadowTone(0.15 + r() * 0.5 + (zone - 0.5) * 0.3),
+      })
+    }
+  }
+  return out
+}
+
+function FlatMeadow({ clear }: { clear: Clear }) {
+  const strokes = useMemo(() => flatMeadow(clear), [clear])
+  return <Strokes key={strokes.length} strokes={strokes} />
+}
+
 function Meadow({ clear }: { clear: Clear }) {
   const [tiles, setTiles] = useState<string[]>([])
   const last = useRef(0)
@@ -279,11 +311,22 @@ function Meadow({ clear }: { clear: Clear }) {
     const t = clock.elapsedTime
     if (t - last.current < 0.4) return
     last.current = t
+    const q = levelOf(useQuality.getState())
+    const { near, far } = QUALITY[q]
     const want: string[] = []
-    for (let i = ISLAND_TILES.i0; i <= ISLAND_TILES.i1; i++) {
-      for (let j = ISLAND_TILES.j0; j <= ISLAND_TILES.j1; j++) {
-        const dist = Math.hypot((i + 0.5) * TILE - playerPos.x, (j + 0.5) * TILE - playerPos.z)
-        want.push(`${i},${j},${dist < NEAR ? 0 : dist < FAR ? 1 : 2}`)
+    const { i0, i1, j0, j1 } = ISLAND_TILES
+    for (let ci = i0; ci <= i1; ci += FAR_CHUNK) {
+      for (let cj = j0; cj <= j1; cj += FAR_CHUNK) {
+        const cell: string[] = []
+        for (let i = ci; i < Math.min(ci + FAR_CHUNK, i1 + 1); i++) {
+          for (let j = cj; j < Math.min(cj + FAR_CHUNK, j1 + 1); j++) {
+            const dist = Math.hypot((i + 0.5) * TILE - playerPos.x, (j + 0.5) * TILE - playerPos.z)
+            const lod = dist < near ? 0 : dist < far ? 1 : 2
+            cell.push(`${i},${j},${lod},${lod === 0 ? q : 'high'}`)
+          }
+        }
+        if (cell.every((k) => k.endsWith(',2,high'))) want.push(cell.join(';'))
+        else want.push(...cell)
       }
     }
     const next = want.join('|')
@@ -299,10 +342,14 @@ function Meadow({ clear }: { clear: Clear }) {
 }
 
 function MeadowTile({ id, clear }: { id: string; clear: Clear }) {
-  const strokes = useMemo(() => {
-    const [tx, tz, lod] = id.split(',').map(Number)
-    return meadowTile(tx, tz, lod, clear)
-  }, [id, clear])
+  const strokes = useMemo(
+    () =>
+      id.split(';').flatMap((k) => {
+        const [tx, tz, lod, q] = k.split(',')
+        return meadowTile(Number(tx), Number(tz), Number(lod), q as QualityLevel, clear)
+      }),
+    [id, clear],
+  )
   return strokes.length ? <Strokes strokes={strokes} /> : null
 }
 
@@ -312,6 +359,7 @@ export function GroundPaint({ locations, scenery }: { locations: WorldLocation[]
     () => ({ buildings: locations.flatMap(landmarkBlockers), lots: townLots(locations).map((l) => l.at) }),
     [locations],
   )
+  const grass = useQuality((s) => s.grass)
   const strokes = useMemo(() => {
     const out: Stroke[] = []
     roadStrokes(out)
@@ -324,7 +372,7 @@ export function GroundPaint({ locations, scenery }: { locations: WorldLocation[]
   return (
     <>
       <Strokes key={strokes.length} strokes={strokes} />
-      <Meadow clear={clear} />
+      {grass ? <Meadow clear={clear} /> : <FlatMeadow clear={clear} />}
     </>
   )
 }

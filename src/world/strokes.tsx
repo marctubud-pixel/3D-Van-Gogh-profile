@@ -1,5 +1,6 @@
 import { createContext, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
 /** Seeded RNG so the painting is stable between reloads. */
 export function rng(seed: number) {
@@ -110,8 +111,9 @@ export function Strokes({ strokes }: { strokes: Stroke[] }) {
     })
     m.instanceMatrix.needsUpdate = true
     if (m.instanceColor) m.instanceColor.needsUpdate = true
+    m.computeBoundingSphere()
   }, [strokes])
-  return <instancedMesh ref={ref} args={[geom, mat, strokes.length]} frustumCulled={false} />
+  return <instancedMesh ref={ref} args={[geom, mat, strokes.length]} />
 }
 
 
@@ -313,7 +315,28 @@ export function StrokePartMesh({ geometry, color, outline }: { geometry: THREE.B
     reg.add(part)
     return () => reg.remove(part)
   }, [reg, geometry, color, outline])
-  return <mesh ref={ref} geometry={geometry} material={baseMaterial(color)} />
+  return <mesh ref={ref} geometry={geometry} material={baseMaterial(color)} visible={!reg} />
+}
+
+/** Bakes every registered part's base colour into one merged mesh per colour, so a building costs a handful of draws. */
+function mergeBases(parts: Iterable<StrokePart>, inv: THREE.Matrix4) {
+  const byColor = new Map<string, THREE.BufferGeometry[]>()
+  const m = new THREE.Matrix4()
+  for (const part of parts) {
+    if ('local' in part) continue
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', part.geometry.getAttribute('position').clone())
+    if (part.geometry.index) g.setIndex(part.geometry.index.clone())
+    g.applyMatrix4(m.multiplyMatrices(inv, part.obj.matrixWorld))
+    const list = byColor.get(part.color) ?? []
+    list.push(g.index ? g.toNonIndexed() : g)
+    byColor.set(part.color, list)
+  }
+  return [...byColor].flatMap(([color, list]) => {
+    const merged = mergeGeometries(list)
+    list.forEach((g) => g.dispose())
+    return merged ? [{ color, geometry: merged }] : []
+  })
 }
 
 const RigCtx = createContext(false)
@@ -365,6 +388,8 @@ export function StrokeBuild({ seed = 1, children }: { seed?: number; children: R
   const reg = useMemo(() => new StrokeRegistry(), [])
   const [version, setVersion] = useState(0)
   const [strokes, setStrokes] = useState<Stroke[]>([])
+  const [bases, setBases] = useState<{ color: string; geometry: THREE.BufferGeometry }[]>([])
+  useLayoutEffect(() => () => bases.forEach((b) => b.geometry.dispose()), [bases])
   useLayoutEffect(() => {
     reg.onChange = () => setVersion((v) => v + 1)
     return () => {
@@ -395,10 +420,14 @@ export function StrokeBuild({ seed = 1, children }: { seed?: number; children: R
       } else paintGeometry(out, r, part.geometry, m, part.color, part.outline)
     }
     setStrokes(out)
+    setBases(mergeBases(reg.parts, inv))
   }, [reg, seed, version])
   return (
     <group ref={root}>
       <StrokeCtx.Provider value={reg}>{children}</StrokeCtx.Provider>
+      {bases.map((b) => (
+        <mesh key={b.geometry.uuid} geometry={b.geometry} material={baseMaterial(b.color)} />
+      ))}
       {strokes.length > 0 && <Strokes key={strokes.length} strokes={strokes} />}
     </group>
   )
