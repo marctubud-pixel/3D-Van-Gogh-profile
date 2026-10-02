@@ -1,10 +1,10 @@
 import { useMemo, type ReactNode } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { flatDistance, yawQuaternion } from './plane'
+import { UP, flatDistance, yawQuaternion } from './plane'
 import { BRIDGE, PLAZA, ROUTE_K, ROUTE_LEN, ROUTE_S, SERVICE_POINT, landmarkBlockers, routeFrame, routePoint, surf } from './island'
-import { type Ramp, type Stroke, StrokeBuild, StrokePaint, column, dab, painted, shade } from './strokes'
-import { LINE_COLOR, Toon, geo } from './toon'
+import { type Ramp, type Stroke, StrokeBuild, StrokePaint, Strokes, column, dab, painted, rng, shade } from './strokes'
+import { Toon, geo } from './toon'
 
 interface Spot {
   at: THREE.Vector3
@@ -95,31 +95,37 @@ function BusStop() {
 }
 
 
+const WIRE = ['#2a3134', '#323b3e', '#262c2f', '#3a4447']
+
+/** Sagging wires drawn as chains of thin overlapping brush strokes, crossed so they read from any side. */
 function Wires({ tops }: { tops: THREE.Vector3[] }) {
-  const geometry = useMemo(() => {
-    const pts: number[] = []
+  const strokes = useMemo(() => {
+    const r = rng(tops.length * 31 + 7)
+    const out: Stroke[] = []
+    const segs = 30
     for (let i = 0; i < tops.length - 1; i++) {
       const a = tops[i]
       const b = tops[i + 1]
       if (a.distanceTo(b) > 20) continue
-      const sag = new THREE.Vector3(0, -0.5, 0)
-      const segs = 8
+      const at = (k: number) => a.clone().lerp(b, k).add(new THREE.Vector3(0, -2 * k * (1 - k), 0))
+      const side = new THREE.Vector3().subVectors(b, a).cross(UP).normalize()
       for (let s = 0; s < segs; s++) {
-        for (const k of [s / segs, (s + 1) / segs]) {
-          const p = a.clone().lerp(b, k).add(sag.clone().multiplyScalar(4 * k * (1 - k)))
-          pts.push(p.x, p.y, p.z)
-        }
+        const p0 = at(s / segs)
+        const p1 = at((s + 1) / segs)
+        const dir = p1.clone().sub(p0)
+        const len = dir.length() * (1.6 + r() * 0.3)
+        dir.normalize()
+        const p = p0.lerp(p1, 0.5).add(new THREE.Vector3(0, (r() - 0.5) * 0.03, 0))
+        const wid = 0.035 + r() * 0.03
+        const color = new THREE.Color(WIRE[Math.floor(r() * WIRE.length)])
+        const up = new THREE.Vector3().crossVectors(side, dir).normalize()
+        out.push({ p, n: side, dir, len, wid, color })
+        out.push({ p: p.clone(), n: up, dir, len, wid, color })
       }
     }
-    const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
-    return g
+    return out
   }, [tops])
-  return (
-    <lineSegments geometry={geometry}>
-      <lineBasicMaterial color={LINE_COLOR} />
-    </lineSegments>
-  )
+  return <Strokes strokes={strokes} />
 }
 
 /** Street furniture along the island road: utility poles with wires, bridge bollards, vending machines. */
