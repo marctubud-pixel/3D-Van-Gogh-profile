@@ -4,8 +4,9 @@ import * as THREE from 'three'
 
 /** World-space point the camera looks at (updated by Player each frame). */
 export const camFocus = new THREE.Vector3(0, 42, 0)
-/** Unit up-direction of the player's current position on the planet. */
-export const playerUp = new THREE.Vector3(0, 1, 0)
+/** Player's current ground point on the island (y = 0). */
+export const playerPos = new THREE.Vector3()
+const UP = new THREE.Vector3(0, 1, 0)
 
 const seg = new THREE.Line3()
 const closest = new THREE.Vector3()
@@ -25,8 +26,7 @@ export function Fadeable({ radius = 2.6, height = 2.4, children }: { radius?: nu
     if (!g) return
     if (!center.current) {
       g.getWorldPosition(world)
-      const up = world.clone().normalize()
-      center.current = world.clone().addScaledVector(up, height)
+      center.current = world.clone().addScaledVector(UP, height)
     }
     seg.start.copy(three.camera.position)
     seg.end.copy(camFocus)

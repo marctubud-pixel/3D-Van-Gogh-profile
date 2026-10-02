@@ -2,9 +2,9 @@ import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { playerUp } from '../world/occlusion'
-import { BUILDING_SCALE, LANDMARK_FIT, R, landmarkSetback, surfaceQuaternion } from '../world/sphere'
-import { SERVICE_DIR, locationAnchors, locationDir, surf } from '../world/island'
+import { playerPos } from '../world/occlusion'
+import { BUILDING_SCALE, LANDMARK_FIT, flatDir, flatDistance, landmarkSetback, yawQuaternion } from '../world/plane'
+import { SERVICE_POINT, locationAnchors, locationPoint, surf } from '../world/island'
 import { Toon, geo, toonMaterial } from '../world/toon'
 import { StrokeBuild } from '../world/strokes'
 import { Arcade, Cinema, CreativeMuseum, ExperimentLab, Observatory, ServiceCenter, Studio, WriteHouse } from './buildings'
@@ -128,7 +128,7 @@ function ParkingSpot({ color, up }: { color: string; up: THREE.Vector3 }) {
   const sign = useRef<THREE.Group>(null)
   useFrame(({ clock }) => {
     if (!sign.current) return
-    const near = up.angleTo(playerUp) * R < 14
+    const near = flatDistance(up, playerPos) < 14
     sign.current.scale.setScalar(near ? 1.15 + Math.sin(clock.elapsedTime * 5) * 0.1 : 1)
   })
   return (
@@ -172,14 +172,14 @@ interface LandmarkProps {
 }
 
 export function Landmark({ loc, active }: LandmarkProps) {
-  const a = useMemo(() => locationAnchors(locationDir(loc), loc.id), [loc])
+  const a = useMemo(() => locationAnchors(locationPoint(loc), loc.id), [loc])
   const fit = LANDMARK_FIT[loc.id]?.scale ?? 1
-  const buildingQ = useMemo(() => surfaceQuaternion(a.building, a.facing), [a])
-  const parkingQ = useMemo(() => surfaceQuaternion(a.parking, a.facing), [a])
+  const buildingQ = useMemo(() => yawQuaternion(a.facing), [a])
+  const parkingQ = useMemo(() => yawQuaternion(a.facing), [a])
   const bPos = surf(a.building)
   const pPos = useMemo(() => {
-    const away = a.parking.clone().sub(a.door).projectOnPlane(a.parking).normalize()
-    return surf(a.parking.clone().addScaledVector(away, 1.5 / R).normalize())
+    const away = flatDir(a.parking.clone().sub(a.door))
+    return surf(a.parking.clone().addScaledVector(away, 1.5))
   }, [a])
   return (
     <>
@@ -206,8 +206,8 @@ export function Landmark({ loc, active }: LandmarkProps) {
 
 /** Static welcome hall beside the central plaza. */
 export function ServiceCenterSite() {
-  const a = useMemo(() => locationAnchors(SERVICE_DIR), [])
-  const q = useMemo(() => surfaceQuaternion(a.building, a.facing), [a])
+  const a = useMemo(() => locationAnchors(SERVICE_POINT), [])
+  const q = useMemo(() => yawQuaternion(a.facing), [a])
   return (
     <group position={surf(a.building)} quaternion={q} scale={BUILDING_SCALE}>
       <StrokeBuild seed={11}>

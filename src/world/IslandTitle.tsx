@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js'
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js'
 import fontUrl from 'three/examples/fonts/helvetiker_bold.typeface.json?url'
-import { R, tangentNorth } from './sphere'
+
 import { TITLE_CENTER } from './island'
 import { outlineMaterial, toonMaterial } from './toon'
 
@@ -14,15 +14,13 @@ const LINES: [string, number, number][] = [
 
 /** Lay a flat text geometry (x = east, y = north, z = height) on the sea around `center`. */
 function layOnSea(g: THREE.BufferGeometry, center: THREE.Vector3) {
-  const north = tangentNorth(center)
-  const east = new THREE.Vector3().crossVectors(north, center).normalize()
   const pos = g.attributes.position
   const v = new THREE.Vector3()
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i)
     const y = pos.getY(i)
     const z = pos.getZ(i)
-    v.copy(center).multiplyScalar(R).addScaledVector(east, x).addScaledVector(north, y).normalize().multiplyScalar(R - 0.9 + z)
+    v.set(center.x + x, center.y - 0.9 + z, center.z - y)
     pos.setXYZ(i, v.x, v.y, v.z)
   }
   g.computeVertexNormals()

@@ -1,13 +1,13 @@
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { R } from './sphere'
-import { BRIDGE, PLAZA, ROUTE, ROUTE_K, ROUTE_S, SERVICE_DIR, landValue, landmarkBlockers, nearestOnRoute, routeFrame, routePoint } from './island'
+import { flatDir, flatDistance } from './plane'
+import { BRIDGE, PLAZA, ROUTE, ROUTE_K, ROUTE_S, SERVICE_POINT, landValue, landmarkBlockers, nearestOnRoute, routeFrame, routePoint } from './island'
 
 export type TownKind = 'house' | 'shop' | 'apartment' | 'gable' | 'garden'
 
 export interface TownLot {
-  up: THREE.Vector3
-  /** Tangent direction the facade faces (toward the road). */
+  at: THREE.Vector3
+  /** Horizontal direction the facade faces (toward the road). */
   facing: THREE.Vector3
   kind: TownKind
   width: number
@@ -44,7 +44,7 @@ const KINDS: TownKind[] = ['house', 'shop', 'gable', 'shop', 'house', 'apartment
 export function townLots(locations: WorldLocation[]): TownLot[] {
   const rand = rng(99)
   const blockers = locations.flatMap(landmarkBlockers)
-  blockers.push(SERVICE_DIR, PLAZA)
+  blockers.push(SERVICE_POINT, PLAZA)
   const lots: TownLot[] = []
   const bridgeS: [number, number] = [ROUTE_S[BRIDGE.a] - 6, ROUTE_S[BRIDGE.b] + 6]
   for (const [a, b] of TOWN_SPANS) {
@@ -52,18 +52,17 @@ export function townLots(locations: WorldLocation[]): TownLot[] {
       for (const sign of [-1, 1]) {
         const ss = s + (sign > 0 ? SPACING / 2 : 0)
         if (ss > bridgeS[0] && ss < bridgeS[1]) continue
-        const up = routePoint(ss, sign * SETBACK)
-        if (blockers.some((p) => p.angleTo(up) * R < 12)) continue
-        if (landValue(up) < 6) continue
-        if (nearestOnRoute(up).dist < SETBACK - 1) continue
+        const at = routePoint(ss, sign * SETBACK)
+        if (blockers.some((p) => flatDistance(p, at) < 12)) continue
+        if (landValue(at) < 6) continue
+        if (nearestOnRoute(at).dist < SETBACK - 1) continue
         if (rand() < 0.2) continue
-        const road = ROUTE[nearestOnRoute(up).i]
-        const facing = road.clone().sub(up).projectOnPlane(up)
+        const road = ROUTE[nearestOnRoute(at).i]
+        const facing = flatDir(road.clone().sub(at))
         if (facing.lengthSq() < 1e-10) facing.copy(routeFrame(ss).side).multiplyScalar(-sign)
-        facing.normalize()
         const kind = rand() < 0.3 ? 'garden' : KINDS[Math.floor(rand() * KINDS.length)]
         lots.push({
-          up,
+          at,
           facing,
           kind,
           width: 4 + rand() * 1.2,

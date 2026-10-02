@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { R, dirToPlan, surfaceQuaternion, tangentNorth } from './sphere'
+import { NORTH, UP, flatDistance, pointToPlan, yawQuaternion } from './plane'
 import {
   BRIDGE,
   PARK,
@@ -11,7 +11,7 @@ import {
   ROUTE_LEN,
   ROUTE_S,
   ROUTE_TAN,
-  SERVICE_DIR,
+  SERVICE_POINT,
   groundHeight,
   landValue,
   landmarkBlockers,
@@ -20,7 +20,6 @@ import {
 import { type Ramp, type Stroke, Strokes, blob, column, pick, rng, rotateAbout, shade } from './strokes'
 import { townLots } from './townLayout'
 
-const UP = new THREE.Vector3(0, 1, 0)
 const flat = (colors: string[]): Ramp => ({ light: colors, mid: colors, dark: colors })
 
 const ASPHALT: Ramp = { light: ['#8396a0', '#7a8e96'], mid: ['#6f848b', '#667a82', '#748990'], dark: ['#566870', '#5b6e76'] }
@@ -35,7 +34,7 @@ const TRUNK: Ramp = { light: ['#8a7f76'], mid: ['#6e6660', '#655d57'], dark: ['#
 const ROCK: Ramp = { light: ['#ece4cb', '#e3d8b8'], mid: ['#d9cfb2', '#cfc4a5'], dark: ['#b2a88c'] }
 const SEA_FOAM = ['#e9f5f0', '#d6efe9', '#f4faf6']
 
-const arc = (a: THREE.Vector3, b: THREE.Vector3) => a.angleTo(b) * R
+const arc = flatDistance
 
 export type SceneryKind = 'tree' | 'pine' | 'bush' | 'rock'
 export interface ScenerySpot {
@@ -45,18 +44,17 @@ export interface ScenerySpot {
   s: number
 }
 
-/** Ground direction `off` units to the side and `along` units ahead of road sample `i`. */
+/** Ground point `off` units to the side and `along` units ahead of road sample `i`. */
 function besideRoad(i: number, off: number, along: number) {
-  const up = ROUTE[i]
   const tan = ROUTE_TAN[i]
-  const side = new THREE.Vector3().crossVectors(up, tan)
-  return up.clone().addScaledVector(side, off / R).addScaledVector(tan, along / R).normalize()
+  const side = new THREE.Vector3().crossVectors(UP, tan)
+  return ROUTE[i].clone().addScaledVector(side, off).addScaledVector(tan, along)
 }
 
 /** Map local (y-up, z-forward) strokes onto the ground at `d`. */
 function place(out: Stroke[], local: Stroke[], d: THREE.Vector3, fwd: THREE.Vector3, scale = 1) {
-  const q = surfaceQuaternion(d, fwd)
-  const base = new THREE.Vector3().copy(d).multiplyScalar(R + groundHeight(d))
+  const q = yawQuaternion(fwd)
+  const base = new THREE.Vector3(d.x, groundHeight(d), d.z)
   for (const k of local) {
     out.push({
       p: k.p.clone().multiplyScalar(scale).applyQuaternion(q).add(base),
@@ -104,7 +102,7 @@ interface Clear {
 }
 
 function blocked(d: THREE.Vector3, c: Clear, pad: number) {
-  if (arc(d, PLAZA) < 7.5 + pad || arc(d, SERVICE_DIR) < 9 + pad) return true
+  if (arc(d, PLAZA) < 7.5 + pad || arc(d, SERVICE_POINT) < 9 + pad) return true
   if (arc(d, POND.center) < POND.r + 0.8) return true
   return c.buildings.some((b) => arc(b, d) < 5 + pad) || c.lots.some((b) => arc(b, d) < 3 + pad)
 }
@@ -150,11 +148,11 @@ function grassStrokes(out: Stroke[], c: Clear) {
     if (Math.abs(o) < 3.4 || onDeck(i)) continue
     const hit: RouteHit = { i, s: ROUTE_S[i], dist: Math.abs(o), sign: o >= 0 ? 1 : -1 }
     if (landValue(d, hit) < 2.6) continue
-    const [px, py] = dirToPlan(d)
+    const [px, py] = pointToPlan(d)
     const f = Math.sin(px * 0.09) * 0.9 + Math.cos(py * 0.08) * 0.6
     flow.length = 0
     flow.push({ p: new THREE.Vector3(0, 0.03 + r() * 0.01, 0), n: UP, dir: new THREE.Vector3(Math.cos(f), 0, Math.sin(f)), len: 0.7 + r() * 0.7, wid: 0.22 + r() * 0.14, color: shade(r, UP, arc(d, PARK.center) < PARK.r ? flat(MEADOW.light) : MEADOW) })
-    place(out, flow, d, tangentNorth(d))
+    place(out, flow, d, NORTH)
   }
 }
 
@@ -177,7 +175,7 @@ function sceneryStrokes(out: Stroke[], spots: ScenerySpot[]) {
     } else {
       blob(local, r, new THREE.Vector3(0, 0.1, 0), 0.6, ROCK, 220, 0.9)
     }
-    place(out, local, sp.d, tangentNorth(sp.d).applyAxisAngle(sp.d, sp.yaw), sp.s)
+    place(out, local, sp.d, NORTH.clone().applyAxisAngle(UP, sp.yaw), sp.s)
   }
 }
 
@@ -203,7 +201,7 @@ export function GroundPaint({ locations, scenery }: { locations: WorldLocation[]
   const strokes = useMemo(() => {
     const clear: Clear = {
       buildings: locations.flatMap(landmarkBlockers),
-      lots: townLots(locations).map((l) => l.up),
+      lots: townLots(locations).map((l) => l.at),
     }
     const out: Stroke[] = []
     roadStrokes(out)

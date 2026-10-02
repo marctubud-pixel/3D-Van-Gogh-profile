@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { dirToPlan, planDir } from '../world/sphere'
-import { BRIDGE, PLAZA, ROUTE, ROUTE_ORDER, TITLE_CENTER, landValue, locationDir } from '../world/island'
+import { planPoint, pointToPlan } from '../world/plane'
+import { BRIDGE, PLAZA, ROUTE, ROUTE_ORDER, TITLE_CENTER, landValue, locationPoint } from '../world/island'
 
 interface TownMapProps {
   locations: WorldLocation[]
@@ -22,7 +22,7 @@ export function toMap(x: number, y: number): [number, number] {
 }
 
 const dirToMap = (d: THREE.Vector3) => {
-  const [x, y] = dirToPlan(d)
+  const [x, y] = pointToPlan(d)
   return toMap(x, y)
 }
 
@@ -48,7 +48,7 @@ function useIslandImage() {
       for (let x = 0; x < W; x += step) {
         const px = VIEW.x0 + ((x + step / 2) / W) * (VIEW.x1 - VIEW.x0)
         const py = VIEW.y1 - ((y + step / 2) / H) * (VIEW.y1 - VIEW.y0)
-        const v = landValue(planDir(px, py))
+        const v = landValue(planPoint(px, py))
         if (v < 0) continue
         g.fillStyle = v < 2.4 ? '#e8dfc4' : '#a9cf93'
         g.fillRect(x, y, step, step)
@@ -104,7 +104,7 @@ export function TownMap({ locations, you, activeId, onSelect }: TownMapProps) {
         MARC ISLAND
       </div>
       {sorted.map((l, i) => {
-        const [x, y] = dirToMap(locationDir(l))
+        const [x, y] = dirToMap(locationPoint(l))
         return (
           <button
             key={l.id}

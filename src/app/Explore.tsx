@@ -9,17 +9,17 @@ import { InfoContent } from '../ui/InfoPage'
 import { Overlay } from '../ui/Overlay'
 import { hasWebGL } from '../ui/webgl'
 import { World } from '../world/World'
-import { planDir } from '../world/sphere'
-import { locationDir } from '../world/island'
+import { flatDistance, planPoint } from '../world/plane'
+import { locationPoint } from '../world/island'
 import type { WorldLocation } from '../../shared/types'
 import { useGame } from './game'
 
 function zoneAt(locations: WorldLocation[], x: number, y: number) {
-  const p = planDir(x, y)
+  const p = planPoint(x, y)
   let best: WorldLocation | undefined
   let bd = Infinity
   for (const l of locations) {
-    const d = locationDir(l).angleTo(p)
+    const d = flatDistance(locationPoint(l), p)
     if (d < bd) {
       bd = d
       best = l

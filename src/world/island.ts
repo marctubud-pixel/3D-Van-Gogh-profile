@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { BUILDING_RADIUS, BUILDING_SCALE, LANDMARK_FIT, R, dirToPlan, landmarkSetback, mapDir, planDir, moveToward, type LocationAnchors } from './sphere'
+import { BUILDING_RADIUS, BUILDING_SCALE, LANDMARK_FIT, UP, flatDir, flatDistance, landmarkSetback, mapPoint, moveToward, planPoint, pointToPlan, type LocationAnchors } from './plane'
 
 /** Control points (map lat, lon; see `mapToPlan`) of the island loop road: plaza → landmarks → observatory hill → back down to the plaza. */
 const CTRL: [number, number][] = [
@@ -11,13 +11,13 @@ const CTRL: [number, number][] = [
 
 const SAMPLES = 520
 const curve = new THREE.CatmullRomCurve3(
-  CTRL.map(([a, b]) => mapDir(a, b).multiplyScalar(R)),
+  CTRL.map(([a, b]) => mapPoint(a, b)),
   true,
   'centripetal',
 )
 
-/** Unit directions sampled evenly along the road. */
-export const ROUTE: THREE.Vector3[] = curve.getSpacedPoints(SAMPLES).map((p) => p.normalize())
+/** Ground points (y = 0) sampled evenly along the road. */
+export const ROUTE: THREE.Vector3[] = curve.getSpacedPoints(SAMPLES).map((p) => p.setY(0))
 /** Arc length (world units) at each sample. */
 export const ROUTE_S: number[] = []
 /** Tangent (direction of travel) at each sample. */
@@ -25,12 +25,12 @@ export const ROUTE_TAN: THREE.Vector3[] = []
 {
   let acc = 0
   ROUTE.forEach((p, i) => {
-    if (i > 0) acc += ROUTE[i - 1].angleTo(p) * R
+    if (i > 0) acc += flatDistance(ROUTE[i - 1], p)
     ROUTE_S.push(acc)
     const n = ROUTE.length - 1
     const a = ROUTE[i === 0 ? n - 1 : i - 1]
     const b = ROUTE[i === n ? 1 : i + 1]
-    ROUTE_TAN.push(b.clone().sub(a).projectOnPlane(p).normalize())
+    ROUTE_TAN.push(flatDir(b.clone().sub(a)))
   })
 }
 export const ROUTE_LEN = ROUTE_S[ROUTE_S.length - 1]
@@ -44,55 +44,51 @@ function indexAt(s: number) {
   return Math.round((wrapS(s) / ROUTE_LEN) * (ROUTE.length - 1))
 }
 
-/** Surface frame on the road at arc length `s`: up, tangent and right-hand side (up × tangent). */
+/** Road frame at arc length `s`: centreline point, tangent and right-hand side (up × tangent). */
 export function routeFrame(s: number) {
   const i = indexAt(s)
-  const up = ROUTE[i].clone()
+  const at = ROUTE[i].clone()
   const tan = ROUTE_TAN[i].clone()
-  const side = new THREE.Vector3().crossVectors(up, tan).normalize()
-  return { up, tan, side }
+  const side = new THREE.Vector3().crossVectors(UP, tan).normalize()
+  return { at, tan, side }
 }
 
-/** Point `off` world units to the side (+ = `side` vector) of the road at arc length `s`. */
-export function routePoint(s: number, off = 0, along = 0) {
+/** Ground point `off` world units to the side (+ = `side` vector) of the road at arc length `s`. */
+export function routePoint(s: number, off = 0) {
   const f = routeFrame(s)
-  const p = f.up.clone()
-  if (off) p.applyAxisAngle(f.tan, -off / R)
-  if (along) p.applyAxisAngle(new THREE.Vector3().crossVectors(p, f.tan).normalize(), -along / R)
-  return p.normalize()
+  return f.at.addScaledVector(f.side, off)
 }
 
 export interface RouteHit {
   i: number
   s: number
-  /** Arc distance from the road centreline. */
+  /** Distance from the road centreline. */
   dist: number
   /** +1 when on the `side` of the road, -1 otherwise. */
   sign: number
 }
 
-const _v = new THREE.Vector3()
 export function nearestOnRoute(d: THREE.Vector3): RouteHit {
-  let best = -2
+  let best = Infinity
   let bi = 0
   for (let i = 0; i < ROUTE.length; i++) {
-    const dot = ROUTE[i].dot(d)
-    if (dot > best) {
-      best = dot
+    const dx = ROUTE[i].x - d.x
+    const dz = ROUTE[i].z - d.z
+    const q = dx * dx + dz * dz
+    if (q < best) {
+      best = q
       bi = i
     }
   }
   const p = ROUTE[bi]
   const t = ROUTE_TAN[bi]
-  _v.copy(d).sub(p)
-  const side = new THREE.Vector3().crossVectors(p, t)
-  const lateral = _v.dot(side)
-  const dist = Math.abs(lateral) * R
-  return { i: bi, s: ROUTE_S[bi], dist, sign: lateral >= 0 ? 1 : -1 }
+  // side = up × tangent = (t.z, 0, -t.x)
+  const lateral = (d.x - p.x) * t.z - (d.z - p.z) * t.x
+  return { i: bi, s: ROUTE_S[bi], dist: Math.abs(lateral), sign: lateral >= 0 ? 1 : -1 }
 }
 
 /** Arc length of the summit bend, where the observatory sits. */
-export const SUMMIT_S = nearestOnRoute(mapDir(33, 238)).s
+export const SUMMIT_S = nearestOnRoute(mapPoint(33, 238)).s
 
 /** Arc lengths below are laid out on a 276-unit reference loop and stretched to the real one. */
 export const ROUTE_K = ROUTE_LEN / 276
@@ -117,7 +113,7 @@ const bayCenter = routePoint(BAY.s, BAY.off)
 const lobeCenter = routePoint(CINEMA_LOBE.s, CINEMA_LOBE.off)
 /** Starting plaza just before the loop's origin, and the service center behind it. */
 export const PLAZA = routePoint(-1, -2.3)
-export const SERVICE_DIR = routePoint(-2, -11.2)
+export const SERVICE_POINT = routePoint(-2, -11.2)
 const plazaCenter = PLAZA
 /** Observatory hilltop: the road climbs over its shoulder and winds back down. */
 export const HILL_TOP = routePoint(SUMMIT_S, 5)
@@ -129,7 +125,7 @@ export const POND = { center: routePoint(STOPS['experiment-lab'].s - 10, 12), r:
 
 /** Smooth coastline wobble, sampled on the flat map. */
 export function noise(d: THREE.Vector3) {
-  const [px, py] = dirToPlan(d)
+  const [px, py] = pointToPlan(d)
   const x = px / 40
   const y = py / 40
   return (
@@ -139,14 +135,14 @@ export function noise(d: THREE.Vector3) {
   )
 }
 
-const arc = (a: THREE.Vector3, b: THREE.Vector3) => a.angleTo(b) * R
+const arc = flatDistance
 
 /** Signed distance-like land value: > 0 on land, < 0 at sea. */
-const ROUTE_PLAN = ROUTE.map((d) => dirToPlan(d))
+const ROUTE_PLAN = ROUTE.map((d) => pointToPlan(d))
 
 /** True when `d` lies inside the closed road loop. */
 function insideLoop(d: THREE.Vector3) {
-  const [x, y] = dirToPlan(d)
+  const [x, y] = pointToPlan(d)
   let inside = false
   for (let i = 0, j = ROUTE_PLAN.length - 1; i < ROUTE_PLAN.length; j = i++) {
     const [xi, yi] = ROUTE_PLAN[i]
@@ -204,36 +200,35 @@ export function groundHeight(d: THREE.Vector3) {
   return hillHeight(d)
 }
 
-/** World-space point on the ground at unit direction `d`, raised by `lift`. */
+/** World-space point on the terrain above ground point `d`, raised by `lift`. */
 export function surf(d: THREE.Vector3, lift = 0) {
-  return d.clone().normalize().multiplyScalar(R + groundHeight(d) + lift)
+  return new THREE.Vector3(d.x, groundHeight(d) + lift, d.z)
 }
 
 /** Centre of the "MARC ISLAND" lettering in the sea south of the island. */
-export const TITLE_CENTER = planDir(0, -124)
+export const TITLE_CENTER = planPoint(0, -124)
 
-/** Ground direction of a CMS location: route stops sit at their slot, anything else at its map (lat, lon). */
-export function locationDir(l: { id: string; lat: number; lon: number }) {
+/** Ground point of a CMS location: route stops sit at their slot, anything else at its map (lat, lon). */
+export function locationPoint(l: { id: string; lat: number; lon: number }) {
   const st = (STOPS as Record<string, { s: number; side: number; off: number } | undefined>)[l.id]
-  return st ? routePoint(st.s, st.side * st.off) : mapDir(l.lat, l.lon)
+  return st ? routePoint(st.s, st.side * st.off) : mapPoint(l.lat, l.lon)
 }
 
 /** Building, door, road-side stop and side-of-building parking for a landmark standing at `building`. */
 export function locationAnchors(building: THREE.Vector3, id = ''): LocationAnchors {
   const hit = nearestOnRoute(building)
   const road = ROUTE[hit.i].clone()
-  let facing = road.clone().sub(building).projectOnPlane(building)
+  let facing = flatDir(road.clone().sub(building))
   if (facing.lengthSq() < 1e-10) facing = ROUTE_TAN[hit.i].clone()
-  facing.normalize()
-  const door = moveToward(building, road, BUILDING_RADIUS + 0.8)
+  const front = (LANDMARK_FIT[id]?.front ?? 0) * BUILDING_SCALE + 0.6
+  const door = moveToward(building, road, Math.max(BUILDING_RADIUS + 0.8, front))
   // bike stands against the frontage just beside the door, leaving the entrance clear
-  const along = new THREE.Vector3().crossVectors(door, facing).normalize()
+  const along = new THREE.Vector3().crossVectors(UP, facing).normalize()
   const toward = ROUTE_TAN[hit.i].dot(along) < 0 ? 1 : -1
   const parking = door
     .clone()
-    .addScaledVector(along, (toward * (LANDMARK_FIT[id]?.park ?? 2.6)) / R)
-    .addScaledVector(facing, 0.5 / R)
-    .normalize()
+    .addScaledVector(along, toward * (LANDMARK_FIT[id]?.park ?? 2.6))
+    .addScaledVector(facing, 0.5)
   return { building, road, parking, door, facing }
 }
 
@@ -247,17 +242,17 @@ export function landmarkColliders(a: LocationAnchors, id: string) {
   const hw = f.halfWidth * k
   const r = (front + back) / 2
   const mid = (front - back) / 2
-  const side = new THREE.Vector3().crossVectors(a.building, a.facing).normalize()
+  const side = new THREE.Vector3().crossVectors(UP, a.facing).normalize()
   const span = Math.max(0, hw - r)
   const n = span > 0 ? Math.ceil((span * 2) / (r * 1.2)) + 1 : 1
   return Array.from({ length: n }, (_, i) => {
     const x = n === 1 ? 0 : -span + (span * 2 * i) / (n - 1)
-    return { at: a.building.clone().addScaledVector(a.facing, mid / R).addScaledVector(side, x / R).normalize(), r }
+    return { at: a.building.clone().addScaledVector(a.facing, mid).addScaledVector(side, x), r }
   })
 }
 
 /** Points other scenery keeps clear of: footprint centres plus the bike stand. */
 export function landmarkBlockers(l: { id: string; lat: number; lon: number }) {
-  const a = locationAnchors(locationDir(l), l.id)
+  const a = locationAnchors(locationPoint(l), l.id)
   return [a.building, a.parking, ...landmarkColliders(a, l.id).map((c) => c.at)]
 }

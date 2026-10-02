@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { R, dirToPlan, planDir, surfaceQuaternion, tangentNorth } from './sphere'
+import { NORTH, UP, flatDir, flatDistance, planPoint, pointToPlan, yawQuaternion } from './plane'
 import {
   BRIDGE,
   HILL_TOP,
@@ -12,7 +12,7 @@ import {
   ROUTE_LEN,
   ROUTE_S,
   ROUTE_TAN,
-  SERVICE_DIR,
+  SERVICE_POINT,
   groundHeight,
   hillHeight,
   landValue,
@@ -48,7 +48,7 @@ function mulberry32(seed: number) {
   }
 }
 
-const arc = (a: THREE.Vector3, b: THREE.Vector3) => a.angleTo(b) * R
+const arc = flatDistance
 
 /** Flat-map extent of the detailed island ground; the open sea continues beyond it. */
 const GROUND = { x0: -110, x1: 130, y0: -128, y1: 120, step: 0.8 }
@@ -64,24 +64,23 @@ function PlanetBody() {
     for (let i = 0; i < pos.count; i++) {
       const px = GROUND.x0 + (pos.getX(i) + 0.5) * (GROUND.x1 - GROUND.x0)
       const py = GROUND.y0 + (pos.getY(i) + 0.5) * (GROUND.y1 - GROUND.y0)
-      const v = planDir(px, py)
+      const v = planPoint(px, py)
       const land = landValue(v)
       const patch = Math.sin(px * 0.22) * Math.sin(py * 0.18) * Math.sin((px + py) * 0.12)
-      let r = R
+      let y = 0
       if (land < 0) {
         c.set(land > -2.5 ? SHALLOW : SEA)
-        r = R - THREE.MathUtils.clamp(0.3 - land * 0.25, 0.3, 0.9)
+        y = -THREE.MathUtils.clamp(0.3 - land * 0.25, 0.3, 0.9)
       } else if (land < 2.4) {
         c.set(SAND)
-        r = R - 0.3 + (land / 2.4) * 0.3
+        y = -0.3 + (land / 2.4) * 0.3
       } else {
         const h = hillHeight(v)
-        r = R + h
+        y = h
         if (arc(v, PARK.center) < PARK.r) c.set(LAWN)
         else c.set(patch > 0.25 || h > 0.5 ? GRASS_DARK : GRASS)
       }
-      v.multiplyScalar(r)
-      pos.setXYZ(i, v.x, v.y, v.z)
+      pos.setXYZ(i, v.x, y, v.z)
       colors.set([c.r, c.g, c.b], i * 3)
     }
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3))
@@ -111,7 +110,7 @@ function OpenSea() {
       const y = pos.getY(i)
       const k = Math.hypot(x, y)
       const rr = k < 1e-6 ? 0 : (Math.pow(k, 2.2) * 2200) / k
-      const v = planDir(10 + x * rr, y * rr).multiplyScalar(R - 1.2)
+      const v = planPoint(10 + x * rr, y * rr).setY(-1.2)
       pos.setXYZ(i, v.x, v.y, v.z)
     }
     g.computeVertexNormals()
@@ -129,12 +128,12 @@ function ribbon(a: number, b: number, lift: number, from = 0, to = ROUTE.length 
   const idx: number[] = []
   const side = new THREE.Vector3()
   for (let i = from; i <= to; i++) {
-    const up = ROUTE[i]
-    side.crossVectors(up, ROUTE_TAN[i]).normalize()
+    const at = ROUTE[i]
+    side.crossVectors(UP, ROUTE_TAN[i]).normalize()
     for (const off of [a, b]) {
-      const d = up.clone().addScaledVector(side, off / R).normalize()
+      const d = at.clone().addScaledVector(side, off)
       const onDeck = i >= BRIDGE.a && i <= BRIDGE.b
-      const p = d.multiplyScalar(R + (onDeck ? 0 : groundHeight(d)) + lift)
+      const p = d.setY((onDeck ? 0 : groundHeight(d)) + lift)
       pos.push(p.x, p.y, p.z)
       uv.push(ROUTE_S[i], off === a ? 0 : 1)
     }
@@ -213,13 +212,12 @@ function Bridge() {
     const posts: { pos: THREE.Vector3; q: THREE.Quaternion }[] = []
     const piers: { pos: THREE.Vector3; q: THREE.Quaternion }[] = []
     for (let i = BRIDGE.a; i <= BRIDGE.b; i += 3) {
-      const f = { up: ROUTE[i], tan: ROUTE_TAN[i] }
-      const side = new THREE.Vector3().crossVectors(f.up, f.tan).normalize()
-      for (const s of [-1, 1]) {
-        const d = f.up.clone().addScaledVector(side, (s * 3.1) / R).normalize()
-        posts.push({ pos: d.clone().multiplyScalar(R), q: surfaceQuaternion(d, f.tan) })
-      }
-      if ((i - BRIDGE.a) % 9 === 0) piers.push({ pos: f.up.clone().multiplyScalar(R), q: surfaceQuaternion(f.up, f.tan) })
+      const at = ROUTE[i]
+      const tan = ROUTE_TAN[i]
+      const side = new THREE.Vector3().crossVectors(UP, tan).normalize()
+      const q = yawQuaternion(tan)
+      for (const s of [-1, 1]) posts.push({ pos: at.clone().addScaledVector(side, s * 3.1), q })
+      if ((i - BRIDGE.a) % 9 === 0) piers.push({ pos: at.clone(), q })
     }
     const rails = [-1, 1].map((s) => ribbon(s * 3.05, s * 3.15, 0.95, BRIDGE.a, BRIDGE.b))
     return { deck, posts, piers, rails }
@@ -250,8 +248,8 @@ function Bridge() {
 
 
 
-function randomTangent(d: THREE.Vector3, rand: () => number) {
-  return tangentNorth(d).applyAxisAngle(d, rand() * Math.PI * 2)
+function randomHeading(rand: () => number) {
+  return NORTH.clone().applyAxisAngle(UP, rand() * Math.PI * 2)
 }
 
 /** Random point on or around the island: along the road, within `spread` of the centreline. */
@@ -264,9 +262,9 @@ function useBlockers(locations: WorldLocation[]) {
     const b = locations.flatMap(landmarkBlockers)
     return {
       buildings: b,
-      service: SERVICE_DIR,
+      service: SERVICE_POINT,
       plaza: PLAZA,
-      lots: townLots(locations).map((l) => l.up),
+      lots: townLots(locations).map((l) => l.at),
     }
   }, [locations])
 }
@@ -299,7 +297,7 @@ function useProps(locations: WorldLocation[]) {
       }
       const hill = arc(d, HILL_TOP) < 28
       // leave open meadows: only plant in clumps
-      const [cx, cy] = dirToPlan(d)
+      const [cx, cy] = pointToPlan(d)
       const clump = Math.sin(cx * 0.5) * Math.sin(cy * 0.42 + 1) * Math.sin((cx - cy) * 0.3 + 2)
       if (!hill && clump < 0.05) continue
       const kind: ScenerySpot['kind'] = hill ? (rand() > 0.25 ? 'pine' : 'bush') : rand() > 0.5 ? 'tree' : rand() > 0.45 ? 'bush' : 'pine'
@@ -308,7 +306,7 @@ function useProps(locations: WorldLocation[]) {
     guard = 0
     let park = 0
     while (park < 26 && guard++ < 2000) {
-      const d = PARK.center.clone().applyAxisAngle(randomTangent(PARK.center, rand), ((PARK.r + 4) * Math.sqrt(rand())) / R).normalize()
+      const d = PARK.center.clone().addScaledVector(randomHeading(rand), (PARK.r + 4) * Math.sqrt(rand()))
       const land = free(d, 5)
       if (land === null || land < 3) continue
       if (arc(d, PARK.center) < PARK.r - 5 && rand() < 0.7) continue
@@ -336,10 +334,9 @@ function checkerTexture() {
 /** Starting plaza where the road begins, in front of the service center. */
 function Plaza() {
   const checker = useMemo(() => checkerTexture(), [])
-  const up = PLAZA
-  const q = surfaceQuaternion(up, routeFrame(0).tan)
+  const q = yawQuaternion(routeFrame(0).tan)
   return (
-    <group position={up.clone().multiplyScalar(R)} quaternion={q}>
+    <group position={PLAZA} quaternion={q}>
       <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[6.5, 48]} />
         <meshToonMaterial map={checker} gradientMap={toonMaterial('#fff').gradientMap} />
@@ -360,12 +357,12 @@ function Plaza() {
 function Park() {
   const items = useMemo(() => {
     const benches = [0.4, 2.1, 3.8, 5.2].map((yaw) => {
-      const t = tangentNorth(POND.center).applyAxisAngle(POND.center, yaw)
-      const d = POND.center.clone().applyAxisAngle(new THREE.Vector3().crossVectors(POND.center, t).normalize(), (POND.r + 1.4) / R).normalize()
-      const toPond = POND.center.clone().sub(d).projectOnPlane(d).normalize()
-      return { pos: surf(d), q: surfaceQuaternion(d, toPond.negate()) }
+      const t = NORTH.clone().applyAxisAngle(UP, yaw)
+      const d = POND.center.clone().addScaledVector(t, POND.r + 1.4)
+      const toPond = flatDir(POND.center.clone().sub(d))
+      return { pos: surf(d), q: yawQuaternion(toPond.negate()) }
     })
-    return { pond: { pos: surf(POND.center, 0.03), q: surfaceQuaternion(POND.center, tangentNorth(POND.center)) }, benches }
+    return { pond: { pos: surf(POND.center, 0.03), q: yawQuaternion(NORTH) }, benches }
   }, [])
   return (
     <group>

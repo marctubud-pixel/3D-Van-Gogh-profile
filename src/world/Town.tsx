@@ -4,7 +4,7 @@ import type { WorldLocation } from '../../shared/types'
 import { AcUnit, stripeMaterial } from '../locations/Landmark'
 import { Fadeable } from './occlusion'
 import { VendingMachine } from './StreetProps'
-import { surfaceQuaternion } from './sphere'
+import { yawQuaternion } from './plane'
 import { surf } from './island'
 import { StrokeBuild } from './strokes'
 import { Toon, geo } from './toon'
@@ -174,7 +174,7 @@ export function Town({ locations }: { locations: WorldLocation[] }) {
   return (
     <group>
       {lots.map((lot, i) => (
-        <group key={i} position={surf(lot.up)} quaternion={surfaceQuaternion(lot.up, lot.facing)}>
+        <group key={i} position={surf(lot.at)} quaternion={yawQuaternion(lot.facing)}>
           <StrokeBuild seed={i + 5}>
             <TownBuilding lot={lot} />
           </StrokeBuild>
