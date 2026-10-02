@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Doodle, Empty, Frame, Icon, Paged, Plaque, cycle, sectionsOf, taglineOf, type InteriorProps } from './common'
+import { BrushText, Doodle, Empty, Frame, Icon, Paged, Plaque, cycle, sectionsOf, taglineOf, type InteriorProps } from './common'
 
 export function WriteHouse({ location, projects, onOpenProject }: InteriorProps) {
   const sections = sectionsOf(location, projects)
@@ -21,7 +21,7 @@ export function WriteHouse({ location, projects, onOpenProject }: InteriorProps)
         <section className="book-page left">
           <h2 className="int-h2">
             <Icon name="writing" />
-            文案作品
+            <BrushText text="文案作品" size={24} />
           </h2>
           <p className="int-kicker">· WRITING PORTFOLIO ·</p>
           <ul className="int-list">
@@ -40,7 +40,9 @@ export function WriteHouse({ location, projects, onOpenProject }: InteriorProps)
         <section className="book-page right">
           {page ? (
             <article className="book-sheet">
-              <h2>{page.title}</h2>
+              <h2>
+                <BrushText text={page.title} size={30} />
+              </h2>
               {page.subtitle && <p className="int-kicker">—— {page.subtitle} ——</p>}
               <div className="book-text">{text}</div>
               <footer>

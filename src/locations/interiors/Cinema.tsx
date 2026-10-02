@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Doodle, Empty, Frame, Icon, Plaque, Thumb, cycle, taglineOf, type InteriorProps } from './common'
+import { BrushText, Doodle, Empty, Frame, Icon, Plaque, Thumb, cycle, taglineOf, type InteriorProps } from './common'
 
 function Player({ src, poster }: { src: string; poster?: string }) {
   const yt = src.match(/(?:youtu\.be\/|v=)([\w-]{6,})/)
@@ -48,7 +48,9 @@ export function Cinema({ location, projects, onOpenProject, onClose }: InteriorP
               {playing && film.video ? <Player src={film.video} poster={film.cover} /> : <Thumb project={film} />}
             </div>
             <div className="ticket-info">
-              <h2>{film.title}</h2>
+              <h2>
+                <BrushText text={film.title} size={30} />
+              </h2>
               {film.subtitle && <p className="int-kicker">{film.subtitle}</p>}
               <p>
                 <Icon name="film" />

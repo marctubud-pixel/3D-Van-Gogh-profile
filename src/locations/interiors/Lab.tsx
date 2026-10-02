@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Doodle, Empty, Frame, Icon, Plaque, Thumb, pad, taglineOf, type InteriorProps } from './common'
+import { BrushText, Doodle, Empty, Frame, Icon, Plaque, Thumb, pad, taglineOf, type InteriorProps } from './common'
 
 export function Lab({ location, projects, onOpenProject }: InteriorProps) {
   const [i, setI] = useState(0)
@@ -39,7 +39,7 @@ export function Lab({ location, projects, onOpenProject }: InteriorProps) {
             <>
               <h2 className="int-h2">
                 <Icon name={p.mediaType === 'video' ? 'film' : p.category} />
-                实验日志 {pad(i + 1)}
+                <BrushText text={`实验日志 ${pad(i + 1)}`} size={24} />
               </h2>
               <p className="int-kicker">— {p.title}</p>
               <div className="folder-body">

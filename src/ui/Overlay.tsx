@@ -15,6 +15,10 @@ export function Overlay({ onClose, onBack, place, bare, children }: { onClose: (
           <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="3" seed="4" />
           <feDisplacementMap in="SourceGraphic" scale="9" />
         </filter>
+        <filter id="paint-edge-s">
+          <feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="2" seed="9" />
+          <feDisplacementMap in="SourceGraphic" scale="4" />
+        </filter>
       </svg>
       {bare ? (
         <div className="overlay-bare" onClick={(e) => e.stopPropagation()}>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Empty, Frame, Icon, Plaque, Thumb, sectionsOf, taglineOf, type InteriorProps } from './common'
+import { BrushText, Empty, Frame, Icon, Plaque, Thumb, sectionsOf, taglineOf, type InteriorProps } from './common'
 
 export function Studio({ location, projects, onOpenProject, onClose }: InteriorProps) {
   const sections = sectionsOf(location, projects)
@@ -27,7 +27,7 @@ export function Studio({ location, projects, onOpenProject, onClose }: InteriorP
         <section className="studio-view">
           <h2 className="int-h2">
             <Icon name={section?.name ?? ''} />
-            {section?.name}
+            <BrushText text={section?.name ?? ''} size={24} />
             <span className="int-paged">
               {list.length ? pi + 1 : 0} / {list.length}
             </span>

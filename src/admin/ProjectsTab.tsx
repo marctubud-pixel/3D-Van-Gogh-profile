@@ -165,7 +165,7 @@ function ProjectEditor({ initial, content, onSaved, onDeleted }: {
           <Field label="排序 ORDER（区块内，越小越前）">
             <input type="number" value={p.order ?? 0} onChange={(e) => set('order', Number(e.target.value))} />
           </Field>
-          <Text label="时长 DURATION（影院显示）" value={p.duration} onChange={(v) => set('duration', v)} placeholder="118 分钟" />
+          <Text label="时长 DURATION（影院片长 / ARCADE 游玩时间）" value={p.duration} onChange={(v) => set('duration', v)} placeholder="118 分钟" />
           <Text label="状态 STATUS（实验室显示）" value={p.status} onChange={(v) => set('status', v)} placeholder="已完成" />
           <Text label="我的角色 MY ROLE" value={p.role} onChange={(v) => set('role', v)} />
           <ListText label="工具 TOOLS" value={p.tools} onChange={(v) => set('tools', v)} />

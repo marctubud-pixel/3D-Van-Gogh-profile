@@ -1,55 +1,64 @@
 import { useState } from 'react'
-import { Empty, Frame, Icon, Plaque, Thumb, pad, taglineOf, type InteriorProps } from './common'
+import { BrushText, Empty, Frame, Icon, Plaque, Thumb, sectionsOf, taglineOf, type InteriorProps } from './common'
 
-export function Arcade({ location, projects, onOpenProject, onClose }: InteriorProps) {
-  const [i, setI] = useState(0)
-  const p = projects[i]
+export function Arcade({ location, projects, onOpenProject }: InteriorProps) {
+  const sections = sectionsOf(location, projects)
+  const [si, setSi] = useState(0)
+  const section = sections[si]
+  const list = section?.projects ?? []
   return (
     <Frame kind="arcade">
       <Plaque title={location.name} sub={taglineOf(location)} />
-      <div className="cabinet">
-        <div className="cabinet-screen">
-          {projects.length ? (
-            <ul className="cartridges">
-              {projects.map((x, k) => (
-                <li key={x.id}>
-                  <button className={k === i ? 'on' : ''} onClick={() => setI(k)} onDoubleClick={() => onOpenProject(x.id)}>
-                    <Thumb project={x} />
-                    <span>
-                      {pad(k + 1)} {x.title}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Empty text="INSERT COIN · 游戏卡带还没放进来" />
-          )}
-        </div>
-        <aside className="cabinet-info">
-          <h2 className="int-h2">
+      <nav className="game-tabs">
+        {sections.map((s, i) => (
+          <button key={s.name} className={i === si ? 'on' : ''} onClick={() => setSi(i)}>
             <Icon name="game" />
-            {p ? p.title : 'NO GAME'}
-          </h2>
-          {p && <p className="folder-text">{p.subtitle || p.context}</p>}
-          {p?.tags?.length ? (
-            <div className="chips">
-              {p.tags.map((t) => (
-                <span key={t}>#{t}</span>
-              ))}
-            </div>
-          ) : null}
-          <p className="int-kicker">{location.question}</p>
-        </aside>
-      </div>
-      <div className="int-actions wide">
-        <button className="int-btn yellow" disabled={!p} onClick={() => p && onOpenProject(p.id)}>
-          ▶ START
-        </button>
-        <button className="int-btn ghost" onClick={onClose}>
-          EXIT
-        </button>
-      </div>
+            {s.name}
+          </button>
+        ))}
+      </nav>
+      <section className="game-board">
+        <header className="game-head">
+          <Icon name="game" />
+          <BrushText text={section?.name ?? location.name} size={28} />
+          <span className="game-motto">
+            PLAY
+            <br />
+            GAMES
+            <br />
+            BE HAPPY
+          </span>
+        </header>
+        <ul className="game-list">
+          {list.map((p) => {
+            const demo = p.externalLink
+            return (
+              <li key={p.id} className="game-row">
+                <button className="game-pick" onClick={() => onOpenProject(p.id)}>
+                  <Thumb project={p} />
+                  <span>
+                    <b>{p.title}</b>
+                    {p.duration ? (
+                      <small>
+                        <Icon name="clock" className="clock" />
+                        游玩时间 {p.duration}
+                      </small>
+                    ) : (
+                      p.subtitle && <small>{p.subtitle}</small>
+                    )}
+                  </span>
+                </button>
+                {demo && (
+                  <a className="int-btn" href={demo} target="_blank" rel="noreferrer">
+                    Play Demo
+                  </a>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+        {!list.length && <Empty text={`「${section?.name ?? ''}」还没有内容，在后台添加作品并选择这个栏目`} />}
+      </section>
     </Frame>
   )
 }

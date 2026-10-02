@@ -136,6 +136,7 @@ export const PROJECT_CATEGORIES = [
 export const DEFAULT_SECTIONS: Record<string, string[]> = {
   'print-house': ['TVC文案', '品牌文案', '电商文案', '人群文案'],
   'brand-museum': ['IP', '艺术', '品牌', '电商'],
+  arcade: ['游戏经历', '游戏制作'],
   'my-studio': ['Photography', 'Reading', 'Vinyl', 'Games', 'Cycling', 'Film', 'Figures'],
 }
 

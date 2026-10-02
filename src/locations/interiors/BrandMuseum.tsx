@@ -1,4 +1,4 @@
-import { Doodle, Frame, Icon, Plaque, Thumb, sectionsOf, taglineOf, type InteriorProps } from './common'
+import { BrushText, Doodle, Frame, Icon, Plaque, Thumb, sectionsOf, taglineOf, type InteriorProps } from './common'
 
 export function BrandMuseum({ location, projects, onOpenProject }: InteriorProps) {
   const sections = sectionsOf(location, projects)
@@ -12,7 +12,7 @@ export function BrandMuseum({ location, projects, onOpenProject }: InteriorProps
             <section key={s.name} className="screen-panel">
               <h2 className="screen-label">
                 <Icon name={s.name} />
-                {s.name}
+                <BrushText text={s.name} size={26} />
               </h2>
               {lead ? <Thumb project={lead} /> : <div className="int-thumb blank"><Icon name={s.name} /></div>}
               <p className="screen-desc">{lead ? lead.subtitle || lead.title : '案例整理中'}</p>

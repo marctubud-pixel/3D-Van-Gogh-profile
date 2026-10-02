@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Frame, Plaque, taglineOf, type InteriorProps } from './common'
+import { BrushText, Frame, Plaque, taglineOf, type InteriorProps } from './common'
 
 function spot(k: number, n: number): [number, number] {
   const a = (k / Math.max(1, n)) * Math.PI * 2 + 0.6
@@ -34,7 +34,9 @@ export function Observatory({ location, projects, onOpenProject }: InteriorProps
         ))}
         <article className="star-card">
           <p className="int-kicker">{location.question}</p>
-          <h2>{cur?.label}</h2>
+          <h2>
+            <BrushText text={cur?.label ?? ''} size={26} />
+          </h2>
           {cur?.text && <p>{cur.text}</p>}
           {cur?.id ? (
             <button className="int-btn" onClick={() => onOpenProject(cur.id)}>
