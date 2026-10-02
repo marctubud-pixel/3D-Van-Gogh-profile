@@ -17,6 +17,7 @@ import {
   landmarkBlockers,
   nearestOnRoute,
   onServiceSquare,
+  wildBlocked,
 } from './island'
 import { type Ramp, type Stroke, Strokes, blob, column, pick, rng, rotateAbout, shade } from './strokes'
 import { playerPos } from './occlusion'
@@ -27,6 +28,7 @@ import { QUALITY, type QualityLevel, levelOf, useQuality } from './quality'
 const ASPHALT: Ramp = { light: ['#8396a0', '#7a8e96'], mid: ['#6f848b', '#667a82', '#748990'], dark: ['#566870', '#5b6e76'] }
 const BUSH: Ramp = { light: ['#9fd48e', '#b7de9c', '#86c784'], mid: ['#5e9d6d', '#4f8f63', '#6aa874', '#3f7a55'], dark: ['#2f6650', '#28584a', '#244c46'] }
 const CANOPY: Ramp = { light: ['#8fcf8a', '#a8d993'], mid: ['#4f8f5f', '#5e9d6d', '#62a06c'], dark: ['#2f6650', '#28584a'] }
+const FOREST_CANOPY: Ramp = { light: ['#7fbf7c', '#93c98a'], mid: ['#3f7f5a', '#4a8a60', '#367352'], dark: ['#21504a', '#1d4540', '#28584a'] }
 const PINE: Ramp = { light: ['#6aa874', '#5e9d6d'], mid: ['#3f7a5a', '#386f52', '#447f5e'], dark: ['#244c46', '#2a5a48'] }
 const TRUNK: Ramp = { light: ['#8a7f76'], mid: ['#6e6660', '#655d57'], dark: ['#4b4440'] }
 const ROCK: Ramp = { light: ['#ece4cb', '#e3d8b8'], mid: ['#d9cfb2', '#cfc4a5'], dark: ['#b2a88c'] }
@@ -35,7 +37,7 @@ const SEA_FOAM = ['#e9f5f0', '#d6efe9', '#f4faf6']
 
 const arc = flatDistance
 
-export type SceneryKind = 'tree' | 'pine' | 'bush' | 'rock'
+export type SceneryKind = 'tree' | 'tall' | 'pine' | 'bush' | 'rock'
 export interface ScenerySpot {
   d: THREE.Vector3
   yaw: number
@@ -210,6 +212,16 @@ function sceneryStrokes(out: Stroke[], spots: ScenerySpot[]) {
       blob(local, r, new THREE.Vector3(0, 2.3, 0), 1.25, CANOPY, 110, 1.5)
       blob(local, r, new THREE.Vector3(0.55, 2.9, 0.2), 0.8, CANOPY, 110, 1.3)
       blob(local, r, new THREE.Vector3(-0.5, 2.6, -0.3), 0.75, CANOPY, 110, 1.3)
+    } else if (sp.kind === 'tall') {
+      // slender trunk and a high, layered crown like the woodland in the reference art
+      const lean = new THREE.Vector3((r() - 0.5) * 0.5, 0, (r() - 0.5) * 0.5)
+      column(local, r, new THREE.Vector3(0, 0, 0), 3.6, 0.17, TRUNK, 70)
+      const top = new THREE.Vector3(0, 3.8, 0).add(lean)
+      blob(local, r, top, 1.35, FOREST_CANOPY, 80, 1.6)
+      for (let k = 0; k < 3; k++) {
+        const a = r() * Math.PI * 2
+        blob(local, r, top.clone().add(new THREE.Vector3(Math.cos(a) * 0.9, 0.4 + r() * 0.9, Math.sin(a) * 0.9)), 0.8 + r() * 0.35, FOREST_CANOPY, 80, 1.4)
+      }
     } else if (sp.kind === 'pine') {
       column(local, r, new THREE.Vector3(0, 0, 0), 1.2, 0.13, TRUNK, 24)
       for (let k = 0; k < 4; k++) blob(local, r, new THREE.Vector3(0, 1.2 + k * 0.75, 0), 0.95 - k * 0.2, PINE, 150, 1.2)
@@ -285,7 +297,7 @@ function meadowTile(tx: number, tz: number, lod: number, q: QualityLevel, c: Cle
     for (let z = tz * TILE; z < (tz + 1) * TILE; z += spacing) {
       d.set(x + (r() - 0.5) * spacing, 0, z + (r() - 0.5) * spacing)
       const hit = nearestOnRoute(d)
-      if (hit.dist < 2.15 || landValue(d, hit) < 2.6 || paved(d, 0)) continue
+      if (hit.dist < 2.15 || landValue(d, hit) < 2.6 || paved(d, 0) || wildBlocked(d, 0.3)) continue
       const low = nearBuilding(d, c, -1.8) ? 0.3 : nearBuilding(d, c, 0) ? 0.5 : 1
       meadowBlades(out, r, d.x, d.z, count, groundHeight(d), scale * low)
     }
@@ -307,7 +319,7 @@ function flatMeadow(c: Clear) {
     for (let z = j0 * TILE; z < (j1 + 1) * TILE; z += step) {
       d.set(x + (r() - 0.5) * step, 0, z + (r() - 0.5) * step)
       const hit = nearestOnRoute(d)
-      if (hit.dist < 2.1 || landValue(d, hit) < 2.6 || paved(d, 0) || nearBuilding(d, c, -1.8)) continue
+      if (hit.dist < 2.1 || landValue(d, hit) < 2.6 || paved(d, 0) || nearBuilding(d, c, -1.8) || wildBlocked(d, 0.3)) continue
       const f = windAngle(d.x, d.z)
       const zone = meadowZone(d.x, d.z)
       out.push({

@@ -309,3 +309,46 @@ export function landmarkBlockers(l: { id: string; lat: number; lon: number }) {
   const a = locationAnchors(locationPoint(l), l.id)
   return [a.building, a.parking, ...landmarkColliders(a, l.id).map((c) => c.at)]
 }
+
+/** Woodland in the loop's southern interior, crossed by a creek that runs from a rock spring into the bay. */
+export const FOREST = { center: planPoint(15, -25), r: 24 }
+const CREEK_PLAN: [number, number][] = [
+  [-6, -36], [2, -31], [10, -30], [18, -33], [25, -32], [32, -27], [38, -22], [45, -19], [50, -18], [56, -17], [61, -16],
+]
+export const CREEK = new THREE.CatmullRomCurve3(CREEK_PLAN.map(([x, y]) => planPoint(x, y))).getSpacedPoints(140)
+const CREEK_BOX = (() => {
+  const b = new THREE.Box3().setFromPoints(CREEK)
+  return b.expandByScalar(4)
+})()
+/** Half-width of the creek at polyline sample `i` (widens toward the mouth). */
+export const creekHalf = (i: number) => 0.9 + (i / (CREEK.length - 1)) * 0.9
+
+/** Distance from `d` to the creek's water edge (negative inside the water); Infinity well away from it. */
+export function creekEdge(d: THREE.Vector3) {
+  if (d.x < CREEK_BOX.min.x || d.x > CREEK_BOX.max.x || d.z < CREEK_BOX.min.z || d.z > CREEK_BOX.max.z) return Infinity
+  let best = Infinity
+  for (let i = 0; i < CREEK.length - 1; i++) {
+    const a = CREEK[i]
+    const b = CREEK[i + 1]
+    const abx = b.x - a.x
+    const abz = b.z - a.z
+    const t = THREE.MathUtils.clamp(((d.x - a.x) * abx + (d.z - a.z) * abz) / (abx * abx + abz * abz), 0, 1)
+    const e = Math.hypot(d.x - a.x - abx * t, d.z - a.z - abz * t) - creekHalf(i + t)
+    if (e < best) best = e
+  }
+  return best
+}
+
+/** Sandstone outcrops with mossy tops, after the cliffs in the reference art. */
+export const MESAS = [
+  { at: planPoint(-8, -38), r: 5.5, h: 9, seed: 1 },
+  { at: planPoint(32, -38), r: 4.5, h: 6.5, seed: 2 },
+  { at: planPoint(-15, -5), r: 6.5, h: 8, seed: 3 },
+  { at: planPoint(-30, -20), r: 5, h: 7, seed: 4 },
+  { at: planPoint(25, -10), r: 4, h: 5.5, seed: 5 },
+]
+
+/** True where the ground is creek water or under an outcrop (no grass, props or houses there). */
+export function wildBlocked(d: THREE.Vector3, pad = 0) {
+  return creekEdge(d) < pad || MESAS.some((m) => flatDistance(d, m.at) < m.r + pad)
+}

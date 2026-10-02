@@ -6,7 +6,7 @@ import { inputLocked, useGame } from '../app/game'
 import { Bike } from '../bike/Bike'
 import { CAMERA } from '../camera/config'
 import { BUILDING_RADIUS, LANDMARK_FIT, NORTH, SERVICE_CENTER, UP, flatDir, flatDistance, planPoint, pointToPlan, modelScale, yawQuaternion } from '../world/plane'
-import { SERVICE_POINT, groundHeight, landmarkColliders, locationAnchors, locationPoint, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
+import { MESAS, SERVICE_POINT, groundHeight, landmarkColliders, locationAnchors, locationPoint, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
 import { camFocus, playerPos } from '../world/occlusion'
 import { LOT_RADIUS, townLots } from '../world/townLayout'
 import { dusk } from '../world/daynight'
@@ -60,6 +60,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     () => [
       ...anchors.flatMap((a) => landmarkColliders(a, a.loc.id)),
       { at: SERVICE_POINT, r: SERVICE_CENTER.radius },
+      ...MESAS.map((m) => ({ at: m.at, r: m.r })),
       ...townLots(locations)
         .filter((l) => l.kind !== 'garden')
         .map((l) => ({ at: l.at, r: LOT_RADIUS })),

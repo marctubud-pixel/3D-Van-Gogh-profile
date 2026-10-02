@@ -14,7 +14,10 @@ import {
   ROUTE_S,
   ROUTE_TAN,
   SERVICE_POINT,
+  CREEK,
+  FOREST,
   beachWidth,
+  creekEdge,
   deckHeight,
   groundHeight,
   hillHeight,
@@ -25,7 +28,9 @@ import {
   routeFrame,
   routePoint,
   surf,
+  wildBlocked,
 } from './island'
+import { Forest } from './Forest'
 import { townLots } from './townLayout'
 import { dusk } from './daynight'
 import { GroundPaint, type ScenerySpot, meadowTone } from './GroundPaint'
@@ -81,6 +86,11 @@ function PlanetBody() {
         const h = hillHeight(v)
         y = h
         c.copy(MEADOW_GROUND)
+        const e = creekEdge(v)
+        if (e < 0.6) {
+          y = h - 0.42 * THREE.MathUtils.smoothstep(0.6 - e, 0, 1.2)
+          c.set(e < 0 ? SHALLOW : '#cfc6ab')
+        }
       }
       pos.setXYZ(i, v.x, y, v.z)
       colors.set([c.r, c.g, c.b], i * 3)
@@ -526,6 +536,7 @@ function useProps(locations: WorldLocation[]) {
       if (arc(bl.service, d) < 10 || arc(bl.plaza, d) < 7.5) return null
       if (bl.lots.some((b) => arc(b, d) < 4.5)) return null
       if (arc(POND.center, d) < POND.r + 1.2) return null
+      if (wildBlocked(d, 1.2)) return null
       return landValue(d, hit)
     }
     const push = (d: THREE.Vector3, kind: ScenerySpot['kind'], s: number) => spots.push({ d, yaw: rand() * Math.PI * 2, kind, s })
@@ -536,6 +547,7 @@ function useProps(locations: WorldLocation[]) {
       const land = free(d)
       if (land === null || land < 0.6) continue
       if (arc(d, PARK.center) < PARK.r + 2) continue
+      if (arc(d, FOREST.center) < FOREST.r) continue
       if (land < 3) {
         if (rand() < 0.5) push(d, 'rock', 0.6 + rand() * 0.8)
         continue
@@ -557,6 +569,27 @@ function useProps(locations: WorldLocation[]) {
       if (arc(d, PARK.center) < PARK.r - 5 && rand() < 0.7) continue
       push(d, rand() > 0.3 ? 'tree' : 'bush', 0.9 + rand() * 0.5)
       park++
+    }
+    // woodland: tall broadleaf trees thinning toward the rim, bushes and boulders along the creek
+    guard = 0
+    const forest: THREE.Vector3[] = []
+    while (forest.length < 70 && guard++ < 6000) {
+      const d = FOREST.center.clone().addScaledVector(randomHeading(rand), FOREST.r * Math.sqrt(rand()))
+      const land = free(d, 6)
+      if (land === null || land < 3 || wildBlocked(d, 2)) continue
+      if (arc(d, FOREST.center) > FOREST.r * 0.7 && rand() < 0.5) continue
+      if (forest.some((f) => arc(f, d) < 3)) continue
+      forest.push(d)
+      push(d, rand() > 0.2 ? 'tall' : 'tree', 1 + rand() * 0.6)
+    }
+    for (let k = 0, n = 0; k < 900 && n < 60; k++) {
+      const i = Math.floor(rand() * CREEK.length)
+      const side = new THREE.Vector3(rand() - 0.5, 0, rand() - 0.5).normalize()
+      const d = CREEK[i].clone().addScaledVector(side, 2.2 + rand() * 2.5)
+      const land = free(d, 5)
+      if (land === null || land < 3 || wildBlocked(d, 0.4)) continue
+      push(d, rand() > 0.45 ? 'bush' : 'rock', 0.6 + rand() * 0.7)
+      n++
     }
     return spots
   }, [bl])
@@ -624,6 +657,7 @@ export function Planet({ locations }: { locations: WorldLocation[] }) {
       <Plaza />
       <Park />
       <BeachLounge />
+      <Forest />
       <GroundPaint locations={locations} scenery={scenery} />
     </group>
   )
