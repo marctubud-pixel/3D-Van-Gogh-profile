@@ -114,7 +114,7 @@ const LAWN = {
   accent: ['#6f8fb0', '#8a86b8', '#e8e6c8'],
 }
 
-const MEADOW_TONES = ['#1f5249', '#2f6b55', '#4f9152', '#78b04f', '#a6cc5c', '#c7dc78'].map((c) => new THREE.Color(c))
+const MEADOW_TONES = ['#1f4a45', '#2f6454', '#4d8556', '#72a35c', '#98bf6c', '#bad289'].map((c) => new THREE.Color(c))
 
 /** 0 = deep teal shadow mass, 1 = sunlit yellow-green; large soft zones like blocked-in paint. */
 export function meadowZone(x: number, z: number) {
@@ -146,11 +146,11 @@ export function meadowBlades(out: Stroke[], r: () => number, x: number, z: numbe
     const arched = r() < 0.65
     const lean = arched ? 0.15 + r() * 0.3 : (r() - 0.4) * 0.35
     const bend = arched ? 0.32 + r() * 0.2 : 0.06 + r() * 0.1
-    const L = (arched ? 0.45 + r() * 0.4 : 0.25 + r() * 0.25) * (0.8 + zone * 0.4)
+    const L = (arched ? 0.4 + r() * 0.3 : 0.22 + r() * 0.2) * (0.8 + zone * 0.4)
     const segs = arched ? 4 : 2
     const seg = L / segs
-    const wid = 0.055 + r() * 0.035
-    const base = zone - 0.18 + (r() - 0.5) * 0.12
+    const wid = 0.09 + r() * 0.05
+    const base = r() < 0.06 ? 0 : zone - 0.18 + (r() - 0.5) * 0.12
     const p = new THREE.Vector3(x + (r() - 0.5) * 0.16, 0, z + (r() - 0.5) * 0.16)
     for (let k = 0; k < segs; k++) {
       const th = lean + bend * k

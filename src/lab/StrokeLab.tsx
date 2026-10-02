@@ -601,6 +601,7 @@ export default function StrokeLab() {
 }
 
 const MEADOW_R = 11
+const HOUSE_Z = -6.2
 
 function meadowStrokes() {
   const r = rng(5)
@@ -609,6 +610,7 @@ function meadowStrokes() {
   for (let x = -MEADOW_R; x < MEADOW_R; x += spacing) {
     for (let z = -MEADOW_R; z < MEADOW_R; z += spacing) {
       if (x * x + z * z > MEADOW_R * MEADOW_R || Math.abs(z - Math.sin(x * 0.25) * 1.2) < 0.7) continue
+      if (Math.abs(x) < 4 && z > HOUSE_Z - 2.7 && z < HOUSE_Z + 3.1) continue
       meadowBlades(out, r, x + (r() - 0.5) * spacing, z + (r() - 0.5) * spacing, 2)
     }
   }
@@ -617,7 +619,7 @@ function meadowStrokes() {
 
 /** Standalone meadow for judging grass density and brushwork up close. */
 function GrassLab() {
-  const v = (new URLSearchParams(window.location.search).get('cam') ?? '-6,1.4,1.2,2,0.4,0').split(',').map(Number)
+  const v = (new URLSearchParams(window.location.search).get('cam') ?? '3.5,1.7,3.5,0,1.4,-5').split(',').map(Number)
   const strokes = useMemo(meadowStrokes, [])
   const ground = useMemo(() => {
     const sub = new THREE.RingGeometry(0.01, MEADOW_R + 0.5, 160, 70)
@@ -660,6 +662,11 @@ function GrassLab() {
           <meshBasicMaterial color="#9b8f74" side={THREE.DoubleSide} />
         </mesh>
         <Strokes strokes={strokes} />
+        <group position={[0, 0, HOUSE_Z]}>
+          <StrokeBuild seed={11}>
+            <WriteHouse name="WRITE HOUSE" />
+          </StrokeBuild>
+        </group>
         <OrbitControls target={[v[3], v[4], v[5]]} enableDamping />
       </Canvas>
     </div>
