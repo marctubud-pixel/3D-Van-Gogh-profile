@@ -114,33 +114,60 @@ const LAWN = {
   accent: ['#6f8fb0', '#8a86b8', '#e8e6c8'],
 }
 
+const MEADOW_TONES = ['#1f5249', '#2f6b55', '#4f9152', '#78b04f', '#a6cc5c', '#c7dc78'].map((c) => new THREE.Color(c))
+
+/** 0 = deep teal shadow mass, 1 = sunlit yellow-green; large soft zones like blocked-in paint. */
+export function meadowZone(x: number, z: number) {
+  const v = Math.sin(x * 0.31 + Math.cos(z * 0.27) * 1.6) * 0.55 + Math.sin(z * 0.42 - x * 0.18) * 0.35 + Math.sin((x + z) * 0.9) * 0.1
+  return THREE.MathUtils.clamp(0.55 + v * 0.55, 0, 1)
+}
+
+/** Colour along the meadow tone ramp, sampled at `t` in [0, 1]. */
+export function meadowTone(t: number, out = new THREE.Color()) {
+  const f = THREE.MathUtils.clamp(t, 0, 1) * (MEADOW_TONES.length - 1)
+  const i = Math.min(Math.floor(f), MEADOW_TONES.length - 2)
+  return out.copy(MEADOW_TONES[i]).lerp(MEADOW_TONES[i + 1], f - i)
+}
+
+const FLOWER = ['#e9c13c', '#f0d257', '#d9a92e']
+const FLECK = ['#f2f0e2', '#b9d4e8', '#e6e8f2']
+
 /**
- * Dense painted meadow: overlapping flat blades of varying height, most standing with a slight
- * bend downwind, a share lying flat, so the sward closes over the ground like the wheat in the reference.
+ * Painted meadow after Van Gogh's green wheat fields: sickle-shaped blades that sweep up and arc over
+ * downwind, toned from the local light/shadow zone so strokes read as masses rather than confetti.
  */
 export function meadowBlades(out: Stroke[], r: () => number, x: number, z: number, count: number) {
   const flow = windAngle(x, z)
-  const clump = 0.75 + 0.5 * (0.5 + 0.5 * Math.sin(x * 1.3 + z * 0.9) * Math.cos(z * 1.1 - x * 0.4))
+  const zone = meadowZone(x, z)
   for (let b = 0; b < count; b++) {
-    const yaw = flow + (r() - 0.5) * 0.9
+    const yaw = flow + (r() - 0.5) * 0.5
     const w = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw))
     const across = new THREE.Vector3(-w.z, 0, w.x)
-    const lying = r() < 0.22
-    const lean = lying ? 1.15 + r() * 0.3 : (r() - 0.3) * 0.45
-    const bend = lying ? 0.05 : 0.12 + r() * 0.25
-    const L = (lying ? 0.3 + r() * 0.3 : 0.22 + r() * 0.38) * clump
-    const wid = 0.07 + r() * 0.05
-    const seg = L / 2
-    const tall = L / clump > 0.42
-    const p = new THREE.Vector3(x + (r() - 0.5) * 0.14, lying ? 0.02 + r() * 0.08 : 0, z + (r() - 0.5) * 0.14)
-    for (let k = 0; k < 2; k++) {
+    const arched = r() < 0.65
+    const lean = arched ? 0.15 + r() * 0.3 : (r() - 0.4) * 0.35
+    const bend = arched ? 0.32 + r() * 0.2 : 0.06 + r() * 0.1
+    const L = (arched ? 0.45 + r() * 0.4 : 0.25 + r() * 0.25) * (0.8 + zone * 0.4)
+    const segs = arched ? 4 : 2
+    const seg = L / segs
+    const wid = 0.055 + r() * 0.035
+    const base = zone - 0.18 + (r() - 0.5) * 0.12
+    const p = new THREE.Vector3(x + (r() - 0.5) * 0.16, 0, z + (r() - 0.5) * 0.16)
+    for (let k = 0; k < segs; k++) {
       const th = lean + bend * k
       const dir = UP.clone().multiplyScalar(Math.cos(th)).addScaledVector(w, Math.sin(th)).normalize()
       const n = new THREE.Vector3().crossVectors(across, dir).normalize()
-      const ramp = lying ? (r() < 0.5 ? LAWN.body : LAWN.root) : k === 0 ? (r() < 0.6 ? LAWN.root : LAWN.body) : tall && r() < 0.7 ? LAWN.tip : r() < 0.04 ? LAWN.accent : LAWN.body
-      out.push({ p: p.clone().addScaledVector(dir, seg / 2), n, dir, len: seg * 1.4, wid: wid * (1 - k * 0.2), color: new THREE.Color(pick(r, ramp)) })
+      const lift = arched && k === segs - 2 && r() < 0.35 ? 0.35 : (k / segs) * 0.22
+      out.push({ p: p.clone().addScaledVector(dir, seg / 2), n, dir, len: seg * 1.45, wid: wid * (1 - k * 0.15), color: meadowTone(base + lift) })
       p.addScaledVector(dir, seg)
     }
+  }
+  if (zone > 0.45 && r() < 0.012) {
+    for (let k = 0; k < 5; k++) {
+      const a = r() * Math.PI * 2
+      out.push({ p: new THREE.Vector3(x + (r() - 0.5) * 0.5, 0.3 + r() * 0.2, z + (r() - 0.5) * 0.5), n: new THREE.Vector3(Math.cos(a), 0.6, Math.sin(a)).normalize(), dir: new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)), len: 0.09, wid: 0.07, color: new THREE.Color(pick(r, FLOWER)) })
+    }
+  } else if (r() < 0.01) {
+    out.push({ p: new THREE.Vector3(x, 0.25 + r() * 0.15, z), n: UP, dir: new THREE.Vector3(Math.cos(flow), 0, Math.sin(flow)), len: 0.07, wid: 0.05, color: new THREE.Color(pick(r, FLECK)) })
   }
 }
 

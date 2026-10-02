@@ -3,7 +3,7 @@ import { Canvas } from '@react-three/fiber'
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import { Arcade, Cinema, CreativeMuseum, ExperimentLab, Observatory, ServiceCenter, Studio, WriteHouse } from '../locations/buildings'
-import { meadowBlades } from '../world/GroundPaint'
+import { meadowBlades, meadowTone, meadowZone } from '../world/GroundPaint'
 import { LIGHT, StrokeBuild, type Stroke, Strokes, blob, column, pick, rng, rotateAbout, shade } from '../world/strokes'
 
 const WALL = {
@@ -605,11 +605,11 @@ const MEADOW_R = 11
 function meadowStrokes() {
   const r = rng(5)
   const out: Stroke[] = []
-  const spacing = 0.15
+  const spacing = 0.16
   for (let x = -MEADOW_R; x < MEADOW_R; x += spacing) {
     for (let z = -MEADOW_R; z < MEADOW_R; z += spacing) {
       if (x * x + z * z > MEADOW_R * MEADOW_R || Math.abs(z - Math.sin(x * 0.25) * 1.2) < 0.7) continue
-      meadowBlades(out, r, x + (r() - 0.5) * spacing, z + (r() - 0.5) * spacing, 3)
+      meadowBlades(out, r, x + (r() - 0.5) * spacing, z + (r() - 0.5) * spacing, 2)
     }
   }
   return out
@@ -619,6 +619,19 @@ function meadowStrokes() {
 function GrassLab() {
   const v = (new URLSearchParams(window.location.search).get('cam') ?? '-6,1.4,1.2,2,0.4,0').split(',').map(Number)
   const strokes = useMemo(meadowStrokes, [])
+  const ground = useMemo(() => {
+    const sub = new THREE.RingGeometry(0.01, MEADOW_R + 0.5, 160, 70)
+    sub.rotateX(-Math.PI / 2)
+    const pos = sub.getAttribute('position')
+    const col: number[] = []
+    const c = new THREE.Color()
+    for (let i = 0; i < pos.count; i++) {
+      meadowTone(meadowZone(pos.getX(i), pos.getZ(i)) - 0.3, c)
+      col.push(c.r, c.g, c.b)
+    }
+    sub.setAttribute('color', new THREE.Float32BufferAttribute(col, 3))
+    return sub
+  }, [])
   const path = useMemo(() => {
     const g = new THREE.BufferGeometry()
     const pos: number[] = []
@@ -640,9 +653,8 @@ function GrassLab() {
           scene.background = new THREE.Color('#8fd0c8')
         }}
       >
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[MEADOW_R + 0.5, 64]} />
-          <meshBasicMaterial color="#3f7a55" />
+        <mesh geometry={ground}>
+          <meshBasicMaterial vertexColors />
         </mesh>
         <mesh geometry={path}>
           <meshBasicMaterial color="#9b8f74" side={THREE.DoubleSide} />
