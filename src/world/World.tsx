@@ -4,7 +4,7 @@ import { Component, useLayoutEffect, useRef, type ReactNode, type RefObject } fr
 import * as THREE from 'three'
 import { QUALITY, useQuality, useQualityLevel } from './quality'
 import { dusk, nightOf, useDayNight } from './daynight'
-import { setNightTint } from './strokes'
+import { setLitGlow, setNightTint } from './strokes'
 import { StreetLamps } from './StreetLamps'
 import type { WorldLocation } from '../../shared/types'
 import { useGame } from '../app/game'
@@ -71,7 +71,7 @@ function SunRig({ sun }: { sun: RefObject<THREE.DirectionalLight | null> }) {
 }
 
 const DAY = { bg: new THREE.Color('#9fdbd2'), amb: new THREE.Color('#c9dcdc'), sun: new THREE.Color('#fff6e6'), tint: new THREE.Color(1, 1, 1) }
-const NIGHT = { bg: new THREE.Color('#1a2a48'), amb: new THREE.Color('#6f84b8'), sun: new THREE.Color('#9fb4e8'), tint: new THREE.Color(0.42, 0.48, 0.7) }
+const NIGHT = { bg: new THREE.Color('#1b2a4a'), amb: new THREE.Color('#c9dcdc'), sun: new THREE.Color('#fff6e6'), tint: new THREE.Color(0.46, 0.46, 0.48) }
 
 /** Eases between day and night: background, light colour/intensity and the tint of every unlit painted material. */
 function DayNightRig({ ambient, sun }: { ambient: RefObject<THREE.AmbientLight | null>; sun: RefObject<THREE.DirectionalLight | null> }) {
@@ -92,6 +92,7 @@ function DayNightRig({ ambient, sun }: { ambient: RefObject<THREE.AmbientLight |
       sun.current.intensity = THREE.MathUtils.lerp(1.9, 0.45, k)
     }
     setNightTint(tint.current.lerpColors(DAY.tint, NIGHT.tint, k))
+    setLitGlow(k)
   })
   return null
 }

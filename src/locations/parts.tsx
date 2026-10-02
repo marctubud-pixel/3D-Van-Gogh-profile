@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
-import { type Stroke, StrokePaint, dab, painted, pick, rampFor, useStrokeBuild } from '../world/strokes'
+import { type Stroke, StrokePaint, dab, litToon, painted, pick, rampFor, useStrokeBuild } from '../world/strokes'
 import { Toon, geo, toonMaterial } from '../world/toon'
 
 export type V3 = [number, number, number]
@@ -205,7 +205,7 @@ export const glassMaterial = (() => {
   m.transparent = true
   m.opacity = 0.38
   m.depthWrite = false
-  return m
+  return litToon(m)
 })()
 
 const gridCache = new Map<string, THREE.CanvasTexture>()

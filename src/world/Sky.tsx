@@ -39,13 +39,57 @@ void main() {
   float band = smoothstep(-0.02, 0.18, h) * (1.0 - smoothstep(0.7, 0.95, h));
   float cloud = step(0.6, n * (0.55 + band * 0.6));
   col = mix(col, vec3(0.69, 0.90, 0.85), cloud);
-  // night: deep painted blue, dimmer cloud patches and a scatter of star dabs
-  vec3 nsky = mix(vec3(0.13, 0.20, 0.36), vec3(0.06, 0.10, 0.22), smoothstep(0.0, 0.8, h));
-  nsky *= 1.0 + k.y * k.x * 0.08;
-  nsky = mix(nsky, vec3(0.20, 0.28, 0.44), cloud * 0.8);
-  vec3 sd = floor(d * 160.0);
-  float star = step(0.9965, hash(sd)) * smoothstep(0.05, 0.3, h) * (1.0 - cloud);
-  nsky = mix(nsky, vec3(1.0, 0.95, 0.78), star);
+  // night: Starry Night sky -- a rolling cobalt current, curling vortices, haloed stars and a crescent moon
+  float az = atan(d.z, d.x);
+  float hh = max(h, 0.0);
+  vec3 nsky = mix(vec3(0.17, 0.29, 0.52), vec3(0.06, 0.12, 0.33), smoothstep(0.0, 0.75, hh));
+  float flow = fbm(vec3(az * 1.6, hh * 3.0, time * 0.01));
+  // long horizontal current that waves across the sky
+  float wy = hh - 0.42 - 0.07 * sin(az * 3.0 + 1.3) - (flow - 0.5) * 0.12;
+  float current = exp(-wy * wy / 0.012);
+  float streak = 0.5 + 0.5 * sin(wy * 110.0 + sin(az * 2.0) * 1.5 + flow * 6.0);
+  // a couple of big curls riding on the current
+  float swirl = 0.0;
+  float ring = 0.0;
+  for (int i = 0; i < 4; i++) {
+    float fi = float(i);
+    vec2 c = vec2(-2.4 + fi * 1.7, 0.45 + 0.06 * sin(fi * 2.1));
+    float da = mod(az - c.x + 3.14159, 6.28318) - 3.14159;
+    vec2 o = vec2(da * 0.55, hh - c.y);
+    float r = length(o);
+    float R = 0.16 + 0.05 * fi * (2.0 - fi) * 0.5;
+    float w = exp(-r * r / (R * R));
+    float ang = atan(o.y, o.x);
+    ring = max(ring, w * (0.5 + 0.5 * sin(r * 70.0 - ang * 2.0 + flow * 4.0)));
+    swirl = max(swirl, w);
+  }
+  vec2 sk = dabs(vec2(az * 30.0 + wy * 40.0, hh * 48.0 + flow * 6.0), 0.5);
+  nsky = mix(nsky, mix(vec3(0.20, 0.38, 0.66), vec3(0.42, 0.62, 0.80), streak), current * 0.75);
+  nsky = mix(nsky, mix(vec3(0.16, 0.34, 0.62), vec3(0.62, 0.78, 0.86), ring), swirl * 0.85);
+  nsky *= 0.9 + sk.x * sk.y * 0.25;
+  // haloed stars: each cell may hold one star with concentric yellow rings
+  vec2 sc = vec2(az * 7.0, hh * 9.0);
+  vec2 cell = floor(sc);
+  vec2 f = fract(sc) - 0.5;
+  float hs = hash(vec3(cell, 3.0));
+  float sr = length(f + (vec2(hash(vec3(cell, 5.0)), hash(vec3(cell, 9.0))) - 0.5) * 0.4);
+  float on = step(0.72, hs) * smoothstep(0.08, 0.25, hh);
+  float halo = on * (smoothstep(0.32, 0.0, sr) * (0.55 + 0.45 * sin(sr * 60.0)));
+  float core = on * smoothstep(0.09, 0.03, sr);
+  nsky = mix(nsky, vec3(0.93, 0.88, 0.52), halo * 0.55);
+  nsky = mix(nsky, vec3(1.0, 0.97, 0.80), core);
+  // small scattered stars
+  float star = step(0.997, hash(floor(d * 150.0))) * smoothstep(0.05, 0.3, hh);
+  nsky = mix(nsky, vec3(1.0, 0.95, 0.75), star);
+  // crescent moon with a glowing ring
+  vec3 md = normalize(vec3(0.62, 0.5, -0.6));
+  float mr = acos(clamp(dot(d, md), -1.0, 1.0));
+  vec3 md2 = normalize(md + vec3(0.03, 0.02, 0.03));
+  float mr2 = acos(clamp(dot(d, md2), -1.0, 1.0));
+  float moon = smoothstep(0.075, 0.068, mr) * smoothstep(0.06, 0.068, mr2);
+  float mhalo = smoothstep(0.32, 0.07, mr) * (0.6 + 0.4 * sin(mr * 120.0));
+  nsky = mix(nsky, vec3(0.95, 0.85, 0.45), mhalo * 0.6);
+  nsky = mix(nsky, vec3(1.0, 0.86, 0.35), moon);
   col = mix(col, nsky, night);
   gl_FragColor = vec4(col, 1.0);
 }

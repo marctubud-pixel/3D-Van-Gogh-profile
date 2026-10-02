@@ -75,6 +75,85 @@ export function tintable<M extends THREE.MeshBasicMaterial>(m: M) {
   tinted.add(m)
   return m
 }
+/** Lantern glass colour; parts painted in a lit colour glow warm at night instead of darkening. */
+export const LANTERN = '#ffe9a8'
+const LIT_COLORS = new Set(['#8fb8c4', '#a9cfd6', LANTERN])
+export const isLit = (color: string) => LIT_COLORS.has(color)
+const WARM = new THREE.Color(2.6, 1.9, 0.75)
+const WHITE = new THREE.Color(1, 1, 1)
+const litMats = new Set<THREE.MeshBasicMaterial>()
+const litToons = new Set<THREE.MeshToonMaterial>()
+let litK = 0
+function litColor(k: number, out: THREE.Color) {
+  return out.lerpColors(WHITE, WARM, k)
+}
+/** Registers a basic material whose colour turns warm and bright as night falls. */
+export function lit<M extends THREE.MeshBasicMaterial>(m: M) {
+  m.toneMapped = false
+  if (!m.userData.base) m.userData.base = m.color.clone()
+  m.color.copy(m.userData.base as THREE.Color).multiply(litColor(litK, new THREE.Color()))
+  litMats.add(m)
+  return m
+}
+/** Registers a toon material that gains a warm emissive glow at night. */
+export function litToon<M extends THREE.MeshToonMaterial>(m: M) {
+  litToons.add(m)
+  return m
+}
+let litBrush: THREE.MeshBasicMaterial | null = null
+export const litBrushMat = () =>
+  (litBrush ??= lit(new THREE.MeshBasicMaterial({ map: brushTexture(), alphaTest: 0.5, side: THREE.DoubleSide })))
+/** Night amount 0..1 for every lit material. */
+export function setLitGlow(k: number) {
+  if (k === litK) return
+  litK = k
+  const c = litColor(k, new THREE.Color())
+  for (const m of litMats) m.color.copy(m.userData.base as THREE.Color).multiply(c)
+  for (const m of litToons) {
+    m.emissive.setRGB(1, 0.82, 0.45)
+    m.emissiveIntensity = k * 0.9
+  }
+}
+
+let glowTex: THREE.CanvasTexture | null = null
+/** Soft round light pool with ragged, dabbed falloff, for additive glows on the ground and round lamps. */
+export function glowTexture() {
+  if (glowTex) return glowTex
+  const S = 128
+  const c = document.createElement('canvas')
+  c.width = c.height = S
+  const g = c.getContext('2d')
+  if (g) {
+    const grad = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2)
+    grad.addColorStop(0, 'rgba(255,255,255,0.95)')
+    grad.addColorStop(0.35, 'rgba(255,255,255,0.55)')
+    grad.addColorStop(1, 'rgba(255,255,255,0)')
+    g.fillStyle = grad
+    g.fillRect(0, 0, S, S)
+    const r = rng(3)
+    g.globalCompositeOperation = 'destination-out'
+    for (let i = 0; i < 90; i++) {
+      const a = r() * Math.PI * 2
+      const d = (0.25 + r() * 0.7) * (S / 2)
+      g.save()
+      g.translate(S / 2 + Math.cos(a) * d, S / 2 + Math.sin(a) * d)
+      g.rotate(a + Math.PI / 2)
+      g.fillStyle = `rgba(0,0,0,${0.15 + r() * 0.25})`
+      g.beginPath()
+      g.ellipse(0, 0, 9 + r() * 8, 2 + r() * 2, 0, 0, Math.PI * 2)
+      g.fill()
+      g.restore()
+    }
+  }
+  glowTex = new THREE.CanvasTexture(c)
+  glowTex.colorSpace = THREE.SRGBColorSpace
+  return glowTex
+}
+/** Additive glow material for light pools and halos; set `opacity` to fade it. */
+export function glowPoolMat(color: string) {
+  return new THREE.MeshBasicMaterial({ map: glowTexture(), color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })
+}
+
 /** Multiplies every unlit painted material by `c` (white = daylight). */
 export function setNightTint(c: THREE.Color) {
   if (tintColor.equals(c)) return
@@ -321,7 +400,8 @@ const baseCache = new Map<string, THREE.MeshBasicMaterial>()
 function baseMaterial(color: string) {
   let m = baseCache.get(color)
   if (!m) {
-    m = tintable(new THREE.MeshBasicMaterial({ color: rampFor(color).mid[1], polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 }))
+    const raw = new THREE.MeshBasicMaterial({ color: rampFor(color).mid[1], polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 })
+    m = isLit(color) ? lit(raw) : tintable(raw)
     baseCache.set(color, m)
   }
   return m
@@ -411,6 +491,7 @@ export function StrokeBuild({ seed = 1, children }: { seed?: number; children: R
   const reg = useMemo(() => new StrokeRegistry(), [])
   const [version, setVersion] = useState(0)
   const [strokes, setStrokes] = useState<Stroke[]>([])
+  const [glow, setGlow] = useState<Stroke[]>([])
   const [bases, setBases] = useState<{ color: string; geometry: THREE.BufferGeometry }[]>([])
   useLayoutEffect(() => () => bases.forEach((b) => b.geometry.dispose()), [bases])
   useLayoutEffect(() => {
@@ -426,6 +507,7 @@ export function StrokeBuild({ seed = 1, children }: { seed?: number; children: R
     const inv = g.matrixWorld.clone().invert()
     const r = rng(seed)
     const out: Stroke[] = []
+    const litOut: Stroke[] = []
     const m = new THREE.Matrix4()
     const nm = new THREE.Matrix3()
     for (const part of reg.parts) {
@@ -440,9 +522,10 @@ export function StrokeBuild({ seed = 1, children }: { seed?: number; children: R
             dir: k.dir.clone().transformDirection(m),
           })
         }
-      } else paintGeometry(out, r, part.geometry, m, part.color, part.outline)
+      } else paintGeometry(isLit(part.color) ? litOut : out, r, part.geometry, m, part.color, part.outline)
     }
     setStrokes(out)
+    setGlow(litOut)
     setBases(mergeBases(reg.parts, inv))
   }, [reg, seed, version])
   return (
@@ -452,6 +535,7 @@ export function StrokeBuild({ seed = 1, children }: { seed?: number; children: R
         <mesh key={b.geometry.uuid} geometry={b.geometry} material={baseMaterial(b.color)} />
       ))}
       {strokes.length > 0 && <Strokes key={strokes.length} strokes={strokes} />}
+      {glow.length > 0 && <Strokes key={`g${glow.length}`} strokes={glow} material={litBrushMat()} />}
     </group>
   )
 }

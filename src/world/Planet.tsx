@@ -20,6 +20,7 @@ import {
   landValue,
   landmarkBlockers,
   nearestOnRoute,
+  onServiceSquare,
   routeFrame,
   routePoint,
   surf,
@@ -245,7 +246,7 @@ function loungeSpot() {
       const at = SERVICE_POINT.clone().add(new THREE.Vector3(Math.cos((a / 72) * Math.PI * 2) * rad, 0, Math.sin((a / 72) * Math.PI * 2) * rad))
       const land = landValue(at)
       if (land < 0.6 || land > beachWidth(at) * 0.75) continue
-      if (nearestOnRoute(at).dist < 5) continue
+      if (nearestOnRoute(at).dist < 5 || onServiceSquare(at, 1.5)) continue
       if (!best || rad < best.d) best = { at, d: rad }
       break
     }

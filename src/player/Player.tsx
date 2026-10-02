@@ -9,6 +9,9 @@ import { BUILDING_RADIUS, NORTH, SERVICE_CENTER, UP, flatDir, flatDistance, plan
 import { SERVICE_POINT, groundHeight, landmarkColliders, locationAnchors, locationPoint, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
 import { camFocus, playerPos } from '../world/occlusion'
 import { LOT_RADIUS, townLots } from '../world/townLayout'
+import { dusk } from '../world/daynight'
+import { useQualityLevel } from '../world/quality'
+import { glowPoolMat } from '../world/strokes'
 import { Avatar } from './Avatar'
 
 const RIDE_MAX = 6
@@ -469,11 +472,79 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     <>
       <group ref={bikeGroup}>
         <Bike speed={speed} steer={steer} crank={crank} kickstand={mode === 'walk'} />
+        <BikeLamp on={mode === 'ride'} />
         {mode === 'ride' && <Avatar pose="ride" speed={speed} crank={crank} steer={steer} />}
       </group>
+      <HeadlightPool rider={rider} on={mode === 'ride'} />
       <group ref={avatarGroup} visible={mode === 'walk'}>
         {mode === 'walk' && <Avatar pose="walk" speed={walkSpeed} />}
       </group>
+    </>
+  )
+}
+
+const LAMP_AT = new THREE.Vector3(0, 0.9, 0.6)
+const FLAT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2)
+
+/** Bike headlamp: a glowing lens and, above low quality, a real spot light aimed down the road ahead. */
+function BikeLamp({ on }: { on: boolean }) {
+  const real = useQualityLevel() !== 'low'
+  const lens = useMemo(() => glowPoolMat('#fff1c8'), [])
+  const spot = useRef<THREE.SpotLight>(null)
+  const target = useMemo(() => {
+    const o = new THREE.Object3D()
+    o.position.set(0, 0, 9)
+    return o
+  }, [])
+  useFrame(() => {
+    const k = on ? dusk.k : 0
+    lens.opacity = k
+    lens.visible = k > 0.01
+    if (spot.current) {
+      spot.current.intensity = k * 60
+      spot.current.visible = k > 0.01
+    }
+  })
+  return (
+    <group position={LAMP_AT}>
+      <mesh material={lens} position={[0, 0, 0.06]} scale={0.7}>
+        <planeGeometry args={[1, 1]} />
+      </mesh>
+      <primitive object={target} />
+      {real && <spotLight ref={spot} target={target} color="#ffe2a8" angle={0.55} penumbra={0.7} distance={18} decay={1.3} intensity={0} />}
+    </group>
+  )
+}
+
+/** Painted pool of headlight on the road surface in front of the bike, following the ground. */
+function HeadlightPool({ rider, on }: { rider: { current: Body }; on: boolean }) {
+  const far = useMemo(() => glowPoolMat('#ffe3a6'), [])
+  const near = useMemo(() => glowPoolMat('#fff2cc'), [])
+  const a = useRef<THREE.Mesh>(null)
+  const b = useRef<THREE.Mesh>(null)
+  useFrame(() => {
+    const k = on ? dusk.k : 0
+    far.opacity = k * 0.8
+    near.opacity = k * 0.7
+    far.visible = near.visible = k > 0.01
+    if (k <= 0.01) return
+    const r = rider.current
+    const q = yawQuaternion(r.fwd).multiply(FLAT)
+    for (const [m, dist] of [[a.current, 7.5], [b.current, 3.4]] as const) {
+      if (!m) continue
+      const at = r.pos.clone().addScaledVector(r.fwd, dist)
+      m.position.copy(surf(at, 0.06))
+      m.quaternion.copy(q)
+    }
+  })
+  return (
+    <>
+      <mesh ref={a} material={far} scale={[5, 10.5, 1]}>
+        <planeGeometry args={[1, 1]} />
+      </mesh>
+      <mesh ref={b} material={near} scale={[2.6, 4, 1]}>
+        <planeGeometry args={[1, 1]} />
+      </mesh>
     </>
   )
 }

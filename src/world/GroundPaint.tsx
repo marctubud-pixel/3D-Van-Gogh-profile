@@ -16,6 +16,7 @@ import {
   landValue,
   landmarkBlockers,
   nearestOnRoute,
+  onServiceSquare,
 } from './island'
 import { type Ramp, type Stroke, Strokes, blob, column, pick, rng, rotateAbout, shade } from './strokes'
 import { playerPos } from './occlusion'
@@ -52,10 +53,12 @@ function besideRoad(i: number, off: number, along: number) {
 /** Map local (y-up, z-forward) strokes onto the ground at `d`. */
 function place(out: Stroke[], local: Stroke[], d: THREE.Vector3, fwd: THREE.Vector3, scale = 1) {
   const q = yawQuaternion(fwd)
-  const base = new THREE.Vector3(d.x, groundHeight(d), d.z)
+  const base = new THREE.Vector3(d.x, 0, d.z)
   for (const k of local) {
+    const p = k.p.clone().multiplyScalar(scale).applyQuaternion(q).add(base)
+    p.y += groundHeight(p)
     out.push({
-      p: k.p.clone().multiplyScalar(scale).applyQuaternion(q).add(base),
+      p,
       n: k.n.clone().applyQuaternion(q),
       dir: k.dir.clone().applyQuaternion(q),
       len: k.len * scale,
@@ -190,7 +193,7 @@ interface Clear {
 }
 
 function paved(d: THREE.Vector3, pad: number) {
-  return arc(d, PLAZA) < 7.5 + pad || arc(d, SERVICE_POINT) < 9 + pad || arc(d, POND.center) < POND.r + 0.8
+  return arc(d, PLAZA) < 7.5 + pad || arc(d, SERVICE_POINT) < 6 + pad || onServiceSquare(d, pad + 0.4) || arc(d, POND.center) < POND.r + 0.8
 }
 
 function nearBuilding(d: THREE.Vector3, c: Clear, pad: number) {

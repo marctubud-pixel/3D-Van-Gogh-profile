@@ -114,6 +114,33 @@ const lobeCenter = routePoint(CINEMA_LOBE.s, CINEMA_LOBE.off)
 /** Starting plaza just before the loop's origin, and the service center behind it. */
 export const PLAZA = routePoint(-1, -2.3)
 export const SERVICE_POINT = routePoint(-2, -11.2)
+/** Civic square around the service center, in its model frame (x along the road, z toward it). */
+export const SERVICE_SQUARE = { x: 10, back: -3.4, wingBack: -1.6, front: 5.2 } as const
+let serviceFrame: { f: THREE.Vector3; s: THREE.Vector3 } | null = null
+function serviceAxes() {
+  if (!serviceFrame) {
+    const f = locationAnchors(SERVICE_POINT).facing.clone()
+    serviceFrame = { f, s: new THREE.Vector3().crossVectors(UP, f).normalize() }
+  }
+  return serviceFrame
+}
+/** World point at model coords (x, z) of the service square. */
+export function servicePoint(x: number, z: number) {
+  const { f, s } = serviceAxes()
+  return SERVICE_POINT.clone().addScaledVector(s, x * BUILDING_SCALE).addScaledVector(f, z * BUILDING_SCALE)
+}
+/** True when `p` lies on the paved civic square (with `pad` world units of margin). */
+export function onServiceSquare(p: THREE.Vector3, pad = 0) {
+  const { f, s } = serviceAxes()
+  const d = p.clone().sub(SERVICE_POINT).setY(0)
+  const x = Math.abs(d.dot(s)) / BUILDING_SCALE
+  const z = d.dot(f) / BUILDING_SCALE
+  const k = pad / BUILDING_SCALE
+  const back = x < 4.5 ? SERVICE_SQUARE.back : SERVICE_SQUARE.wingBack
+  return x < SERVICE_SQUARE.x + k && z > back - k && z < SERVICE_SQUARE.front + k
+}
+/** Extra blocker points covering the square's side wings. */
+export const serviceWings = () => [servicePoint(-7, 1.5), servicePoint(7, 1.5)]
 const plazaCenter = PLAZA
 /** Observatory hilltop: the road climbs over its shoulder and winds back down. */
 export const HILL_TOP = routePoint(SUMMIT_S, 5)

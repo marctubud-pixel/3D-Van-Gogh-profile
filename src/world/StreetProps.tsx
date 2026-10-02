@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { UP, flatDistance, yawQuaternion } from './plane'
-import { BRIDGE, PLAZA, ROUTE_K, ROUTE_LEN, ROUTE_S, SERVICE_POINT, landmarkBlockers, routeFrame, routePoint, surf } from './island'
+import { BRIDGE, PLAZA, ROUTE_K, ROUTE_LEN, ROUTE_S, SERVICE_POINT, landmarkBlockers, serviceWings, routeFrame, routePoint, surf } from './island'
 import { type Ramp, type Stroke, StrokeBuild, StrokePaint, Strokes, column, dab, painted, rng, rotateAbout, shade } from './strokes'
 import { Toon, geo } from './toon'
 
@@ -142,7 +142,7 @@ function Wires({ tops }: { tops: THREE.Vector3[] }) {
 export function StreetProps({ locations }: { locations: WorldLocation[] }) {
   const layout = useMemo(() => {
     const blockers = locations.flatMap(landmarkBlockers)
-    blockers.push(SERVICE_POINT)
+    blockers.push(SERVICE_POINT, ...serviceWings())
     const plaza = PLAZA
     const free = (d: THREE.Vector3, r: number) => flatDistance(d, plaza) > 8 && blockers.every((b) => flatDistance(b, d) > r)
     const bridge: [number, number] = [ROUTE_S[BRIDGE.a] - 3, ROUTE_S[BRIDGE.b] + 3]
