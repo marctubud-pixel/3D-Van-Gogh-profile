@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ZONE_LABEL } from '../../shared/types'
 import { useContent } from '../data/content'
 import { LocationPanel } from '../locations/LocationPanel'
+import { Interior, hasInterior } from '../locations/interiors/Interior'
 import { TownMap, routeSorted } from '../navigation/TownMap'
 import { ProjectDetail } from '../portfolio/ProjectDetail'
 import { InfoContent } from '../ui/InfoPage'
@@ -204,7 +205,13 @@ export default function Explore() {
       </>
       )}
 
-      {location && (
+      {location && !project && hasInterior(location.id) && (
+        <Overlay onClose={closeLocation} place={location.id} bare>
+          <Interior content={content} location={location} onOpenProject={(id) => g.openProject(id)} onClose={closeLocation} />
+        </Overlay>
+      )}
+
+      {location && (project || !hasInterior(location.id)) && (
         <Overlay onClose={closeLocation} onBack={project ? () => g.openProject(null) : undefined} place={location.id}>
           {project ? (
             <ProjectDetail project={project} location={location} />

@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 
-export function Overlay({ onClose, onBack, place, children }: { onClose: () => void; onBack?: () => void; place?: string; children: ReactNode }) {
+export function Overlay({ onClose, onBack, place, bare, children }: { onClose: () => void; onBack?: () => void; place?: string; bare?: boolean; children: ReactNode }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (e.code === 'Escape') (onBack ?? onClose)()
@@ -16,6 +16,14 @@ export function Overlay({ onClose, onBack, place, children }: { onClose: () => v
           <feDisplacementMap in="SourceGraphic" scale="9" />
         </filter>
       </svg>
+      {bare ? (
+        <div className="overlay-bare" onClick={(e) => e.stopPropagation()}>
+          <button className="overlay-x" onClick={onClose} aria-label="CLOSE · ESC">
+            ✕
+          </button>
+          {children}
+        </div>
+      ) : (
       <div className={`overlay-panel${place ? ` place place-${place}` : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="overlay-bar">
           {onBack ? (
@@ -31,6 +39,7 @@ export function Overlay({ onClose, onBack, place, children }: { onClose: () => v
         </div>
         <div className="overlay-body">{children}</div>
       </div>
+      )}
     </div>
   )
 }

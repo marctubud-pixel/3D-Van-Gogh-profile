@@ -40,6 +40,12 @@ export interface PortfolioProject {
   documents?: DocumentRef[]
   externalLink?: string
   tags?: string[]
+  /** Sub-section inside the landmark's interior (e.g. "TVC文案", "IP", "Photography"). */
+  section?: string
+  /** Long text shown in reading views (WRITE HOUSE pages). */
+  body?: string
+  duration?: string
+  status?: string
   locationId: string
   featured?: boolean
   published: boolean
@@ -63,6 +69,10 @@ export interface WorldLocation {
   parking: boolean
   theme?: string
   navigable?: boolean
+  /** Interior sub-sections, in display order; projects pick one via `section`. */
+  sections?: string[]
+  /** Short line under the interior title plaque. */
+  tagline?: string
 }
 
 export interface Experience {
@@ -122,3 +132,19 @@ export const PROJECT_CATEGORIES = [
   'Personal',
   'Future',
 ] as const
+
+export const DEFAULT_SECTIONS: Record<string, string[]> = {
+  'print-house': ['TVC文案', '品牌文案', '电商文案', '人群文案'],
+  'brand-museum': ['IP', '艺术', '品牌', '电商'],
+  'my-studio': ['Photography', 'Reading', 'Vinyl', 'Games', 'Cycling', 'Film', 'Figures'],
+}
+
+export const DEFAULT_TAGLINE: Record<string, string> = {
+  'print-house': 'Words make a brighter tomorrow',
+  'brand-museum': '让品牌具像化',
+  cinema: '选择票根放映作品',
+  'experiment-lab': 'Ideas · Experiments · Prototypes · Play',
+  arcade: 'Insert coin · Pick a game',
+  'my-studio': 'Favorite things',
+  observatory: 'Looking ahead',
+}

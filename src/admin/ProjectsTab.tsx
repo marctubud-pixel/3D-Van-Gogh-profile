@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { DocumentRef, MediaType, PortfolioProject, SiteContent } from '../../shared/types'
-import { PROJECT_CATEGORIES } from '../../shared/types'
+import { DEFAULT_SECTIONS, PROJECT_CATEGORIES } from '../../shared/types'
 import { api } from '../data/api'
 import { AssetPicker } from './AssetPicker'
 import { Field, ListText, MediaField, MediaListField, Text } from './fields'
@@ -139,6 +139,12 @@ function ProjectEditor({ initial, content, onSaved, onDeleted }: {
               ))}
             </select>
           </Field>
+          <Text
+            label="栏目 SECTION（建筑内部分组）"
+            value={p.section}
+            onChange={(v) => set('section', v)}
+            hint={`可选：${(content.locations.find((l) => l.id === p.locationId)?.sections ?? DEFAULT_SECTIONS[p.locationId] ?? []).join(' / ') || '此建筑不分栏目'}；留空归入第一个栏目`}
+          />
           <Field label="分类 CATEGORY（INDEX 筛选）">
             <select value={p.category} onChange={(e) => set('category', e.target.value)}>
               {PROJECT_CATEGORIES.map((c) => (
@@ -159,6 +165,8 @@ function ProjectEditor({ initial, content, onSaved, onDeleted }: {
           <Field label="排序 ORDER（区块内，越小越前）">
             <input type="number" value={p.order ?? 0} onChange={(e) => set('order', Number(e.target.value))} />
           </Field>
+          <Text label="时长 DURATION（影院显示）" value={p.duration} onChange={(v) => set('duration', v)} placeholder="118 分钟" />
+          <Text label="状态 STATUS（实验室显示）" value={p.status} onChange={(v) => set('status', v)} placeholder="已完成" />
           <Text label="我的角色 MY ROLE" value={p.role} onChange={(v) => set('role', v)} />
           <ListText label="工具 TOOLS" value={p.tools} onChange={(v) => set('tools', v)} />
           <ListText label="合作者 COLLABORATORS" value={p.collaborators} onChange={(v) => set('collaborators', v)} />
@@ -178,6 +186,8 @@ function ProjectEditor({ initial, content, onSaved, onDeleted }: {
           <DocumentsField value={p.documents} onChange={(v) => set('documents', v)} />
         </div>
       </div>
+
+      <Text label="正文 BODY（WRITE HOUSE 翻页阅读，保留换行）" value={p.body} onChange={(v) => set('body', v)} multiline />
 
       <h3>CASE STUDY（BRIEF → PROBLEM → INSIGHT → STRATEGY → IDEA → EXECUTION → RESULT）</h3>
       <div className="cols">

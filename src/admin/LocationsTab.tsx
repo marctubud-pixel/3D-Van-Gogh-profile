@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import type { InteractionAction, SiteContent, WorldLocation, Zone } from '../../shared/types'
-import { ZONE_LABEL } from '../../shared/types'
+import { DEFAULT_SECTIONS, DEFAULT_TAGLINE, ZONE_LABEL } from '../../shared/types'
 import { api } from '../data/api'
-import { Field, Text } from './fields'
+import { Field, ListText, Text } from './fields'
 
 const ACTIONS: InteractionAction[] = ['READ', 'VIEW', 'WATCH', 'PLAY', 'BROWSE', 'LISTEN']
 
@@ -27,6 +27,13 @@ function LocationEditor({ initial, content, onSaved }: { initial: WorldLocation;
           <Text label="名称 NAME" value={l.name} onChange={(v) => set('name', v)} hint="显示在地图、Overlay 中（3D 招牌使用固定字样）" />
           <Text label="核心问题 QUESTION" value={l.question} onChange={(v) => set('question', v)} />
           <Text label="描述 DESCRIPTION" value={l.description} onChange={(v) => set('description', v)} multiline />
+          <Text label="副标题 TAGLINE（内部标题下方）" value={l.tagline} onChange={(v) => set('tagline', v)} placeholder={DEFAULT_TAGLINE[l.id]} />
+          <ListText
+            label="栏目 SECTIONS（内部分组，按顺序）"
+            value={l.sections ?? DEFAULT_SECTIONS[l.id]}
+            onChange={(v) => set('sections', v)}
+            hint="用逗号分隔；作品在「作品」页填写所属栏目"
+          />
           <Field label="区域 ZONE">
             <select value={l.zone} onChange={(e) => set('zone', e.target.value as Zone)}>
               {(Object.keys(ZONE_LABEL) as Zone[]).map((z) => (
