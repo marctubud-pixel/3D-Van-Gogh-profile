@@ -9,7 +9,8 @@ import { StreetLamps } from './StreetLamps'
 import type { WorldLocation } from '../../shared/types'
 import { useGame } from '../app/game'
 import { CAMERA } from '../camera/config'
-import { Landmark, ServiceCenterSite } from '../locations/Landmark'
+import { CivicPlazaSite, Landmark, ServiceCenterSite } from '../locations/Landmark'
+import { routeSorted } from '../navigation/TownMap'
 import { Player } from '../player/Player'
 import { BrushPass } from './brush'
 import { Planet } from './Planet'
@@ -29,6 +30,13 @@ class WorldBoundary extends Component<{ onError: () => void; children: ReactNode
   render() {
     return this.state.failed ? null : this.props.children
   }
+}
+
+/** Name of the stop after `id` on the loop; the last one points back to the service center. */
+function nextStop(locations: WorldLocation[], id: string) {
+  const order = routeSorted(locations)
+  const i = order.findIndex((l) => l.id === id)
+  return i < 0 ? undefined : (order[i + 1]?.name ?? 'SERVICE CENTER')
 }
 
 /** Keeps a soft afternoon sun above the viewer wherever they are on the planet. */
@@ -144,9 +152,10 @@ export function World({ locations, onError }: { locations: WorldLocation[]; onEr
         <Town locations={locations} />
         <Critters />
         {locations.map((l) => (
-          <Landmark key={l.id} loc={l} active={routeTargetId === l.id} />
+          <Landmark key={l.id} loc={l} active={routeTargetId === l.id} next={nextStop(locations, l.id)} />
         ))}
         <ServiceCenterSite />
+        <CivicPlazaSite />
         <Player locations={locations} />
         <BrushPass />
       </Canvas>

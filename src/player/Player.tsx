@@ -5,8 +5,8 @@ import type { WorldLocation } from '../../shared/types'
 import { inputLocked, useGame } from '../app/game'
 import { Bike } from '../bike/Bike'
 import { CAMERA } from '../camera/config'
-import { BUILDING_RADIUS, LANDMARK_FIT, NORTH, SERVICE_CENTER, UP, flatDir, flatDistance, planPoint, pointToPlan, modelScale, yawQuaternion } from '../world/plane'
-import { MESAS, SERVICE_POINT, groundHeight, landmarkColliders, locationAnchors, locationPoint, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
+import { BUILDING_RADIUS, LANDMARK_FIT, NORTH, UP, flatDir, flatDistance, planPoint, pointToPlan, modelScale, yawQuaternion } from '../world/plane'
+import { CIVIC, MESAS, PLAZA, SPOKES, groundHeight, serviceColliders, landmarkColliders, locationAnchors, locationPoint, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
 import { camFocus, playerFwd, playerPos } from '../world/occlusion'
 import { LOT_RADIUS, townLots } from '../world/townLayout'
 import { dusk, useDayNight } from '../world/daynight'
@@ -41,7 +41,11 @@ interface Body {
   fwd: THREE.Vector3
 }
 
-function spawn(s = 3): Body {
+function spawn(s?: number): Body {
+  if (s === undefined) {
+    const dir = flatDir(SPOKES[0].b.clone().sub(PLAZA))
+    return { pos: PLAZA.clone().addScaledVector(dir, CIVIC.r - 4), fwd: dir }
+  }
   const f = routeFrame(s)
   return { pos: f.at, fwd: f.tan }
 }
@@ -61,7 +65,8 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
   const colliders = useMemo(
     () => [
       ...anchors.flatMap((a) => landmarkColliders(a, a.loc.id)),
-      { at: SERVICE_POINT, r: SERVICE_CENTER.radius },
+      ...serviceColliders(),
+      { at: PLAZA, r: 3.1 },
       ...MESAS.map((m) => ({ at: m.at, r: m.r })),
       ...townLots(locations)
         .filter((l) => l.kind !== 'garden')

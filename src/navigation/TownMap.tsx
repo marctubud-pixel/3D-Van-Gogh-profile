@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { planPoint, pointToPlan } from '../world/plane'
 import { playerFwd } from '../world/occlusion'
-import { BRIDGE, PLAZA, ROUTE, ROUTE_ORDER, TITLE_CENTER, landValue, locationPoint } from '../world/island'
+import { BRIDGE, CIVIC, PLAZA, ROUTE, ROUTE_ORDER, SPOKES, TITLE_CENTER, landValue, locationPoint } from '../world/island'
 
 interface TownMapProps {
   locations: WorldLocation[]
@@ -79,6 +79,22 @@ function useIslandImage(ink = PAPER) {
     g.strokeStyle = ink.road
     g.lineWidth = 6
     g.stroke()
+    const ppu = W / (VIEW.x1 - VIEW.x0)
+    for (const k of SPOKES) {
+      const [ax, ay] = px(k.a)
+      const [bx, by] = px(k.b)
+      g.beginPath()
+      g.moveTo(ax, ay)
+      g.lineTo(bx, by)
+      g.strokeStyle = ink.road
+      g.lineWidth = 3
+      g.stroke()
+    }
+    const [cx, cy] = px(PLAZA)
+    g.beginPath()
+    g.arc(cx, cy, CIVIC.r * ppu, 0, Math.PI * 2)
+    g.fillStyle = ink.road
+    g.fill()
     if (!ink.dash) return c.toDataURL()
     path(BRIDGE.a, BRIDGE.b)
     g.strokeStyle = '#e36f4c'

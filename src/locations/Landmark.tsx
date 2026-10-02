@@ -4,12 +4,13 @@ import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { playerPos } from '../world/occlusion'
 import { BUILDING_SCALE, LANDMARK_FIT, UP, flatDistance, landmarkSetback, yawQuaternion } from '../world/plane'
-import { SERVICE_POINT, locationAnchors, locationPoint, surf } from '../world/island'
+import { CIVIC, HALL_BEARING as HALL_BEARING_DEG, PLAZA, SERVICE_FACING, SERVICE_POINT, SPOKES, locationAnchors, locationPoint, nearestOnRoute, routeFrame, routePoint, surf } from '../world/island'
 import { Toon, geo, toonMaterial } from '../world/toon'
 import { type Stroke, StrokeBuild, StrokePaint, column, dab, painted, rampFor } from '../world/strokes'
 import { Decal, textTex } from './parts'
 import { Forecourt } from './Forecourt'
-import { Arcade, Cinema, CreativeMuseum, ExperimentLab, Observatory, ServiceCenter, Studio, WriteHouse } from './buildings'
+import { Signpost } from './Signpost'
+import { Arcade, Cinema, CivicPlaza, CreativeMuseum, ExperimentLab, Observatory, ServiceCenter, Studio, WriteHouse } from './buildings'
 
 const CREAM = '#e1e1d9'
 const WARM_GRAY = '#b8bdb5'
@@ -210,9 +211,11 @@ const STROKED = new Set(['print-house', 'brand-museum', 'cinema', 'arcade', 'exp
 interface LandmarkProps {
   loc: WorldLocation
   active: boolean
+  /** Name of the next stop along the loop, shown on the roadside fingerpost. */
+  next?: string
 }
 
-export function Landmark({ loc, active }: LandmarkProps) {
+export function Landmark({ loc, active, next }: LandmarkProps) {
   const a = useMemo(() => locationAnchors(locationPoint(loc), loc.id), [loc])
   const fit = LANDMARK_FIT[loc.id]?.scale ?? 1
   const buildingQ = useMemo(() => yawQuaternion(a.facing), [a])
@@ -241,6 +244,7 @@ export function Landmark({ loc, active }: LandmarkProps) {
         <Beacon active={active} height={(BEACON_HEIGHT[loc.id] ?? 9) * BUILDING_SCALE * fit} />
       </group>
       {STROKED.has(loc.id) && <Forecourt id={loc.id} a={a} />}
+      {next && <NextSign building={a.building} label={next} />}
       {loc.parking && (
         <group position={pPos} quaternion={parkingQ}>
           <ParkingSpot color="#4d6fa8" up={a.parking} />
@@ -252,13 +256,50 @@ export function Landmark({ loc, active }: LandmarkProps) {
 
 /** Static welcome hall beside the central plaza. */
 export function ServiceCenterSite() {
-  const a = useMemo(() => locationAnchors(SERVICE_POINT), [])
-  const q = useMemo(() => yawQuaternion(a.facing), [a])
+  const q = useMemo(() => yawQuaternion(SERVICE_FACING), [])
   return (
-    <group position={surf(a.building).add(new THREE.Vector3(0, -PLINTH * BUILDING_SCALE, 0))} quaternion={q} scale={BUILDING_SCALE}>
+    <group position={surf(SERVICE_POINT).add(new THREE.Vector3(0, -PLINTH * BUILDING_SCALE, 0))} quaternion={q} scale={BUILDING_SCALE}>
       <StrokeBuild seed={11}>
         <ServiceCenter />
       </StrokeBuild>
     </group>
+  )
+}
+
+/** Roadside fingerpost just past a landmark, pointing on along the loop to the next stop. */
+function NextSign({ building, label }: { building: THREE.Vector3; label: string }) {
+  const at = useMemo(() => {
+    const hit = nearestOnRoute(building)
+    const s = hit.s + 8
+    return { pos: surf(routePoint(s, hit.sign * 4.6)), arms: [{ dir: routeFrame(s).tan, label: `NEXT · ${label}` }] }
+  }, [building, label])
+  return (
+    <group position={at.pos}>
+      <Signpost arms={at.arms} />
+    </group>
+  )
+}
+
+/** Central round plaza with its fountain and a fingerpost naming every avenue. */
+export function CivicPlazaSite() {
+  const sign = useMemo(() => {
+    const dir = SPOKES[0].a.clone().sub(PLAZA).setY(0).normalize()
+    const side = new THREE.Vector3().crossVectors(UP, dir)
+    return {
+      pos: surf(PLAZA.clone().addScaledVector(dir, 5).addScaledVector(side, 2.2)),
+      arms: SPOKES.map((k, i) => ({ dir: k.b.clone().sub(k.a).setY(0).normalize(), label: i === 0 ? `01 ${k.label}` : k.label })),
+    }
+  }, [])
+  return (
+    <>
+      <group position={surf(PLAZA)} scale={BUILDING_SCALE}>
+        <StrokeBuild seed={12}>
+          <CivicPlaza ways={[...SPOKES.map((k) => k.bearing), HALL_BEARING_DEG]} r={CIVIC.r / BUILDING_SCALE} lawn={[CIVIC.lawnIn / BUILDING_SCALE, CIVIC.lawnOut / BUILDING_SCALE]} />
+        </StrokeBuild>
+      </group>
+      <group position={sign.pos}>
+        <Signpost arms={sign.arms} />
+      </group>
+    </>
   )
 }

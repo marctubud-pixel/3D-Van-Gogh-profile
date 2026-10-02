@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import { UP, flatDir, yawQuaternion } from './plane'
-import { CREEK, MESAS, creekHalf, groundHeight } from './island'
+import { CREEK, CREEK_CROSSING, MESAS, creekHalf, groundHeight } from './island'
 import { brushify } from './brush'
 import { toonMaterial } from './toon'
 import { type Ramp, type Stroke, Strokes, blob, column, pick, rng, rotateAbout, shade } from './strokes'
@@ -120,7 +120,7 @@ function creekStrokes(out: Stroke[]) {
   }
 }
 
-const BRIDGE_AT = 62
+const BRIDGE_AT = CREEK_CROSSING
 const SPAN = 5.6
 const DECK_W = 2.6
 const RISE = 0.9

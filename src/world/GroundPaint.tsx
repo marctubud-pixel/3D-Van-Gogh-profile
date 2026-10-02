@@ -9,7 +9,10 @@ import {
   ROUTE,
   ROUTE_S,
   ROUTE_TAN,
-  SERVICE_POINT,
+  SPOKES,
+  SPOKE_HALF,
+  civicLawn,
+  creekEdge,
   forecourt,
   forecourtWalk,
   groundHeight,
@@ -101,9 +104,9 @@ function plazaStrokes(out: Stroke[]) {
   const y = groundHeight(PLAZA) + 0.08
   for (let k = 0; k < 1500; k++) {
     const rad = 6.7 * Math.sqrt(r())
+    if (rad < 3) continue
     const a = r() * Math.PI * 2
     const p = new THREE.Vector3(PLAZA.x + Math.cos(a) * rad, y + r() * 0.01, PLAZA.z + Math.sin(a) * rad)
-    if (nearestOnRoute(p).dist < 2.3) continue
     const dir = rotateAbout(new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)), UP, (r() - 0.5) * 0.5)
     out.push({ p, n: UP, dir, len: 0.35 + r() * 0.3, wid: 0.12 + r() * 0.08, color: shade(r, UP, PAVING) })
   }
@@ -208,7 +211,7 @@ const SLAB = ['#d9d2bf', '#cfc8b4', '#e2dccb', '#c6c0ad', '#d6cdb6']
 
 /** Footpaths from the road to entrances set well back from it, with a cross path halfway along long ones. */
 function footpaths(locations: WorldLocation[]): PathSeg[] {
-  const out: PathSeg[] = []
+  const out: PathSeg[] = SPOKES.map((k) => ({ a: k.a.clone(), b: k.b.clone(), half: SPOKE_HALF }))
   for (const l of locations) {
     const a = locationAnchors(locationPoint(l), l.id)
     const dir = flatDir(a.door.clone().sub(a.road))
@@ -265,6 +268,7 @@ function pathBlocks(paths: PathSeg[]) {
       for (const o of pieces) {
         const w = two ? seg.half * 0.92 : seg.half * 1.6
         const p = at.clone().addScaledVector(across, o * seg.half * 1.02 + (r() - 0.5) * 0.06)
+        if (creekEdge(p) < 1.4) continue
         put(p, yaw + (r() - 0.5) * 0.12, [w, 0.07, 0.56 + r() * 0.08], pick(r, SLAB), -0.015)
       }
     }
@@ -330,7 +334,7 @@ function PathStones({ paths }: { paths: PathSeg[] }) {
 }
 
 function paved(d: THREE.Vector3, pad: number) {
-  return arc(d, PLAZA) < 7.5 + pad || arc(d, SERVICE_POINT) < 6 + pad || onServiceSquare(d, pad + 0.4) || arc(d, POND.center) < POND.r + 0.8
+  return onServiceSquare(d, pad + 0.4) || arc(d, POND.center) < POND.r + 0.8
 }
 
 /** Bare ground round buildings: no grass in landmark forecourts or house front yards. */
@@ -539,7 +543,7 @@ function yardStrokes(c: Clear) {
   for (let x = i0 * TILE; x < (i1 + 1) * TILE; x += step) {
     for (let z = j0 * TILE; z < (j1 + 1) * TILE; z += step) {
       d.set(x + (r() - 0.5) * step, 0, z + (r() - 0.5) * step)
-      if (!forecourt(d, 0.6) || r() > 0.55) continue
+      if (!(forecourt(d, 0.6) || civicLawn(d)) || r() > 0.55) continue
       if (forecourtWalk(d) || nearestOnRoute(d).dist < 2.2 || paved(d, 0) || onPath(d, c.paths, 0.2)) continue
       const f = windAngle(d.x, d.z)
       out.push(

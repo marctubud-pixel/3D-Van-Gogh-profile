@@ -13,8 +13,11 @@ import {
   ROUTE_LEN,
   ROUTE_S,
   ROUTE_TAN,
+  BEACH_SPOT,
   SERVICE_POINT,
   CREEK,
+  civicLawn,
+  onSpoke,
   FOREST,
   beachWidth,
   creekEdge,
@@ -30,7 +33,6 @@ import {
   landmarkBlockers,
   nearestOnRoute,
   onServiceSquare,
-  routeFrame,
   routePoint,
   surf,
   wildBlocked,
@@ -67,6 +69,8 @@ const arc = flatDistance
 const MEADOW_GROUND = meadowTone(0.42)
 const COURT = new THREE.Color('#cfc9b6')
 const LAWN = meadowTone(0.55)
+const PAVING = new THREE.Color('#ddd6c4')
+const AVENUE = new THREE.Color('#c9c1ab')
 const GROUND = { x0: -110, x1: 130, y0: -128, y1: 120, step: 0.8 }
 
 function PlanetBody() {
@@ -92,7 +96,9 @@ function PlanetBody() {
       } else {
         const h = terrainHeight(v)
         y = h
-        c.copy(forecourt(v, -0.2) ? (forecourtWalk(v) ? COURT : LAWN) : MEADOW_GROUND)
+        if (onServiceSquare(v, 0.2)) c.copy(civicLawn(v) ? LAWN : PAVING)
+        else if (onSpoke(v, 0.1)) c.copy(AVENUE)
+        else c.copy(forecourt(v, -0.2) ? (forecourtWalk(v) ? COURT : LAWN) : MEADOW_GROUND)
         const e = creekEdge(v)
         if (e < 0.6) {
           y = h - 0.42 * THREE.MathUtils.smoothstep(0.6 - e, 0, 1.2)
@@ -455,7 +461,7 @@ function loungeSpot() {
   let best: { at: THREE.Vector3; d: number } | null = null
   for (let a = 0; a < 72; a++) {
     for (let rad = 8; rad < 45; rad += 1) {
-      const at = SERVICE_POINT.clone().add(new THREE.Vector3(Math.cos((a / 72) * Math.PI * 2) * rad, 0, Math.sin((a / 72) * Math.PI * 2) * rad))
+      const at = BEACH_SPOT.clone().add(new THREE.Vector3(Math.cos((a / 72) * Math.PI * 2) * rad, 0, Math.sin((a / 72) * Math.PI * 2) * rad))
       const land = landValue(at)
       if (land < 0.6 || land > beachWidth(at) * 0.75) continue
       if (nearestOnRoute(at).dist < 5 || onServiceSquare(at, 1.5)) continue
@@ -624,23 +630,6 @@ function useProps(locations: WorldLocation[]) {
   }, [bl])
 }
 
-/** Starting plaza where the road begins, in front of the service center. */
-function Plaza() {
-  const q = yawQuaternion(routeFrame(0).tan)
-  return (
-    <group position={PLAZA} quaternion={q}>
-      <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[6.5, 48]} />
-        <meshToonMaterial color="#dcdfd6" gradientMap={toonMaterial('#fff').gradientMap} />
-      </mesh>
-      <group position={[4.6, 0, 3.8]}>
-        <Toon geometry={geo.cyl} color="#5a6670" position={[0, 1.4, 0]} scale={[0.12, 2.8, 0.12]} outline={0.02} />
-        <Toon geometry={geo.box} color="#c96f4a" position={[0.6, 2.5, 0]} scale={[1.3, 0.34, 0.06]} outline={0.02} />
-      </group>
-    </group>
-  )
-}
-
 /** Lawn, pond and benches around the lab. */
 function Park() {
   const items = useMemo(() => {
@@ -686,7 +675,6 @@ export function Planet({ locations }: { locations: WorldLocation[] }) {
       <PlanetBody />
       <IslandTitle />
       <Road />
-      <Plaza />
       <Park />
       <BeachLounge />
       <Forest />

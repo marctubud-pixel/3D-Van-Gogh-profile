@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { UP, flatDistance } from './plane'
-import { BRIDGE, PLAZA, ROUTE_LEN, ROUTE_S, SERVICE_POINT, groundHeight, serviceWings, landmarkBlockers, routePoint } from './island'
+import { BRIDGE, PLAZA, ROUTE_LEN, ROUTE_S, SERVICE_POINT, groundHeight, onCivic, landmarkBlockers, routePoint } from './island'
 import { dusk } from './daynight'
 import { type Ramp, type Stroke, Strokes, blob, column, glowMat, glowPoolMat, rng, rotateAbout, shade } from './strokes'
 
@@ -17,7 +17,7 @@ const ON = new THREE.Color('#ffffff')
 export function StreetLamps({ locations }: { locations: WorldLocation[] }) {
   const parts = useMemo(() => {
     const blockers = locations.flatMap(landmarkBlockers)
-    blockers.push(SERVICE_POINT, ...serviceWings())
+    blockers.push(SERVICE_POINT)
     const r = rng(77)
     const posts: Stroke[] = []
     const heads: Stroke[] = []
@@ -26,7 +26,7 @@ export function StreetLamps({ locations }: { locations: WorldLocation[] }) {
     for (let k = 0, s = 2; s < ROUTE_LEN - 2; k++, s += 17) {
       if (s > bridge[0] && s < bridge[1]) continue
       const at = routePoint(s, k % 2 ? 3.6 : -3.6)
-      if (flatDistance(at, PLAZA) < 7.5 || blockers.some((b) => flatDistance(b, at) < 6)) continue
+      if (flatDistance(at, PLAZA) < 7.5 || onCivic(at, 1) || blockers.some((b) => flatDistance(b, at) < 6)) continue
       const base = at.clone().setY(groundHeight(at))
       column(posts, r, base, LAMP_H, 0.07, POST, 70)
       const toRoad = routePoint(s, 0).sub(at).setY(0).normalize()

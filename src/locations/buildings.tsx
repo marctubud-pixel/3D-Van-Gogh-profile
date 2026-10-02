@@ -1267,34 +1267,67 @@ function SquareLamp({ p }: { p: [number, number, number] }) {
   )
 }
 
-/** Side wings of the civic square: newsstands, a café terrace, flower beds, flags and lamps. */
-function SquareWings() {
+/** Model-space point at plan bearing `deg` and radius `r` from the plaza centre. */
+const polar = (deg: number, r: number, y = 0.02): [number, number, number] => {
+  const t = (deg * Math.PI) / 180
+  return [Math.cos(t) * r, y, -Math.sin(t) * r]
+}
+/** Yaw that turns a model's +Z front toward the plaza centre from bearing `deg`. */
+const faceIn = (deg: number) => Math.atan2(-Math.cos((deg * Math.PI) / 180), Math.sin((deg * Math.PI) / 180))
+
+const FLOWERS = ['#e36f4c', '#f4efe0', '#e7b53f', '#c45c9a', '#3f78a8']
+
+/**
+ * Round civic plaza in model units (radius `r`): fountain in the middle, benches round it, flower beds on the lawn ring,
+ * and kiosks, a café terrace, flags and lamps on the outer paving between the avenues.
+ */
+export function CivicPlaza({ ways, r, lawn }: { ways: number[]; r: number; lawn: [number, number] }) {
+  const sorted = [...ways].map((b) => (b + 360) % 360).sort((a, b) => a - b)
+  const gaps = sorted.map((b, i) => {
+    const n = i + 1 < sorted.length ? sorted[i + 1] : sorted[0] + 360
+    return { mid: (b + n) / 2, span: n - b }
+  })
+  const band = (lawn[1] + r) / 2
+  const bed = (lawn[0] + lawn[1]) / 2
   return (
     <group>
-      {/* left wing: café terrace and the press kiosk */}
-      <Newsstand p={[-7.4, 0.12, 3.6]} yaw={0.15} label="PRESSE" />
-      <CafeTable p={[-8.7, 0.12, 0.6]} c="#c8553d" />
-      <CafeTable p={[-6.3, 0.12, 0.4]} c="#3f78a8" />
-      <CafeTable p={[-9.0, 0.12, 2.6]} c="#e7b53f" />
-      <Planter p={[-5.6, 0.12, -1.0]} w={1.6} d={0.6} flowers="#e36f4c" />
-      <Tree p={[-9.3, 0.12, -1.0]} s={0.85} />
-      <Bench p={[-5.2, 0.12, 4.4]} w={1.2} />
-      {/* right wing: flower kiosk, flags, notice board */}
-      <Newsstand p={[7.4, 0.12, 3.5]} yaw={-0.15} label="FLEURS" />
-      {[6.4, 7.4, 8.4].map((x, i) => (
-        <group key={x} position={[x, 0.12, -0.9]}>
-          <Toon geometry={geo.cyl} color="#c9d2dc" position={[0, 2.0, 0]} scale={[0.06, 4.0, 0.06]} outline={0} />
-          <Bx c={['#2f4a78', '#f2ecdf', '#c8553d'][i]} b={[0.04, 0.9, 3.2, 3.8, -0.02, 0.02]} o={0.01} />
+      <group scale={0.66}>
+        <Fountain />
+      </group>
+      {gaps.map((g, i) => (
+        <group key={g.mid}>
+          <Bench p={polar(g.mid, 3.3)} yaw={faceIn(g.mid)} w={1.1} />
+          <group position={polar(g.mid, bed)} rotation={[0, faceIn(g.mid), 0]}>
+            <Planter p={[0, 0, 0]} w={1.6} d={0.7} h={0.35} flowers={FLOWERS[i % FLOWERS.length]} />
+          </group>
+          {[-1, 1].map((k) => (
+            <Cypress key={k} p={polar(g.mid + k * g.span * 0.28, bed)} h={2.2 + (i % 2) * 0.4} />
+          ))}
         </group>
       ))}
-      <Planter p={[6.0, 0.12, 1.2]} w={1.8} d={0.7} flowers="#f4efe0" />
-      <Planter p={[8.8, 0.12, 1.2]} w={1.4} d={0.7} flowers="#e7b53f" />
-      <Tree p={[9.4, 0.12, -1.0]} s={0.8} />
-      <Cypress p={[5.0, 0.12, -1.2]} h={2.6} />
-      <Bench p={[5.6, 0.12, 4.4]} w={1.2} />
-      {[-9.6, -4.9, 4.9, 9.6].map((x) => (
-        <SquareLamp key={x} p={[x, 0.12, 4.8]} />
-      ))}
+      {sorted.flatMap((b) =>
+        [-1, 1].map((k) => <SquareLamp key={`${b}${k}`} p={polar(b + k * ((Math.asin(1.4 / r) * 180) / Math.PI), r - 0.5)} />),
+      )}
+      {gaps[0] && (
+        <group position={polar(gaps[0].mid, band)} rotation={[0, faceIn(gaps[0].mid), 0]}>
+          <Newsstand p={[0, 0, 0]} label="PRESSE" />
+        </group>
+      )}
+      {gaps[1] &&
+        [-9, 0, 9].map((o, k) => <CafeTable key={o} p={polar(gaps[1].mid + o, band)} c={['#c8553d', '#3f78a8', '#e7b53f'][k]} />)}
+      {gaps[2] && (
+        <group position={polar(gaps[2].mid, band)} rotation={[0, faceIn(gaps[2].mid), 0]}>
+          <Newsstand p={[0, 0, 0]} label="FLEURS" />
+        </group>
+      )}
+      {gaps[3] &&
+        [-8, 0, 8].map((o, k) => (
+          <group key={o} position={polar(gaps[3].mid + o, band)}>
+            <Toon geometry={geo.cyl} color="#c9d2dc" position={[0, 2.0, 0]} scale={[0.06, 4.0, 0.06]} outline={0} />
+            <Bx c={['#2f4a78', '#f2ecdf', '#c8553d'][k]} b={[0.04, 0.9, 3.2, 3.8, -0.02, 0.02]} o={0.01} />
+          </group>
+        ))}
+      {gaps[4] && [-7, 7].map((o) => <Tree key={o} p={polar(gaps[4].mid + o, band)} s={0.8} />)}
     </group>
   )
 }
@@ -1309,9 +1342,7 @@ export function ServiceCenter() {
   const H = 4.6
   return (
     <group>
-      {/* civic square: the hall's forecourt plus two side wings */}
-      <Bx c="#efe6d4" b={[-10, 10, -0.4, 0.12, -1.6, 5.2]} o={0.03} material={toonMaterial('#efe6d4')} />
-      <Bx c="#efe6d4" b={[-4.5, 4.5, -0.4, 0.11, -3.4, -1.5]} o={0.03} />
+      <Bx c="#efe6d4" b={[-5.4, 5.4, -0.4, 0.12, -3.4, 1.0]} o={0.03} material={toonMaterial('#efe6d4')} />
       {/* main two-storey hall */}
       <Bx c={W} b={[-3.3, 1.9, 0.12, H, -2.8, 0.4]} o={0.07} />
       <group position={[-0.7, H + 0.7, -1.2]} scale={[2.85 / 0.509, 1.4, 1.85 / 0.509]}>
@@ -1379,10 +1410,6 @@ export function ServiceCenter() {
       ))}
       <Vines p={[-4.2, 2.45, 1.7]} w={1.4} len={0.8} />
       <Bench p={[-4.2, 0.12, 0.8]} yaw={Math.PI / 2} w={1.2} />
-      {/* big fountain in front of the hall */}
-      <group position={[-0.7, 0.12, 2.75]} scale={0.66}>
-        <Fountain />
-      </group>
       {/* guide board, about pillar, bike rack */}
       <group position={[-3.4, 0.12, 2.8]} rotation={[0, 0.5, 0]}>
         <Bx c="#e4dac6" b={[-0.55, 0.55, 0, 0.7, -0.15, 0.15]} o={brushed ? 0 : 0.02} />
@@ -1406,14 +1433,9 @@ export function ServiceCenter() {
       {[3.3, 3.7, 4.1].map((x) => (
         <Toon key={x} geometry={geo.torusRack} color="#3f4a55" position={[x, 0.12, 3.1]} rotation={[0, Math.PI / 2, 0]} outline={0.015} radial={false} />
       ))}
-      {/* benches and greenery round the fountain */}
-      {[0.9, 2.2, 4.1, 5.4].map((t) => (
-        <Bench key={t} p={[-0.7 + Math.sin(t) * 2.6, 0.12, 2.75 + Math.cos(t) * 2.3]} yaw={t + Math.PI} w={1.1} />
-      ))}
       <Planter p={[3.9, 0.12, 0.4]} w={2.0} d={0.8} flowers="#f4efe0" />
       <Cypress p={[-3.5, 0.12, -0.4]} h={2.6} />
       <Tree p={[-4.8, 0.12, -1.8]} s={0.8} />
-      <SquareWings />
     </group>
   )
 }

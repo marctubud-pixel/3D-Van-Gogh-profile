@@ -113,37 +113,85 @@ const bayCenter = routePoint(BAY.s, BAY.off)
 /** Channel linking the bay under the bridge to the open sea, so water flows on both sides of the deck. */
 const CHANNEL = { a: routePoint(BAY.s, 2), b: routePoint(BAY.s, -30), r: 5 }
 const lobeCenter = routePoint(CINEMA_LOBE.s, CINEMA_LOBE.off)
-/** Starting plaza just before the loop's origin, and the service center behind it. */
-export const PLAZA = routePoint(-1, -2.3)
-export const SERVICE_POINT = routePoint(-2, -11.2)
-/** Civic square around the service center, in its model frame (x along the road, z toward it). */
-export const SERVICE_SQUARE = { x: 10, back: -3.4, wingBack: -1.6, front: 5.2 } as const
-let serviceFrame: { f: THREE.Vector3; s: THREE.Vector3 } | null = null
-function serviceAxes() {
-  if (!serviceFrame) {
-    const f = locationAnchors(SERVICE_POINT).facing.clone()
-    serviceFrame = { f, s: new THREE.Vector3().crossVectors(UP, f).normalize() }
-  }
-  return serviceFrame
+/** Old start by the south shore: keeps that stretch of coast as land and hosts the beach loungers. */
+const START_SHORE = routePoint(-1, -2.3)
+export const BEACH_SPOT = routePoint(-2, -11.2)
+
+/** Round civic plaza in the middle of the island: paved core, lawn ring, spokes out to the ring road. */
+export const CIVIC = { center: planPoint(12, 8), r: 14.5, lawnIn: 7, lawnOut: 11, flat: 21, feather: 8 } as const
+export const PLAZA = CIVIC.center
+const bearingDir = (deg: number) => {
+  const t = THREE.MathUtils.degToRad(deg)
+  return planPoint(Math.cos(t), Math.sin(t))
 }
-/** World point at model coords (x, z) of the service square. */
+/** Service hall stands on the plaza's south-west rim, facing the fountain. */
+export const HALL_BEARING = 215
+export const SERVICE_POINT = PLAZA.clone().addScaledVector(bearingDir(HALL_BEARING), CIVIC.r + 1.2)
+export const SERVICE_FACING = flatDir(PLAZA.clone().sub(SERVICE_POINT))
+const serviceSide = new THREE.Vector3().crossVectors(UP, SERVICE_FACING).normalize()
+/** World point at model coords (x, z) of the service hall. */
 export function servicePoint(x: number, z: number) {
-  const { f, s } = serviceAxes()
-  return SERVICE_POINT.clone().addScaledVector(s, x * BUILDING_SCALE).addScaledVector(f, z * BUILDING_SCALE)
+  return SERVICE_POINT.clone().addScaledVector(serviceSide, x * BUILDING_SCALE).addScaledVector(SERVICE_FACING, z * BUILDING_SCALE)
 }
-/** True when `p` lies on the paved civic square (with `pad` world units of margin). */
+/** Collision circles for the hall, tower and welcome wall. */
+export const serviceColliders = () => [
+  { at: servicePoint(-2, -1.2), r: 2.9 },
+  { at: servicePoint(0.6, -1.2), r: 2.9 },
+  { at: servicePoint(2.6, -1), r: 2.2 },
+  { at: servicePoint(4.2, -1.15), r: 1.5 },
+]
+
+export interface Spoke {
+  a: THREE.Vector3
+  b: THREE.Vector3
+  /** Compass bearing (plan degrees, 0 = east, ccw) from the plaza centre. */
+  bearing: number
+  label: string
+}
+export const SPOKE_HALF = 1.3
+/** Stone avenues from the plaza rim to the ring road; the first leads to WRITE HOUSE. */
+export const SPOKES: Spoke[] = ([
+  [33, 'WRITE HOUSE'],
+  [122, 'CINEMA'],
+  [200, 'ARCADE · LAB'],
+  [290, 'STUDIO · OBSERVATORY'],
+] as [number, string][]).map(([s, label]) => {
+  const b = routePoint(s)
+  const dir = flatDir(b.clone().sub(PLAZA))
+  const [x, y] = pointToPlan(dir)
+  return { a: PLAZA.clone().addScaledVector(dir, CIVIC.r - 0.4), b: b.addScaledVector(dir, -3.4), bearing: THREE.MathUtils.radToDeg(Math.atan2(y, x)), label }
+})
+
+const segDist = (d: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3) => {
+  const abx = b.x - a.x
+  const abz = b.z - a.z
+  const t = THREE.MathUtils.clamp(((d.x - a.x) * abx + (d.z - a.z) * abz) / (abx * abx + abz * abz), 0, 1)
+  return Math.hypot(d.x - a.x - abx * t, d.z - a.z - abz * t)
+}
+export const onSpoke = (d: THREE.Vector3, pad = 0) => SPOKES.some((k) => segDist(d, k.a, k.b) < SPOKE_HALF + pad)
+
+/** True on the plaza disc or under the hall (with `pad` world units of margin). */
 export function onServiceSquare(p: THREE.Vector3, pad = 0) {
-  const { f, s } = serviceAxes()
+  if (flatDistance(p, PLAZA) < CIVIC.r + pad) return true
   const d = p.clone().sub(SERVICE_POINT).setY(0)
-  const x = Math.abs(d.dot(s)) / BUILDING_SCALE
-  const z = d.dot(f) / BUILDING_SCALE
+  const x = Math.abs(d.dot(serviceSide) + 0.6 * BUILDING_SCALE) / BUILDING_SCALE
+  const z = d.dot(SERVICE_FACING) / BUILDING_SCALE
   const k = pad / BUILDING_SCALE
-  const back = x < 4.5 ? SERVICE_SQUARE.back : SERVICE_SQUARE.wingBack
-  return x < SERVICE_SQUARE.x + k && z > back - k && z < SERVICE_SQUARE.front + k
+  return x < 5.4 + k && z > -3.4 - k && z < 1 + k
 }
-/** Extra blocker points covering the square's side wings. */
-export const serviceWings = () => [servicePoint(-7, 1.5), servicePoint(7, 1.5)]
-const plazaCenter = PLAZA
+/** Plaza, hall and spokes: kept clear of houses, trees, grass and street furniture. */
+export const onCivic = (d: THREE.Vector3, pad = 0) => onServiceSquare(d, pad) || onSpoke(d, pad)
+
+/** Lawn wedges of the plaza's ring, between the spokes and the hall approach. */
+export function civicLawn(d: THREE.Vector3) {
+  const rad = flatDistance(d, PLAZA)
+  if (rad < CIVIC.lawnIn || rad > CIVIC.lawnOut) return false
+  const [x, y] = pointToPlan(d.clone().sub(PLAZA))
+  const a = THREE.MathUtils.radToDeg(Math.atan2(y, x))
+  const gap = THREE.MathUtils.radToDeg(Math.asin(Math.min(1, (SPOKE_HALF + 0.9) / rad)))
+  const off = (b: number) => Math.abs(((a - b + 540) % 360) - 180)
+  return SPOKES.every((k) => off(k.bearing) > gap) && off(HALL_BEARING) > gap + 6
+}
 /** Observatory hilltop: the road climbs over its shoulder and winds back down. */
 export const HILL_TOP = routePoint(SUMMIT_S, 5)
 const HILL = { plateau: 12, radius: 58, height: 13 }
@@ -207,7 +255,7 @@ export function landValue(d: THREE.Vector3, hit = nearestOnRoute(d)) {
     w = THREE.MathUtils.lerp(w, 15.2, k)
   }
   let v = insideLoop(d) ? w + hit.dist : w - hit.dist
-  v = Math.max(v, 20 - arc(d, plazaCenter), CINEMA_LOBE.r + noise(d) * 2 - arc(d, lobeCenter))
+  v = Math.max(v, 20 - arc(d, START_SHORE), CINEMA_LOBE.r + noise(d) * 2 - arc(d, lobeCenter))
   v = Math.min(v, arc(d, bayCenter) - BAY.r, segmentDistance(d, CHANNEL.a, CHANNEL.b) - CHANNEL.r - noise(d) * 0.6)
   return v
 }
@@ -324,8 +372,12 @@ export function forecourtWalk(d: THREE.Vector3) {
 }
 
 /** Terrain with landmark plots levelled so building floors sit flush with the ground around them. */
+const CIVIC_H = hillHeight(PLAZA)
+
 export function terrainHeight(d: THREE.Vector3) {
   let h = hillHeight(d)
+  const cr = flatDistance(d, PLAZA)
+  if (cr < CIVIC.flat + CIVIC.feather) h += (CIVIC_H - h) * (1 - THREE.MathUtils.smoothstep(cr, CIVIC.flat, CIVIC.flat + CIVIC.feather))
   for (const p of landmarkPads()) {
     if (flatDistance(d, p.c) > p.reach) continue
     const dx = d.x - p.c.x
@@ -445,5 +497,19 @@ export const MESAS = [
 
 /** True where the ground is creek water or under an outcrop (no grass, props or houses there). */
 export function wildBlocked(d: THREE.Vector3, pad = 0) {
-  return creekEdge(d) < pad || MESAS.some((m) => flatDistance(d, m.at) < m.r + pad)
+  return creekEdge(d) < pad || MESAS.some((m) => flatDistance(d, m.at) < m.r + pad) || onCivic(d, pad)
 }
+
+/** Creek sample where the WRITE HOUSE avenue crosses it, spanned by the footbridge. */
+export const CREEK_CROSSING = (() => {
+  let best = 0
+  let bd = Infinity
+  CREEK.forEach((c, i) => {
+    const e = segDist(c, SPOKES[0].a, SPOKES[0].b)
+    if (e < bd && i > 0 && i < CREEK.length - 2) {
+      bd = e
+      best = i
+    }
+  })
+  return best
+})()
