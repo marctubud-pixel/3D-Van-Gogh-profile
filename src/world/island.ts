@@ -118,7 +118,7 @@ const START_SHORE = routePoint(-1, -2.3)
 export const BEACH_SPOT = routePoint(-2, -11.2)
 
 /** Round civic plaza in the middle of the island: paved core, lawn ring, spokes out to the ring road. */
-export const CIVIC = { center: planPoint(12, 8), r: 14.5, lawnIn: 7, lawnOut: 11, flat: 21, feather: 8 } as const
+export const CIVIC = { center: planPoint(12, 8), r: 20, lawnIn: 9.5, lawnOut: 15, flat: 27, feather: 8 } as const
 export const PLAZA = CIVIC.center
 const bearingDir = (deg: number) => {
   const t = THREE.MathUtils.degToRad(deg)
@@ -492,7 +492,7 @@ export const MESAS = [
   { at: planPoint(32, -38), r: 4.5, h: 6.5, seed: 2 },
   { at: planPoint(5, -46), r: 5, h: 7.5, seed: 3 },
   { at: planPoint(40, -34), r: 4.5, h: 6, seed: 4 },
-  { at: planPoint(25, -10), r: 4, h: 5.5, seed: 5 },
+  { at: planPoint(30, -18), r: 4, h: 5.5, seed: 5 },
 ]
 
 /** True where the ground is creek water or under an outcrop (no grass, props or houses there). */

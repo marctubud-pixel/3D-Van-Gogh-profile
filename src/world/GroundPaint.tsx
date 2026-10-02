@@ -9,7 +9,9 @@ import {
   ROUTE,
   ROUTE_S,
   ROUTE_TAN,
+  CIVIC,
   SPOKES,
+  onSpoke,
   civicLawn,
   creekEdge,
   forecourt,
@@ -100,14 +102,19 @@ function place(out: Stroke[], local: Stroke[], d: THREE.Vector3, fwd: THREE.Vect
 /** Service plaza paving: pale strokes swept in rings around the centre, ragged at the rim. */
 function plazaStrokes(out: Stroke[]) {
   const r = rng(23)
-  const y = groundHeight(PLAZA) + 0.08
-  for (let k = 0; k < 1500; k++) {
-    const rad = 6.7 * Math.sqrt(r())
-    if (rad < 3) continue
-    const a = r() * Math.PI * 2
-    const p = new THREE.Vector3(PLAZA.x + Math.cos(a) * rad, y + r() * 0.01, PLAZA.z + Math.sin(a) * rad)
-    const dir = rotateAbout(new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)), UP, (r() - 0.5) * 0.5)
-    out.push({ p, n: UP, dir, len: 0.35 + r() * 0.3, wid: 0.12 + r() * 0.08, color: shade(r, UP, PAVING) })
+  const STEP = 0.95
+  for (let rad = 2.9; rad < CIVIC.r + 3; rad += STEP) {
+    const n = Math.round((Math.PI * 2 * rad) / STEP)
+    const a0 = r() * Math.PI * 2
+    for (let i = 0; i < n; i++) {
+      const a = a0 + (i / n) * Math.PI * 2
+      const p = new THREE.Vector3(PLAZA.x + Math.cos(a) * rad, 0, PLAZA.z + Math.sin(a) * rad)
+      if (civicLawn(p)) continue
+      if (rad > CIVIC.r - 0.3 && (!onSpoke(p) || r() > 1 - (rad - CIVIC.r + 0.3) / 3.3)) continue
+      p.y = groundHeight(p) + 0.08 + r() * 0.01
+      const dir = rotateAbout(new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)), UP, (r() - 0.5) * 0.25)
+      out.push({ p, n: UP, dir, len: 0.72 + r() * 0.12, wid: 0.62 + r() * 0.1, color: shade(r, UP, PAVING) })
+    }
   }
 }
 
@@ -134,7 +141,7 @@ function dashStrokes(out: Stroke[]) {
     for (let s = 1; s < len - 1; s += 0.6) {
       if (s % DASH_PERIOD > DASH_ON) continue
       const at = k.a.clone().addScaledVector(along, s)
-      if (creekEdge(at) < 3) continue
+      if (creekEdge(at) < 3 || flatDistance(at, PLAZA) < CIVIC.r + 3) continue
       local.length = 0
       for (let j = 0; j < 2; j++) {
         local.push({ p: new THREE.Vector3((r() - 0.5) * 0.05, 0.12 + r() * 0.01, (r() - 0.5) * 0.2), n: UP, dir: rotateAbout(new THREE.Vector3(0, 0, 1), UP, (r() - 0.5) * 0.08), len: 0.55 + r() * 0.2, wid: 0.13 + r() * 0.04, color: new THREE.Color(pick(r, DASH)) })

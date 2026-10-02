@@ -14,6 +14,7 @@ import {
   ROUTE_S,
   ROUTE_TAN,
   BEACH_SPOT,
+  CIVIC,
   SERVICE_POINT,
   CREEK,
   SPOKES,
@@ -99,7 +100,7 @@ function PlanetBody() {
         const h = terrainHeight(v)
         y = h
         if (onServiceSquare(v, 0.2)) c.copy(civicLawn(v) ? LAWN : PAVING)
-        else if (onSpoke(v, 0.1)) c.copy(AVENUE)
+        else if (onSpoke(v, 0.1)) c.copy(PAVING).lerp(AVENUE, THREE.MathUtils.smoothstep(flatDistance(v, PLAZA), CIVIC.r - 0.5, CIVIC.r + 3))
         else c.copy(forecourt(v, -0.2) ? (forecourtWalk(v) ? COURT : LAWN) : MEADOW_GROUND)
         const e = creekEdge(v)
         if (e < 0.6) {
@@ -392,7 +393,7 @@ function avenueRibbon() {
     let open = false
     for (let i = 0; i <= n; i++) {
       const c = k.a.clone().addScaledVector(along, (len * i) / n)
-      if (creekEdge(c) < 3) {
+      if (creekEdge(c) < 3 || flatDistance(c, PLAZA) < CIVIC.r + 2.5) {
         open = false
         continue
       }

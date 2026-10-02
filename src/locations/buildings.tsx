@@ -1291,12 +1291,12 @@ export function CivicPlaza({ ways, r, lawn }: { ways: number[]; r: number; lawn:
   const bed = (lawn[0] + lawn[1]) / 2
   return (
     <group>
-      <group scale={0.66}>
+      <group scale={0.9}>
         <Fountain />
       </group>
       {gaps.map((g, i) => (
         <group key={g.mid}>
-          <Bench p={polar(g.mid, 3.3)} yaw={faceIn(g.mid)} w={1.1} />
+          <Bench p={polar(g.mid, 4.2)} yaw={faceIn(g.mid)} w={1.1} />
           <group position={polar(g.mid, bed)} rotation={[0, faceIn(g.mid), 0]}>
             <Planter p={[0, 0, 0]} w={1.6} d={0.7} h={0.35} flowers={FLOWERS[i % FLOWERS.length]} />
           </group>
@@ -1305,9 +1305,9 @@ export function CivicPlaza({ ways, r, lawn }: { ways: number[]; r: number; lawn:
           ))}
         </group>
       ))}
-      {sorted.flatMap((b) =>
-        [-1, 1].map((k) => <SquareLamp key={`${b}${k}`} p={polar(b + k * ((Math.asin(1.4 / r) * 180) / Math.PI), r - 0.5)} />),
-      )}
+      {gaps.map((g) => (
+        <SquareLamp key={g.mid} p={polar(g.mid + g.span * 0.33, r - 0.7)} />
+      ))}
       {gaps[0] && (
         <group position={polar(gaps[0].mid, band)} rotation={[0, faceIn(gaps[0].mid), 0]}>
           <Newsstand p={[0, 0, 0]} label="PRESSE" />
@@ -1320,14 +1320,7 @@ export function CivicPlaza({ ways, r, lawn }: { ways: number[]; r: number; lawn:
           <Newsstand p={[0, 0, 0]} label="FLEURS" />
         </group>
       )}
-      {gaps[3] &&
-        [-8, 0, 8].map((o, k) => (
-          <group key={o} position={polar(gaps[3].mid + o, band)}>
-            <Toon geometry={geo.cyl} color="#c9d2dc" position={[0, 2.0, 0]} scale={[0.06, 4.0, 0.06]} outline={0} />
-            <Bx c={['#2f4a78', '#f2ecdf', '#c8553d'][k]} b={[0.04, 0.9, 3.2, 3.8, -0.02, 0.02]} o={0.01} />
-          </group>
-        ))}
-      {gaps[4] && [-7, 7].map((o) => <Tree key={o} p={polar(gaps[4].mid + o, band)} s={0.8} />)}
+      {gaps.slice(3).flatMap((g) => [-7, 7].map((o) => <Tree key={`${g.mid}${o}`} p={polar(g.mid + o, band)} s={0.8} />))}
     </group>
   )
 }
