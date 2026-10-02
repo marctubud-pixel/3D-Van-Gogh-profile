@@ -5,8 +5,8 @@ import type { WorldLocation } from '../../shared/types'
 import { inputLocked, useGame } from '../app/game'
 import { Bike } from '../bike/Bike'
 import { CAMERA } from '../camera/config'
-import { BUILDING_RADIUS, SERVICE_CENTER, R, arcDistance, dirFromLatLon, latLonFromDir, slerpDir, surfaceQuaternion } from '../world/sphere'
-import { TITLE_CENTER, landmarkColliders, locationAnchors, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
+import { BUILDING_RADIUS, SERVICE_CENTER, R, arcDistance, dirToPlan, planDir, slerpDir, surfaceQuaternion, tangentNorth } from '../world/sphere'
+import { SERVICE_DIR, landmarkColliders, locationAnchors, locationDir, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
 import { camFocus, playerUp } from '../world/occlusion'
 import { LOT_RADIUS, townLots } from '../world/townLayout'
 import { Avatar } from './Avatar'
@@ -20,7 +20,8 @@ const DOOR_RADIUS = 2.6
 const BIKE_RADIUS = 1.8
 const TRANSITION_S = 0.55
 const UTURN_RATE = 3.4
-const INTRO_DIST = 118
+/** Overview of the whole island: orbit centre on the flat map, distance and pitch. */
+const INTRO = { x: 0, y: -40, dist: 290, pitch: 0.8 }
 const FLY_S = 2.8
 
 const keys = new Set<string>()
@@ -56,11 +57,11 @@ function advance(b: Body, dist: number, yaw: number) {
 
 export function Player({ locations }: { locations: WorldLocation[] }) {
   const { camera, gl } = useThree()
-  const anchors = useMemo(() => locations.map((l) => ({ loc: l, ...locationAnchors(l.lat, l.lon, l.id) })), [locations])
+  const anchors = useMemo(() => locations.map((l) => ({ loc: l, ...locationAnchors(locationDir(l), l.id) })), [locations])
   const colliders = useMemo(
     () => [
       ...anchors.flatMap((a) => landmarkColliders(a, a.loc.id)),
-      { at: locationAnchors(SERVICE_CENTER.lat, SERVICE_CENTER.lon).building, r: SERVICE_CENTER.radius },
+      { at: SERVICE_DIR, r: SERVICE_CENTER.radius },
       ...townLots(locations)
         .filter((l) => l.kind !== 'garden')
         .map((l) => ({ at: l.up, r: LOT_RADIUS })),
@@ -87,8 +88,8 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
   /** Pose at the landmark door the rider walks to after auto-parking. */
   const doorPose = useRef<Body | null>(null)
   const park = useRef<{ from: Body; to: Body } | null>(null)
-  const orbit = useRef({ lat: TITLE_CENTER.lat + 22, lon: TITLE_CENTER.lon - 8 })
-  const fly = useRef<{ t: number; pos: THREE.Vector3; up: THREE.Vector3 } | null>(null)
+  const orbit = useRef({ yaw: -0.35, pitch: INTRO.pitch })
+  const fly = useRef<{ t: number; pos: THREE.Vector3; up: THREE.Vector3; target: THREE.Vector3 } | null>(null)
   const snap = useRef(false)
   const lastLatLon = useRef(0)
   const bikeGroup = useRef<THREE.Group>(null)
@@ -146,8 +147,8 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
       if (!look.current.dragging) return
       if (useGame.getState().phase === 'intro') {
         const o = orbit.current
-        o.lon -= e.movementX * 0.25
-        o.lat = THREE.MathUtils.clamp(o.lat + e.movementY * 0.2, -70, 70)
+        o.yaw -= e.movementX * 0.005
+        o.pitch = THREE.MathUtils.clamp(o.pitch + e.movementY * 0.003, 0.35, 1.35)
         return
       }
       if (inputLocked()) return
@@ -435,20 +436,26 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     const phase = g.phase
     if (phase === 'intro') {
       const o = orbit.current
-      if (!lk.dragging) o.lon += dt * 3
-      camera.position.copy(dirFromLatLon(o.lat, o.lon).multiplyScalar(INTRO_DIST))
-      camera.up.set(0, 1, 0)
-      camera.lookAt(0, 0, 0)
-      camTarget.current.set(0, 0, 0)
+      if (!lk.dragging) o.yaw += dt * 0.05
+      const c = planDir(INTRO.x, INTRO.y)
+      const center = surf(c)
+      const back = tangentNorth(c).negate().applyAxisAngle(c, o.yaw)
+      camera.position
+        .copy(center)
+        .addScaledVector(back, Math.cos(o.pitch) * INTRO.dist)
+        .addScaledVector(c, Math.sin(o.pitch) * INTRO.dist)
+      camera.up.copy(c)
+      camera.lookAt(center)
+      camTarget.current.copy(center)
       fly.current = null
     } else if (phase === 'flying') {
-      if (!fly.current) fly.current = { t: 0, pos: camera.position.clone(), up: camera.up.clone() }
+      if (!fly.current) fly.current = { t: 0, pos: camera.position.clone(), up: camera.up.clone(), target: camTarget.current.clone() }
       const f = fly.current
-      f.t = Math.min(1, f.t + dt / FLY_S)
+      f.t = Math.min(1, f.t + Math.min(rawDt, 0.25) / FLY_S)
       const e = ease(f.t)
       const dir = slerpDir(f.pos, desired, e)
       camera.position.copy(dir.multiplyScalar(THREE.MathUtils.lerp(f.pos.length(), desired.length(), e)))
-      camTarget.current.set(0, 0, 0).lerp(focus, ease(Math.min(1, f.t * 1.3)))
+      camTarget.current.copy(f.target).lerp(focus, ease(Math.min(1, f.t * 1.3)))
       camera.up.copy(f.up).lerp(w.up, e).normalize()
       camera.lookAt(camTarget.current)
       if (f.t >= 1) g.setPhase('play')
@@ -470,7 +477,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     const now = performance.now()
     if (now - lastLatLon.current > 200) {
       lastLatLon.current = now
-      g.setLatLon(latLonFromDir(w.up))
+      g.setPlan(dirToPlan(w.up))
     }
   })
 

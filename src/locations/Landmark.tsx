@@ -3,8 +3,8 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { playerUp } from '../world/occlusion'
-import { BUILDING_SCALE, LANDMARK_FIT, R, SERVICE_CENTER, landmarkSetback, surfaceQuaternion } from '../world/sphere'
-import { locationAnchors, surf } from '../world/island'
+import { BUILDING_SCALE, LANDMARK_FIT, R, landmarkSetback, surfaceQuaternion } from '../world/sphere'
+import { SERVICE_DIR, locationAnchors, locationDir, surf } from '../world/island'
 import { Toon, geo, toonMaterial } from '../world/toon'
 import { StrokeBuild } from '../world/strokes'
 import { Arcade, Cinema, CreativeMuseum, ExperimentLab, Observatory, ServiceCenter, Studio, WriteHouse } from './buildings'
@@ -172,7 +172,7 @@ interface LandmarkProps {
 }
 
 export function Landmark({ loc, active }: LandmarkProps) {
-  const a = useMemo(() => locationAnchors(loc.lat, loc.lon, loc.id), [loc.lat, loc.lon, loc.id])
+  const a = useMemo(() => locationAnchors(locationDir(loc), loc.id), [loc])
   const fit = LANDMARK_FIT[loc.id]?.scale ?? 1
   const buildingQ = useMemo(() => surfaceQuaternion(a.building, a.facing), [a])
   const parkingQ = useMemo(() => surfaceQuaternion(a.parking, a.facing), [a])
@@ -206,7 +206,7 @@ export function Landmark({ loc, active }: LandmarkProps) {
 
 /** Static welcome hall beside the central plaza. */
 export function ServiceCenterSite() {
-  const a = useMemo(() => locationAnchors(SERVICE_CENTER.lat, SERVICE_CENTER.lon), [])
+  const a = useMemo(() => locationAnchors(SERVICE_DIR), [])
   const q = useMemo(() => surfaceQuaternion(a.building, a.facing), [a])
   return (
     <group position={surf(a.building)} quaternion={q} scale={BUILDING_SCALE}>

@@ -1,7 +1,7 @@
 import * as THREE from 'three'
-import { BUILDING_RADIUS, BUILDING_SCALE, LANDMARK_FIT, R, dirFromLatLon, landmarkSetback, moveToward, type LocationAnchors } from './sphere'
+import { BUILDING_RADIUS, BUILDING_SCALE, LANDMARK_FIT, R, dirToPlan, landmarkSetback, mapDir, planDir, moveToward, type LocationAnchors } from './sphere'
 
-/** Control points (lat, lon) of the island loop road: plaza → landmarks → observatory hill → back down to the plaza. */
+/** Control points (map lat, lon; see `mapToPlan`) of the island loop road: plaza → landmarks → observatory hill → back down to the plaza. */
 const CTRL: [number, number][] = [
   [0, 0], [3, 12], [10, 22], [14, 34], [10, 46], [3, 56], [1, 68], [5, 80], [12, 90], [18, 100],
   [20, 112], [16, 124], [10, 134], [8, 146], [12, 158], [18, 168], [16, 180], [8, 190], [2, 200],
@@ -11,7 +11,7 @@ const CTRL: [number, number][] = [
 
 const SAMPLES = 520
 const curve = new THREE.CatmullRomCurve3(
-  CTRL.map(([a, b]) => dirFromLatLon(a, b).multiplyScalar(R)),
+  CTRL.map(([a, b]) => mapDir(a, b).multiplyScalar(R)),
   true,
   'centripetal',
 )
@@ -92,53 +92,77 @@ export function nearestOnRoute(d: THREE.Vector3): RouteHit {
 }
 
 /** Arc length of the summit bend, where the observatory sits. */
-export const SUMMIT_S = nearestOnRoute(dirFromLatLon(33, 238)).s
+export const SUMMIT_S = nearestOnRoute(mapDir(33, 238)).s
+
+/** Arc lengths below are laid out on a 276-unit reference loop and stretched to the real one. */
+export const ROUTE_K = ROUTE_LEN / 276
 
 /** Landmark placement along the road: arc length, side (+1/-1) and setback from the centreline. */
 export const STOPS = {
-  'print-house': { s: 20, side: -1, off: 10 },
-  'brand-museum': { s: 40, side: -1, off: 10 },
-  cinema: { s: 86, side: 1, off: 10 },
-  arcade: { s: 110, side: -1, off: 9.5 },
-  'experiment-lab': { s: 134, side: 1, off: 11 },
-  'my-studio': { s: 158, side: -1, off: 9.5 },
+  'print-house': { s: 20 * ROUTE_K, side: -1, off: 10 },
+  'brand-museum': { s: 40 * ROUTE_K, side: -1, off: 10 },
+  cinema: { s: 86 * ROUTE_K, side: 1, off: 10 },
+  arcade: { s: 110 * ROUTE_K, side: -1, off: 9.5 },
+  'experiment-lab': { s: 134 * ROUTE_K, side: 1, off: 11 },
+  'my-studio': { s: 158 * ROUTE_K, side: -1, off: 9.5 },
   observatory: { s: SUMMIT_S, side: 1, off: 10 },
 } as const
 
 export const ROUTE_ORDER = ['print-house', 'brand-museum', 'cinema', 'arcade', 'experiment-lab', 'my-studio', 'observatory']
 
-const BAY = { s: 64, off: 8, r: 9 }
+const BAY = { s: 64 * ROUTE_K, off: 8, r: 9 }
 const CINEMA_LOBE = { s: STOPS.cinema.s, off: 13, r: 12 }
 const STUDIO = STOPS['my-studio']
 const bayCenter = routePoint(BAY.s, BAY.off)
 const lobeCenter = routePoint(CINEMA_LOBE.s, CINEMA_LOBE.off)
-const plazaCenter = dirFromLatLon(0, -4)
+/** Starting plaza just before the loop's origin, and the service center behind it. */
+export const PLAZA = routePoint(-1, -2.3)
+export const SERVICE_DIR = routePoint(-2, -11.2)
+const plazaCenter = PLAZA
 /** Observatory hilltop: the road climbs over its shoulder and winds back down. */
 export const HILL_TOP = routePoint(SUMMIT_S, 5)
-const HILL = { plateau: 9, radius: 30, height: 6 }
+const HILL = { plateau: 10, radius: 38, height: 10 }
 
 /** Park around the lab: open lawn with a pond. */
 export const PARK = { center: routePoint(STOPS['experiment-lab'].s, 12), r: 14 }
 export const POND = { center: routePoint(STOPS['experiment-lab'].s - 10, 12), r: 3.4 }
 
-function noise(d: THREE.Vector3) {
+/** Smooth coastline wobble, sampled on the flat map. */
+export function noise(d: THREE.Vector3) {
+  const [px, py] = dirToPlan(d)
+  const x = px / 40
+  const y = py / 40
   return (
-    Math.sin(d.x * 11 + 1.3) * Math.sin(d.y * 13 + 0.4) * Math.sin(d.z * 9 + 2.1) * 0.6 +
-    Math.sin(d.x * 23 + d.z * 17) * 0.25 +
-    Math.sin(d.y * 29 - d.x * 7) * 0.15
+    Math.sin(x * 11 + 1.3) * Math.sin(y * 13 + 0.4) * 0.6 +
+    Math.sin(x * 23 + y * 17) * 0.25 +
+    Math.sin(y * 29 - x * 7) * 0.15
   )
 }
 
 const arc = (a: THREE.Vector3, b: THREE.Vector3) => a.angleTo(b) * R
 
 /** Signed distance-like land value: > 0 on land, < 0 at sea. */
+const ROUTE_PLAN = ROUTE.map((d) => dirToPlan(d))
+
+/** True when `d` lies inside the closed road loop. */
+function insideLoop(d: THREE.Vector3) {
+  const [x, y] = dirToPlan(d)
+  let inside = false
+  for (let i = 0, j = ROUTE_PLAN.length - 1; i < ROUTE_PLAN.length; j = i++) {
+    const [xi, yi] = ROUTE_PLAN[i]
+    const [xj, yj] = ROUTE_PLAN[j]
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
 export function landValue(d: THREE.Vector3, hit = nearestOnRoute(d)) {
   let w = 21 + noise(d) * 2
   if (hit.sign === STUDIO.side) {
     const k = Math.max(0, 1 - Math.abs(hit.s - STUDIO.s) / 16)
     w = THREE.MathUtils.lerp(w, 15.2, k)
   }
-  let v = w - hit.dist
+  let v = insideLoop(d) ? w + hit.dist : w - hit.dist
   v = Math.max(v, 20 - arc(d, plazaCenter), CINEMA_LOBE.r + noise(d) * 2 - arc(d, lobeCenter))
   v = Math.min(v, arc(d, bayCenter) - BAY.r)
   return v
@@ -185,12 +209,17 @@ export function surf(d: THREE.Vector3, lift = 0) {
   return d.clone().normalize().multiplyScalar(R + groundHeight(d) + lift)
 }
 
-/** Centre of the "MARC ISLAND" lettering in the southern sea. */
-export const TITLE_CENTER = { lat: -34, lon: 112 }
+/** Centre of the "MARC ISLAND" lettering in the sea south of the island. */
+export const TITLE_CENTER = planDir(0, -124)
 
-/** Building, door, road-side stop and side-of-building parking for a landmark at (lat, lon). */
-export function locationAnchors(lat: number, lon: number, id = ''): LocationAnchors {
-  const building = dirFromLatLon(lat, lon)
+/** Ground direction of a CMS location: route stops sit at their slot, anything else at its map (lat, lon). */
+export function locationDir(l: { id: string; lat: number; lon: number }) {
+  const st = (STOPS as Record<string, { s: number; side: number; off: number } | undefined>)[l.id]
+  return st ? routePoint(st.s, st.side * st.off) : mapDir(l.lat, l.lon)
+}
+
+/** Building, door, road-side stop and side-of-building parking for a landmark standing at `building`. */
+export function locationAnchors(building: THREE.Vector3, id = ''): LocationAnchors {
   const hit = nearestOnRoute(building)
   const road = ROUTE[hit.i].clone()
   let facing = road.clone().sub(building).projectOnPlane(building)
@@ -229,6 +258,6 @@ export function landmarkColliders(a: LocationAnchors, id: string) {
 
 /** Points other scenery keeps clear of: footprint centres plus the bike stand. */
 export function landmarkBlockers(l: { id: string; lat: number; lon: number }) {
-  const a = locationAnchors(l.lat, l.lon, l.id)
+  const a = locationAnchors(locationDir(l), l.id)
   return [a.building, a.parking, ...landmarkColliders(a, l.id).map((c) => c.at)]
 }

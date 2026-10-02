@@ -19,7 +19,8 @@ interface GameState {
   openProjectId: string | null
   routeTargetId: string | null
   mapOpen: boolean
-  latLon: [number, number]
+  /** Player position on the flat map (x east, y north). */
+  plan: [number, number]
   resetCount: number
   setPhase: (p: Phase) => void
   teleportTo: (id: string) => void
@@ -30,7 +31,7 @@ interface GameState {
   openProject: (id: string | null) => void
   setRouteTarget: (id: string | null) => void
   setMapOpen: (v: boolean) => void
-  setLatLon: (v: [number, number]) => void
+  setPlan: (v: [number, number]) => void
   returnToPlaza: () => void
 }
 
@@ -46,7 +47,7 @@ export const useGame = create<GameState>((set) => ({
   openProjectId: null,
   routeTargetId: null,
   mapOpen: false,
-  latLon: [0, 0],
+  plan: [0, 0],
   resetCount: 0,
   setPhase: (phase) => set({ phase }),
   teleportTo: (id) =>
@@ -62,7 +63,7 @@ export const useGame = create<GameState>((set) => ({
   openProject: (openProjectId) => set({ openProjectId }),
   setRouteTarget: (routeTargetId) => set({ routeTargetId }),
   setMapOpen: (mapOpen) => set({ mapOpen }),
-  setLatLon: (latLon) => set({ latLon }),
+  setPlan: (plan) => set({ plan }),
   returnToPlaza: () =>
     set((s) => ({ resetCount: s.resetCount + 1, player: 'RIDING', openLocationId: null, openProjectId: null, mapOpen: false })),
 }))

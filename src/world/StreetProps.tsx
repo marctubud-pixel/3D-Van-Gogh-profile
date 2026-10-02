@@ -1,8 +1,9 @@
 import { useMemo, type ReactNode } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { R, SERVICE_CENTER, dirFromLatLon, surfaceQuaternion } from './sphere'
-import { BRIDGE, ROUTE_LEN, ROUTE_S, landmarkBlockers, routeFrame, routePoint, surf } from './island'
+import { R, surfaceQuaternion } from './sphere'
+import { BRIDGE, PLAZA, ROUTE_K, ROUTE_LEN, ROUTE_S, SERVICE_DIR, landmarkBlockers, routeFrame, routePoint, surf } from './island'
+import { StrokeBuild } from './strokes'
 import { LINE_COLOR, Toon, geo } from './toon'
 
 interface Spot {
@@ -102,8 +103,8 @@ function Wires({ tops }: { tops: THREE.Vector3[] }) {
 export function StreetProps({ locations }: { locations: WorldLocation[] }) {
   const layout = useMemo(() => {
     const blockers = locations.flatMap(landmarkBlockers)
-    blockers.push(dirFromLatLon(SERVICE_CENTER.lat, SERVICE_CENTER.lon))
-    const plaza = dirFromLatLon(0, 0)
+    blockers.push(SERVICE_DIR)
+    const plaza = PLAZA
     const free = (d: THREE.Vector3, r: number) => d.angleTo(plaza) * R > 8 && blockers.every((b) => b.angleTo(d) * R > r)
     const bridge: [number, number] = [ROUTE_S[BRIDGE.a] - 3, ROUTE_S[BRIDGE.b] + 3]
     const runs: Spot[][] = [[]]
@@ -120,7 +121,7 @@ export function StreetProps({ locations }: { locations: WorldLocation[] }) {
     const bollards: Spot[] = []
     for (const s of bridge) for (const k of [-1, 1]) bollards.push(roadSpot(s, k * 2.4))
     const vending: Spot[] = [18, 70, 124, 170]
-      .map((s) => roadSpot(s, -4.2))
+      .map((s) => roadSpot(s * ROUTE_K, -4.2))
       .filter((v) => free(v.up, 6))
     return { poles, wires, bollards, vending }
   }, [locations])
@@ -129,7 +130,9 @@ export function StreetProps({ locations }: { locations: WorldLocation[] }) {
     <group>
       {layout.poles.map((s, i) => (
         <Placed key={`p${i}`} spot={s}>
-          <UtilityPole />
+          <StrokeBuild seed={i + 3}>
+            <UtilityPole />
+          </StrokeBuild>
         </Placed>
       ))}
       {layout.wires.map((w, i) => (
@@ -143,7 +146,9 @@ export function StreetProps({ locations }: { locations: WorldLocation[] }) {
       {layout.vending.map((s, i) => (
         <Placed key={`v${i}`} spot={s}>
           <group rotation={[0, Math.PI / 2, 0]}>
-            <VendingMachine />
+            <StrokeBuild seed={i + 41}>
+              <VendingMachine />
+            </StrokeBuild>
           </group>
         </Placed>
       ))}

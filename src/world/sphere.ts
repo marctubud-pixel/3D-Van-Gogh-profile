@@ -1,7 +1,6 @@
 import * as THREE from 'three'
-import { PLANET_RADIUS } from '../../shared/seed'
-
-export const R = PLANET_RADIUS
+/** Ground radius: large enough that the island reads as flat, with only a soft fall-off at the horizon. */
+export const R = 2400
 
 export function dirFromLatLon(lat: number, lon: number) {
   const phi = THREE.MathUtils.degToRad(lat)
@@ -12,6 +11,28 @@ export function dirFromLatLon(lat: number, lon: number) {
 export function latLonFromDir(d: THREE.Vector3): [number, number] {
   const n = d.clone().normalize()
   return [THREE.MathUtils.radToDeg(Math.asin(n.y)), THREE.MathUtils.radToDeg(Math.atan2(n.x, n.z))]
+}
+
+/** Unit direction of the flat-map point (x east, y north) in world units, centred on lat 0 / lon 0. */
+export function planDir(x: number, y: number) {
+  return dirFromLatLon(THREE.MathUtils.radToDeg(y / R), THREE.MathUtils.radToDeg(x / R))
+}
+
+export function dirToPlan(d: THREE.Vector3): [number, number] {
+  const n = d.clone().normalize()
+  return [Math.atan2(n.x, n.z) * R, Math.asin(n.y) * R]
+}
+
+/** Legacy (lat, lon) map coordinates of the ring road → flat-map point: lon is the bearing round the island, lat pulls inward. */
+export function mapToPlan(lat: number, lon: number): [number, number] {
+  const t = THREE.MathUtils.degToRad(lon)
+  const r = 80 - 1.1 * lat
+  return [r * Math.sin(t), -r * Math.cos(t)]
+}
+
+export function mapDir(lat: number, lon: number) {
+  const [x, y] = mapToPlan(lat, lon)
+  return planDir(x, y)
 }
 
 /** Quaternion that orients local +Y to `up` and local +Z to `forward` (projected onto the tangent plane). */
@@ -73,4 +94,4 @@ export function landmarkSetback(id: string) {
 }
 
 /** ISLAND SERVICE CENTER beside the starting plaza (static, not CMS-driven). */
-export const SERVICE_CENTER = { lat: 0, lon: -17.5, radius: 7 } as const
+export const SERVICE_CENTER = { radius: 7 } as const

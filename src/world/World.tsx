@@ -66,7 +66,7 @@ export function World({ locations, onError }: { locations: WorldLocation[]; onEr
       <Canvas
         shadows={{ type: THREE.PCFShadowMap }}
         dpr={[1, 2]}
-        camera={{ fov: CAMERA.fov, near: 0.1, far: 400, position: [0, 45, 12] }}
+        camera={{ fov: CAMERA.fov, near: 0.1, far: 3000, position: [0, 45, 12] }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         onCreated={({ gl, scene }) => {
           gl.toneMapping = THREE.NoToneMapping

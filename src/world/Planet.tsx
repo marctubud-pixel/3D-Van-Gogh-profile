@@ -1,16 +1,18 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { R, SERVICE_CENTER, dirFromLatLon, surfaceQuaternion, tangentNorth } from './sphere'
+import { R, dirToPlan, planDir, surfaceQuaternion, tangentNorth } from './sphere'
 import {
   BRIDGE,
   HILL_TOP,
+  PLAZA,
   PARK,
   POND,
   ROUTE,
   ROUTE_LEN,
   ROUTE_S,
   ROUTE_TAN,
+  SERVICE_DIR,
   groundHeight,
   hillHeight,
   landValue,
@@ -21,9 +23,9 @@ import {
   surf,
 } from './island'
 import { townLots } from './townLayout'
-import { Fadeable } from './occlusion'
+import { GroundPaint, type ScenerySpot } from './GroundPaint'
 import { IslandTitle } from './IslandTitle'
-import { LINE_COLOR, Toon, geo, outlineMaterial, toonMaterial } from './toon'
+import { LINE_COLOR, Toon, geo, toonMaterial } from './toon'
 
 const GRASS = '#72b07e'
 const GRASS_DARK = '#5e9d6d'
@@ -48,17 +50,23 @@ function mulberry32(seed: number) {
 
 const arc = (a: THREE.Vector3, b: THREE.Vector3) => a.angleTo(b) * R
 
+/** Flat-map extent of the detailed island ground; the open sea continues beyond it. */
+const GROUND = { x0: -110, x1: 130, y0: -128, y1: 120, step: 0.8 }
+
 function PlanetBody() {
   const geometry = useMemo(() => {
-    const g = new THREE.SphereGeometry(R, 256, 160)
+    const nx = Math.round((GROUND.x1 - GROUND.x0) / GROUND.step)
+    const ny = Math.round((GROUND.y1 - GROUND.y0) / GROUND.step)
+    const g = new THREE.PlaneGeometry(1, 1, nx, ny)
     const pos = g.attributes.position
     const colors = new Float32Array(pos.count * 3)
     const c = new THREE.Color()
-    const v = new THREE.Vector3()
     for (let i = 0; i < pos.count; i++) {
-      v.fromBufferAttribute(pos, i).normalize()
+      const px = GROUND.x0 + (pos.getX(i) + 0.5) * (GROUND.x1 - GROUND.x0)
+      const py = GROUND.y0 + (pos.getY(i) + 0.5) * (GROUND.y1 - GROUND.y0)
+      const v = planDir(px, py)
       const land = landValue(v)
-      const patch = Math.sin(v.x * 9) * Math.sin(v.z * 7) * Math.sin(v.y * 5)
+      const patch = Math.sin(px * 0.22) * Math.sin(py * 0.18) * Math.sin((px + py) * 0.12)
       let r = R
       if (land < 0) {
         c.set(land > -2.5 ? SHALLOW : SEA)
@@ -72,7 +80,8 @@ function PlanetBody() {
         if (arc(v, PARK.center) < PARK.r) c.set(LAWN)
         else c.set(patch > 0.25 || h > 0.5 ? GRASS_DARK : GRASS)
       }
-      pos.setXYZ(i, v.x * r, v.y * r, v.z * r)
+      v.multiplyScalar(r)
+      pos.setXYZ(i, v.x, v.y, v.z)
       colors.set([c.r, c.g, c.b], i * 3)
     }
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3))
@@ -87,8 +96,29 @@ function PlanetBody() {
   return (
     <>
       <mesh geometry={geometry} material={mat} receiveShadow />
-      <mesh geometry={geometry} material={outlineMaterial(0.25, false)} />
+      <OpenSea />
     </>
+  )
+}
+
+/** Open sea reaching to the horizon around the island. */
+function OpenSea() {
+  const geometry = useMemo(() => {
+    const g = new THREE.RingGeometry(0, 1, 96, 40)
+    const pos = g.attributes.position
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i)
+      const y = pos.getY(i)
+      const k = Math.hypot(x, y)
+      const rr = k < 1e-6 ? 0 : (Math.pow(k, 2.2) * 2200) / k
+      const v = planDir(10 + x * rr, y * rr).multiplyScalar(R - 1.2)
+      pos.setXYZ(i, v.x, v.y, v.z)
+    }
+    g.computeVertexNormals()
+    return g
+  }, [])
+  return (
+    <mesh geometry={geometry} material={toonMaterial(SEA)} />
   )
 }
 
@@ -218,19 +248,14 @@ function Bridge() {
   )
 }
 
-interface PropSpot {
-  pos: THREE.Vector3
-  q: THREE.Quaternion
-  kind: 'tree' | 'pine' | 'bush' | 'rock'
-  s: number
-}
+
 
 function randomTangent(d: THREE.Vector3, rand: () => number) {
   return tangentNorth(d).applyAxisAngle(d, rand() * Math.PI * 2)
 }
 
 /** Random point on or around the island: along the road, within `spread` of the centreline. */
-function islandSample(rand: () => number, spread = 24) {
+function islandSample(rand: () => number, spread = 40) {
   return routePoint(rand() * (ROUTE_LEN + 20) - 10, (rand() * 2 - 1) * spread)
 }
 
@@ -239,8 +264,8 @@ function useBlockers(locations: WorldLocation[]) {
     const b = locations.flatMap(landmarkBlockers)
     return {
       buildings: b,
-      service: dirFromLatLon(SERVICE_CENTER.lat, SERVICE_CENTER.lon),
-      plaza: dirFromLatLon(0, 0),
+      service: SERVICE_DIR,
+      plaza: PLAZA,
       lots: townLots(locations).map((l) => l.up),
     }
   }, [locations])
@@ -250,7 +275,7 @@ function useProps(locations: WorldLocation[]) {
   const bl = useBlockers(locations)
   return useMemo(() => {
     const rand = mulberry32(7)
-    const spots: PropSpot[] = []
+    const spots: ScenerySpot[] = []
     const free = (d: THREE.Vector3, road = 4.6) => {
       const hit = nearestOnRoute(d)
       if (hit.dist < road) return null
@@ -260,11 +285,10 @@ function useProps(locations: WorldLocation[]) {
       if (arc(POND.center, d) < POND.r + 1.2) return null
       return landValue(d, hit)
     }
-    const push = (d: THREE.Vector3, kind: PropSpot['kind'], s: number) =>
-      spots.push({ pos: surf(d, kind === 'rock' ? -0.1 : 0), q: surfaceQuaternion(d, randomTangent(d, rand)), kind, s })
+    const push = (d: THREE.Vector3, kind: ScenerySpot['kind'], s: number) => spots.push({ d, yaw: rand() * Math.PI * 2, kind, s })
 
     let guard = 0
-    while (spots.length < 170 && guard++ < 6000) {
+    while (spots.length < 240 && guard++ < 9000) {
       const d = islandSample(rand)
       const land = free(d)
       if (land === null || land < 0.6) continue
@@ -275,9 +299,10 @@ function useProps(locations: WorldLocation[]) {
       }
       const hill = arc(d, HILL_TOP) < 28
       // leave open meadows: only plant in clumps
-      const clump = Math.sin(d.x * 21) * Math.sin(d.y * 17 + 1) * Math.sin(d.z * 19 + 2)
+      const [cx, cy] = dirToPlan(d)
+      const clump = Math.sin(cx * 0.5) * Math.sin(cy * 0.42 + 1) * Math.sin((cx - cy) * 0.3 + 2)
       if (!hill && clump < 0.05) continue
-      const kind: PropSpot['kind'] = hill ? (rand() > 0.25 ? 'pine' : 'bush') : rand() > 0.5 ? 'tree' : rand() > 0.45 ? 'bush' : 'pine'
+      const kind: ScenerySpot['kind'] = hill ? (rand() > 0.25 ? 'pine' : 'bush') : rand() > 0.5 ? 'tree' : rand() > 0.45 ? 'bush' : 'pine'
       push(d, kind, 0.8 + rand() * 0.6)
     }
     guard = 0
@@ -292,30 +317,6 @@ function useProps(locations: WorldLocation[]) {
     }
     return spots
   }, [bl])
-}
-
-function PropMesh({ kind }: { kind: PropSpot['kind'] }) {
-  switch (kind) {
-    case 'tree':
-      return (
-        <>
-          <Toon geometry={geo.cyl} color="#6e6660" position={[0, 0.8, 0]} scale={[0.3, 1.6, 0.3]} outline={0.03} />
-          <Toon geometry={geo.ico} color="#4f8f5f" position={[0, 2.2, 0]} scale={[2, 1.7, 2]} outline={0.06} radial={false} />
-          <Toon geometry={geo.ico} color="#62a06c" position={[0.5, 2.8, 0.2]} scale={[1.2, 1, 1.2]} outline={0.05} radial={false} />
-        </>
-      )
-    case 'pine':
-      return (
-        <>
-          <Toon geometry={geo.cyl} color="#6e6660" position={[0, 0.5, 0]} scale={[0.25, 1, 0.25]} outline={0.03} />
-          <Toon geometry={geo.cone} color="#3f7a5a" position={[0, 2, 0]} scale={[1.6, 2.8, 1.6]} outline={0.05} />
-        </>
-      )
-    case 'bush':
-      return <Toon geometry={geo.ico} color="#4f8f5f" position={[0, 0.35, 0]} scale={[1.2, 0.8, 1.1]} outline={0.04} radial={false} />
-    case 'rock':
-      return <Toon geometry={geo.ico} color="#d9cfb2" position={[0, 0.2, 0]} scale={[1.3, 0.8, 1]} outline={0.05} radial={false} />
-  }
 }
 
 function checkerTexture() {
@@ -335,7 +336,7 @@ function checkerTexture() {
 /** Starting plaza where the road begins, in front of the service center. */
 function Plaza() {
   const checker = useMemo(() => checkerTexture(), [])
-  const up = dirFromLatLon(0, -4)
+  const up = PLAZA
   const q = surfaceQuaternion(up, routeFrame(0).tan)
   return (
     <group position={up.clone().multiplyScalar(R)} quaternion={q}>
@@ -391,101 +392,16 @@ function Park() {
   )
 }
 
-/** Dark brush-stroke grass tufts scattered over the meadows. */
-function GrassTufts({ locations }: { locations: WorldLocation[] }) {
-  const bl = useBlockers(locations)
-  const mesh = useMemo(() => {
-    const blade = new THREE.ConeGeometry(0.05, 0.5, 3)
-    blade.translate(0, 0.25, 0)
-    const parts: THREE.BufferGeometry[] = []
-    ;[-0.25, 0, 0.22].forEach((tilt, i) => {
-      const b = blade.clone()
-      b.scale(1, 0.7 + i * 0.25, 1)
-      b.rotateZ(tilt)
-      b.translate(i * 0.08 - 0.08, 0, 0)
-      parts.push(b)
-    })
-    const merged = mergeTuft(parts)
-    const count = 1100
-    const m = new THREE.InstancedMesh(merged, new THREE.MeshBasicMaterial({ color: '#3f7a55' }), count)
-    const rand = mulberry32(21)
-    const mat = new THREE.Matrix4()
-    let n = 0
-    let guard = 0
-    while (n < count && guard++ < 12000) {
-      const d = islandSample(rand, 20)
-      const hit = nearestOnRoute(d)
-      if (hit.dist < 3.8 || landValue(d, hit) < 3) continue
-      if (arc(d, bl.plaza) < 8 || arc(d, bl.service) < 9) continue
-      if (bl.buildings.some((b) => arc(b, d) < 7)) continue
-      const q = surfaceQuaternion(d, randomTangent(d, rand))
-      const s = 0.7 + rand() * 0.9
-      mat.compose(surf(d), q, new THREE.Vector3(s, s, s))
-      m.setMatrixAt(n++, mat)
-    }
-    m.count = n
-    return m
-  }, [bl])
-  return <primitive object={mesh} />
-}
-
-/** White wave streaks on the open sea. */
-function SeaFoam() {
-  const mesh = useMemo(() => {
-    const g = new THREE.CircleGeometry(1, 12)
-    g.rotateX(-Math.PI / 2)
-    const count = 240
-    const m = new THREE.InstancedMesh(g, new THREE.MeshBasicMaterial({ color: '#e9f5f0' }), count)
-    const rand = mulberry32(5)
-    const mat = new THREE.Matrix4()
-    let n = 0
-    let guard = 0
-    while (n < count && guard++ < 5000) {
-      const d = new THREE.Vector3(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1).normalize()
-      if (landValue(d) > -3) continue
-      const q = surfaceQuaternion(d, randomTangent(d, rand))
-      mat.compose(d.clone().multiplyScalar(R - 0.85), q, new THREE.Vector3(0.9 + rand() * 1.6, 1, 0.12 + rand() * 0.1))
-      m.setMatrixAt(n++, mat)
-    }
-    m.count = n
-    return m
-  }, [])
-  return <primitive object={mesh} />
-}
-
-function mergeTuft(parts: THREE.BufferGeometry[]) {
-  const positions: number[] = []
-  for (const p of parts) {
-    const g = p.index ? p.toNonIndexed() : p
-    positions.push(...(g.attributes.position.array as Float32Array))
-  }
-  const out = new THREE.BufferGeometry()
-  out.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-  return out
-}
-
 export function Planet({ locations }: { locations: WorldLocation[] }) {
-  const props = useProps(locations)
+  const scenery = useProps(locations)
   return (
     <group>
       <PlanetBody />
-      <SeaFoam />
       <IslandTitle />
       <Road />
       <Plaza />
       <Park />
-      <GrassTufts locations={locations} />
-      {props.map((p, i) => (
-        <group key={i} position={p.pos} quaternion={p.q} scale={p.s}>
-          {p.kind === 'tree' || p.kind === 'pine' ? (
-            <Fadeable height={p.kind === 'tree' ? 2.2 : 1.4}>
-              <PropMesh kind={p.kind} />
-            </Fadeable>
-          ) : (
-            <PropMesh kind={p.kind} />
-          )}
-        </group>
-      ))}
+      <GroundPaint locations={locations} scenery={scenery} />
     </group>
   )
 }

@@ -9,16 +9,17 @@ import { InfoContent } from '../ui/InfoPage'
 import { Overlay } from '../ui/Overlay'
 import { hasWebGL } from '../ui/webgl'
 import { World } from '../world/World'
-import { dirFromLatLon } from '../world/sphere'
+import { planDir } from '../world/sphere'
+import { locationDir } from '../world/island'
 import type { WorldLocation } from '../../shared/types'
 import { useGame } from './game'
 
-function zoneAt(locations: WorldLocation[], lat: number, lon: number) {
-  const p = dirFromLatLon(lat, lon)
+function zoneAt(locations: WorldLocation[], x: number, y: number) {
+  const p = planDir(x, y)
   let best: WorldLocation | undefined
   let bd = Infinity
   for (const l of locations) {
-    const d = dirFromLatLon(l.lat, l.lon).angleTo(p)
+    const d = locationDir(l).angleTo(p)
     if (d < bd) {
       bd = d
       best = l
@@ -67,7 +68,7 @@ export default function Explore() {
 
       {g.phase === 'intro' && (
         <div className="intro">
-          <p>拖动旋转星球 · Drag to spin the island</p>
+          <p>拖动环视小岛 · Drag to look around the island</p>
           <button className="btn primary big" onClick={() => g.setPhase('flying')}>
             开始 START
           </button>
@@ -116,7 +117,7 @@ export default function Explore() {
       </div>
 
       <h2 className="zone-label">
-        {zoneAt(content.locations, g.latLon[0], g.latLon[1])
+        {zoneAt(content.locations, g.plan[0], g.plan[1])
           .split(' ')
           .map((w) => (
             <span key={w} style={{ display: 'block' }}>
@@ -160,7 +161,7 @@ export default function Explore() {
           <div className="map-layout">
             <TownMap
               locations={content.locations}
-              you={g.latLon}
+              you={g.plan}
               activeId={mapPick ?? g.routeTargetId}
               onSelect={(l) => setMapPick(l.id)}
             />

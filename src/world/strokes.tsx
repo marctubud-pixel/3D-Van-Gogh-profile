@@ -358,3 +358,35 @@ export function StrokeBuild({ seed = 1, children }: { seed?: number; children: R
     </group>
   )
 }
+
+
+/** Dabs wrapped over a sphere-ish blob, curling around it like foliage. */
+export function blob(out: Stroke[], r: () => number, c: THREE.Vector3, br: number, ramp: Ramp, density = 260, size = 1) {
+  const count = Math.round(br * br * density)
+  for (let i = 0; i < count; i++) {
+    const n = new THREE.Vector3(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1)
+    if (n.lengthSq() > 1 || n.lengthSq() < 0.01) {
+      i--
+      continue
+    }
+    n.normalize()
+    if (n.y < -0.35) n.y = -n.y * 0.3
+    n.normalize()
+    const p = c.clone().addScaledVector(n, br * (0.82 + r() * 0.3))
+    const swirl = new THREE.Vector3().crossVectors(n, UP)
+    if (swirl.lengthSq() < 1e-3) swirl.set(1, 0, 0)
+    const dir = rotateAbout(swirl.normalize(), n, 0.6 + (r() - 0.5) * 0.9)
+    out.push({ p, n, dir, len: (0.3 + r() * 0.28) * size, wid: (0.09 + r() * 0.06) * size, color: shade(r, n, ramp) })
+  }
+}
+
+/** Vertical dabs wrapped round a cylinder from `base` up `h`. */
+export function column(out: Stroke[], r: () => number, base: THREE.Vector3, h: number, rad: number, ramp: Ramp, count: number) {
+  for (let i = 0; i < count; i++) {
+    const y = r() * h
+    const ang = r() * Math.PI * 2
+    const n = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang))
+    const p = base.clone().add(new THREE.Vector3(n.x * rad, y, n.z * rad))
+    out.push({ p, n, dir: rotateAbout(UP, n, (r() - 0.5) * 0.15), len: 0.4 + r() * 0.3, wid: rad * 0.9, color: shade(r, n, ramp) })
+  }
+}

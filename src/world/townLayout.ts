@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
-import { R, SERVICE_CENTER, dirFromLatLon } from './sphere'
-import { BRIDGE, ROUTE, ROUTE_S, landValue, landmarkBlockers, nearestOnRoute, routeFrame, routePoint } from './island'
+import { R } from './sphere'
+import { BRIDGE, PLAZA, ROUTE, ROUTE_K, ROUTE_S, SERVICE_DIR, landValue, landmarkBlockers, nearestOnRoute, routeFrame, routePoint } from './island'
 
 export type TownKind = 'house' | 'shop' | 'apartment' | 'gable' | 'garden'
 
@@ -23,8 +23,8 @@ const SPACING = 10
 
 /** Stretches of road (arc length) lined with a few small houses. */
 const TOWN_SPANS: [number, number][] = [
-  [8, 50],
-  [96, 122],
+  [8 * ROUTE_K, 50 * ROUTE_K],
+  [96 * ROUTE_K, 122 * ROUTE_K],
 ]
 
 function rng(seed: number) {
@@ -44,7 +44,7 @@ const KINDS: TownKind[] = ['house', 'shop', 'gable', 'shop', 'house', 'apartment
 export function townLots(locations: WorldLocation[]): TownLot[] {
   const rand = rng(99)
   const blockers = locations.flatMap(landmarkBlockers)
-  blockers.push(dirFromLatLon(SERVICE_CENTER.lat, SERVICE_CENTER.lon), dirFromLatLon(0, 0))
+  blockers.push(SERVICE_DIR, PLAZA)
   const lots: TownLot[] = []
   const bridgeS: [number, number] = [ROUTE_S[BRIDGE.a] - 6, ROUTE_S[BRIDGE.b] + 6]
   for (const [a, b] of TOWN_SPANS) {

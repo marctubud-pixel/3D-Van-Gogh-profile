@@ -6,6 +6,7 @@ import { Fadeable } from './occlusion'
 import { VendingMachine } from './StreetProps'
 import { surfaceQuaternion } from './sphere'
 import { surf } from './island'
+import { StrokeBuild } from './strokes'
 import { Toon, geo } from './toon'
 import { townLots, type TownLot } from './townLayout'
 
@@ -174,7 +175,9 @@ export function Town({ locations }: { locations: WorldLocation[] }) {
     <group>
       {lots.map((lot, i) => (
         <group key={i} position={surf(lot.up)} quaternion={surfaceQuaternion(lot.up, lot.facing)}>
-          <TownBuilding lot={lot} />
+          <StrokeBuild seed={i + 5}>
+            <TownBuilding lot={lot} />
+          </StrokeBuild>
         </group>
       ))}
     </group>
