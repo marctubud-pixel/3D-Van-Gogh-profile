@@ -3,6 +3,7 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { STROKE_GLSL } from './brush'
 import { dusk } from './daynight'
+import { routeFrame } from './island'
 
 const vertex = /* glsl */ `
 varying vec3 vDir;
@@ -40,66 +41,86 @@ void main() {
   float band = smoothstep(-0.02, 0.18, h) * (1.0 - smoothstep(0.7, 0.95, h));
   float cloud = step(0.6, n * (0.55 + band * 0.6));
   col = mix(col, vec3(0.69, 0.90, 0.85), cloud);
-  // night: Starry Night sky -- a rolling cobalt current, curling vortices, haloed stars and a crescent moon
+  // night: Starry Night sky built from thick, separated dabs laid along flow lines
   float az = atan(d.z, d.x);
   float hh = max(h, 0.0);
-  vec3 nsky = mix(vec3(0.17, 0.29, 0.52), vec3(0.06, 0.12, 0.33), smoothstep(0.0, 0.75, hh));
   float flow = fbm(vec3(az * 1.6, hh * 3.0, time * 0.01));
-  // long horizontal current that waves across the sky
-  float wy = hh - 0.2 - 0.05 * sin(az * 3.0 + 1.3) - (flow - 0.5) * 0.1;
-  float current = exp(-wy * wy / 0.012);
-  float streak = 0.5 + 0.5 * sin(wy * 110.0 + sin(az * 2.0) * 1.5 + flow * 6.0);
-  // a couple of big curls riding on the current
-  float swirl = 0.0;
-  float ring = 0.0;
-  // the painting's interlocking double curl sits just left of the view; smaller curls ring the horizon
-  for (int i = 0; i < 6; i++) {
+  vec3 nsky = mix(vec3(0.10, 0.19, 0.42), vec3(0.04, 0.08, 0.25), smoothstep(0.0, 0.7, hh));
+  // default flow: gently waving horizontal lanes
+  float wv = hh + 0.025 * sin(az * 5.0 + hh * 14.0) + (flow - 0.5) * 0.05;
+  vec2 uv = vec2(az * 30.0, wv * 92.0);
+  // the long rolling current the vortices ride on
+  float wy = hh - 0.21 - 0.05 * sin(az * 3.0 + 1.3) - (flow - 0.5) * 0.08;
+  float pale = 0.18 + 0.6 * exp(-wy * wy / 0.005);
+  float warm = 0.0;
+  // the painting's interlocking double curl plus a few lesser curls round the horizon
+  for (int i = 0; i < 4; i++) {
     float fi = float(i);
-    vec2 c = i == 0 ? vec2(view - 0.32, 0.19) : i == 1 ? vec2(view + 0.05, 0.14) : vec2(view + 1.1 + fi * 1.05, 0.17 + 0.04 * sin(fi * 2.1));
-    float da = mod(az - c.x + 3.14159, 6.28318) - 3.14159;
-    vec2 o = vec2(da * 0.55, hh - c.y);
+    vec2 c = i == 0 ? vec2(view - 0.3, 0.21) : i == 1 ? vec2(view + 0.02, 0.17) : vec2(view + 1.6 + fi * 1.4, 0.2);
+    float R = i == 0 ? 0.13 : i == 1 ? 0.09 : 0.075;
+    vec2 o = vec2(mod(az - c.x + 3.14159, 6.28318) - 3.14159, hh - c.y);
     float r = length(o);
-    float R = i == 0 ? 0.12 : i == 1 ? 0.085 : 0.07;
-    float w = exp(-r * r / (R * R));
-    float ang = atan(o.y, o.x);
-    ring = max(ring, w * (0.5 + 0.5 * sin(r * 70.0 - ang * 2.0 + flow * 4.0)));
-    swirl = max(swirl, w);
+    if (r < R) {
+      float ang = atan(o.y, o.x) * (i == 1 ? -1.0 : 1.0);
+      float rr = r * 92.0;
+      // spiral lanes: radius drifts with angle so the strokes wind inward
+      uv = vec2(ang * rr / 2.4, rr + ang * 1.3);
+      pale = 0.45 + 0.4 * smoothstep(R, R * 0.3, r);
+    }
   }
-  vec2 sk = dabs(vec2(az * 30.0 + wy * 40.0, hh * 48.0 + flow * 6.0), 0.5);
-  nsky = mix(nsky, mix(vec3(0.20, 0.38, 0.66), vec3(0.42, 0.62, 0.80), streak), current * 0.75);
-  nsky = mix(nsky, mix(vec3(0.16, 0.34, 0.62), vec3(0.62, 0.78, 0.86), ring), swirl * 0.85);
-  nsky *= 0.9 + sk.x * sk.y * 0.25;
-  // haloed stars: each cell may hold one star with concentric yellow rings
-  vec2 sc = vec2(az * 7.0, hh * 9.0);
+  // big haloed stars: concentric dabs round a bright core
+  vec2 sc = vec2(az * 5.0, hh * 6.5);
   vec2 cell = floor(sc);
-  vec2 f = fract(sc) - 0.5;
-  float hs = hash(vec3(cell, 3.0));
-  float sr = length(f + (vec2(hash(vec3(cell, 5.0)), hash(vec3(cell, 9.0))) - 0.5) * 0.4);
-  float on = step(0.72, hs) * smoothstep(0.08, 0.25, hh);
-  float halo = on * (smoothstep(0.32, 0.0, sr) * (0.55 + 0.45 * sin(sr * 60.0)));
-  float core = on * smoothstep(0.09, 0.03, sr);
-  nsky = mix(nsky, vec3(0.93, 0.88, 0.52), halo * 0.55);
-  nsky = mix(nsky, vec3(1.0, 0.97, 0.80), core);
-  // small scattered stars
+  vec2 ctr = (cell + 0.5 + (vec2(hash(vec3(cell, 5.0)), hash(vec3(cell, 9.0))) - 0.5) * 0.4) / vec2(5.0, 6.5);
+  vec2 so = vec2(az, hh) - ctr;
+  float sr = length(so);
+  float on = step(0.78, hash(vec3(cell, 3.0))) * smoothstep(0.1, 0.25, hh);
+  if (on > 0.5 && sr < 0.055) {
+    float ang = atan(so.y, so.x);
+    uv = vec2(ang * sr * 92.0 / 2.0, sr * 92.0);
+    warm = smoothstep(0.055, 0.025, sr);
+  }
+  // crescent moon fixed in the sky, wrapped in its own rings of strokes
+  float ma = view + 0.55;
+  vec2 mo = vec2(mod(az - ma + 3.14159, 6.28318) - 3.14159, hh - 0.24);
+  float mr = length(mo);
+  if (mr < 0.15) {
+    float ang = atan(mo.y, mo.x);
+    uv = vec2(ang * mr * 92.0 / 2.2, mr * 92.0);
+    warm = max(warm, smoothstep(0.15, 0.06, mr));
+  }
+  // one dab per staggered cell, leaving dark sky between strokes
+  float row = floor(uv.y);
+  float x = uv.x + hash(vec3(row, 1.0, 2.0)) * 3.0;
+  float colI = floor(x);
+  vec2 bf = vec2(fract(x), fract(uv.y)) - 0.5;
+  float id = hash(vec3(colI, row, 4.0));
+  float tone = hash(vec3(colI, row, 8.0));
+  float bend = bf.y + 0.12 * sin(bf.x * 3.0 + id * 6.0);
+  float reach = 0.16 + id * 0.12;
+  float e = length(vec2(max(abs(bf.x) - reach, 0.0) * 1.3, bend * (1.0 + 0.5 * abs(bf.x))));
+  float dab = 1.0 - smoothstep(0.15, 0.22, e);
+  vec3 cool = id < 0.35 ? vec3(0.15, 0.30, 0.64) : id < 0.7 ? vec3(0.24, 0.43, 0.74) : vec3(0.27, 0.48, 0.55);
+  vec3 light = mix(vec3(0.52, 0.70, 0.86), vec3(0.84, 0.90, 0.86), tone);
+  vec3 sCol = mix(cool, light, step(1.0 - pale, tone));
+  sCol = mix(sCol, mix(vec3(0.93, 0.80, 0.36), vec3(0.98, 0.94, 0.72), tone), step(0.25, warm));
+  nsky = mix(nsky, sCol, dab);
+  nsky = mix(nsky, vec3(1.0, 0.97, 0.82), on * smoothstep(0.014, 0.008, sr));
   float star = step(0.997, hash(floor(d * 150.0))) * smoothstep(0.05, 0.3, hh);
   nsky = mix(nsky, vec3(1.0, 0.95, 0.75), star);
-  // crescent moon with a glowing ring
-  // crescent hangs high right of the view like in the painting
-  float ma = view + 0.5;
-  vec3 md = normalize(vec3(cos(ma) * 0.98, 0.2, sin(ma) * 0.98));
-  float mr = acos(clamp(dot(d, md), -1.0, 1.0));
-  vec3 md2 = normalize(md + vec3(0.03, 0.02, 0.03));
-  float mr2 = acos(clamp(dot(d, md2), -1.0, 1.0));
-  float moon = smoothstep(0.065, 0.058, mr) * smoothstep(0.05, 0.058, mr2);
-  float mhalo = smoothstep(0.26, 0.06, mr) * (0.6 + 0.4 * sin(mr * 120.0));
-  nsky = mix(nsky, vec3(0.95, 0.85, 0.45), mhalo * 0.6);
+  vec2 mo2 = mo - vec2(0.018, 0.012);
+  float moon = smoothstep(0.05, 0.044, mr) * smoothstep(0.036, 0.044, length(mo2));
   nsky = mix(nsky, vec3(1.0, 0.86, 0.35), moon);
   col = mix(col, nsky, night);
   gl_FragColor = vec4(col, 1.0);
 }
 `
 
-const look = new THREE.Vector3()
+/** Fixed sky azimuth of the Starry Night composition: straight ahead of the rider leaving the service center. */
+const VIEW = (() => {
+  const t = routeFrame(3).tan
+  return Math.atan2(t.z, t.x)
+})()
 
 /** Flat painted sky dome with torn-edged pale cloud patches; follows the camera. */
 export function Sky() {
@@ -107,7 +128,7 @@ export function Sky() {
   const mat = useMemo(
     () =>
       new THREE.ShaderMaterial({
-        uniforms: { up: { value: new THREE.Vector3(0, 1, 0) }, time: { value: 0 }, night: { value: dusk.k }, view: { value: 0 } },
+        uniforms: { up: { value: new THREE.Vector3(0, 1, 0) }, time: { value: 0 }, night: { value: dusk.k }, view: { value: VIEW } },
         vertexShader: vertex,
         fragmentShader: fragment,
         side: THREE.BackSide,
@@ -115,13 +136,8 @@ export function Sky() {
       }),
     [],
   )
-  useFrame(({ camera, clock }, dt) => {
+  useFrame(({ camera, clock }) => {
     ref.current?.position.copy(camera.position)
-    camera.getWorldDirection(look)
-    const u = mat.uniforms.view
-    const target = Math.atan2(look.z, look.x)
-    const delta = THREE.MathUtils.euclideanModulo(target - u.value + Math.PI, Math.PI * 2) - Math.PI
-    u.value += delta * (1 - Math.exp(-dt * 0.6))
     mat.uniforms.up.value.copy(camera.up)
     mat.uniforms.time.value = clock.elapsedTime
     mat.uniforms.night.value = dusk.k

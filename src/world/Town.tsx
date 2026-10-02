@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { AcUnit } from '../locations/Landmark'
-import { Decal, Pane, textTex } from '../locations/parts'
+import { Decal, Pane, Vines, textTex } from '../locations/parts'
 import { Fadeable } from './occlusion'
 import { VendingMachine } from './StreetProps'
 import { yawQuaternion } from './plane'
@@ -137,6 +137,21 @@ function TownBuilding({ lot }: { lot: TownLot }) {
         <Toon geometry={geo.box} color="#8f9893" position={[w / 2 + 0.45, h / 2 - 0.3, 0]} rotation={[Math.atan2(h - 0.6, d) - Math.PI / 2, 0, 0]} scale={[0.8, 0.12, Math.hypot(h - 0.6, d)]} outline={0.02} />
       )}
       <AcUnit position={[-w / 2 - 0.2, 1.4 + (seed % 3) * 0.6, d * 0.1]} rotation={[0, -Math.PI / 2, 0]} />
+      {seed % 3 !== 0 && <Vines p={[(seed % 2 ? 1 : -1) * (w / 2 - 0.45), h - 0.15, front + 0.05]} w={0.7} len={Math.min(h * 0.6, 3.2)} />}
+      {seed % 5 < 2 && (
+        <group position={[w / 2 + 0.03, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <Vines p={[0, h - 0.2, 0]} w={d * 0.6} len={h * 0.8} />
+        </group>
+      )}
+      {kind !== 'shop' && floors > 1 && (
+        <group position={[0, 2.6 + 0.48, front + 0.18]}>
+          <Toon geometry={geo.box} color="#a4553f" position={[0, 0, 0]} scale={[w * 0.5, 0.18, 0.3]} outline={0} />
+          {[-0.36, -0.12, 0.12, 0.36].map((x, i) => (
+            <Toon key={x} geometry={geo.ico} color={i % 2 ? '#e36f8a' : '#f0b44c'} position={[x * w * 0.5 * 1.6, 0.16, 0]} scale={0.18} outline={0} radial={false} />
+          ))}
+        </group>
+      )}
+      <Toon geometry={geo.box} color="#cfc4ad" position={[-w * 0.15, h * 0.42, front + 0.015]} scale={[w * 0.18, h * 0.12, 0.02]} outline={0} edges={false} />
       <Toon geometry={geo.cyl} color={TRIM} position={[-w / 2 + 0.15, h / 2, front + 0.05]} scale={[0.1, h, 0.1]} outline={0} />
     </group>
   )

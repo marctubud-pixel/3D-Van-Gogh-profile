@@ -6,7 +6,7 @@ import { ZONE_LABEL } from '../../shared/types'
 import { useContent } from '../data/content'
 import { LocationPanel } from '../locations/LocationPanel'
 import { Interior, hasInterior } from '../locations/interiors/Interior'
-import { TownMap, routeSorted } from '../navigation/TownMap'
+import { MiniMap, TownMap, routeSorted } from '../navigation/TownMap'
 import { ProjectDetail } from '../portfolio/ProjectDetail'
 import { InfoContent } from '../ui/InfoPage'
 import { Overlay } from '../ui/Overlay'
@@ -15,6 +15,7 @@ import { World } from '../world/World'
 import { flatDistance, planPoint } from '../world/plane'
 import { locationPoint } from '../world/island'
 import type { WorldLocation } from '../../shared/types'
+import { useDayNight } from '../world/daynight'
 import { useGame } from './game'
 
 function zoneAt(locations: WorldLocation[], x: number, y: number) {
@@ -57,6 +58,7 @@ export default function Explore() {
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (e.code === 'KeyM' && useGame.getState().phase === 'play' && !useGame.getState().openLocationId) useGame.getState().setMapOpen(!useGame.getState().mapOpen)
+      if (e.code === 'KeyL' && useGame.getState().phase === 'play') useDayNight.getState().setLamp(!useDayNight.getState().lamp)
       if (e.code === 'KeyW') closeHelp()
     }
     window.addEventListener('keydown', k)
@@ -93,6 +95,8 @@ export default function Explore() {
       <div className="hud-zone">
         <BrushText text={zoneAt(content.locations, g.plan[0], g.plan[1])} size={22} />
       </div>
+
+      {!g.mapOpen && <MiniMap locations={content.locations} you={g.plan} onOpen={() => { setMapPick(null); g.setMapOpen(true) }} />}
 
       <nav className="hud-bar">
         <button className="bar-btn" onClick={() => { setMapPick(null); g.setMapOpen(true) }} aria-label="MAP">
@@ -148,10 +152,10 @@ export default function Explore() {
             <kbd>D</kbd> 转向 · 拖动鼠标看四周
           </p>
           <p>
-            靠近建筑出现 <b>P 停靠</b> 时按 <kbd>E</kbd> 自动停车下车，走到门口按 <kbd>E</kbd> 查看作品
+            骑车时随时按 <kbd>E</kbd> 在路边停车步行，再到车旁按 <kbd>E</kbd> 上车；在建筑附近按 <kbd>E</kbd> 会自动停到门口，走到门口按 <kbd>E</kbd> 查看作品
           </p>
           <p>
-            <kbd>M</kbd> 地图 · <kbd>ESC</kbd> 关闭
+            <kbd>M</kbd> 地图 · <kbd>L</kbd> 车灯 · <kbd>ESC</kbd> 关闭
           </p>
           <button className="btn ghost" onClick={closeHelp}>
             GOT IT

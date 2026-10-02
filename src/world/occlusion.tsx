@@ -6,6 +6,8 @@ import * as THREE from 'three'
 export const camFocus = new THREE.Vector3(0, 42, 0)
 /** Player's current ground point on the island (y = 0). */
 export const playerPos = new THREE.Vector3()
+/** Player's horizontal heading (updated by Player each frame). */
+export const playerFwd = new THREE.Vector3(0, 0, 1)
 const UP = new THREE.Vector3(0, 1, 0)
 
 const seg = new THREE.Line3()

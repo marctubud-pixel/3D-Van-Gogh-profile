@@ -13,9 +13,13 @@ function stored(): DayMode {
   return v === 'day' || v === 'night' ? v : 'auto'
 }
 
+const LAMP_KEY = 'my-world-headlamp'
+
 interface DayNightState {
   mode: DayMode
   setMode: (m: DayMode) => void
+  lamp: boolean
+  setLamp: (v: boolean) => void
 }
 
 export const useDayNight = create<DayNightState>((set) => ({
@@ -23,6 +27,11 @@ export const useDayNight = create<DayNightState>((set) => ({
   setMode: (mode) => {
     localStorage.setItem(KEY, mode)
     set({ mode })
+  },
+  lamp: typeof window === 'undefined' || localStorage.getItem(LAMP_KEY) !== '0',
+  setLamp: (lamp) => {
+    localStorage.setItem(LAMP_KEY, lamp ? '1' : '0')
+    set({ lamp })
   },
 }))
 

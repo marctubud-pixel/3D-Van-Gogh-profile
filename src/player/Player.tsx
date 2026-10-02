@@ -7,9 +7,9 @@ import { Bike } from '../bike/Bike'
 import { CAMERA } from '../camera/config'
 import { BUILDING_RADIUS, LANDMARK_FIT, NORTH, SERVICE_CENTER, UP, flatDir, flatDistance, planPoint, pointToPlan, modelScale, yawQuaternion } from '../world/plane'
 import { MESAS, SERVICE_POINT, groundHeight, landmarkColliders, locationAnchors, locationPoint, nearestOnRoute, routeFrame, surf, walkable } from '../world/island'
-import { camFocus, playerPos } from '../world/occlusion'
+import { camFocus, playerFwd, playerPos } from '../world/occlusion'
 import { LOT_RADIUS, townLots } from '../world/townLayout'
-import { dusk } from '../world/daynight'
+import { dusk, useDayNight } from '../world/daynight'
 import { useQualityLevel } from '../world/quality'
 import { Avatar } from './Avatar'
 
@@ -20,6 +20,8 @@ const PARK_OFFER = BUILDING_RADIUS + 11
 const PARK_S = 1.3
 const DOOR_RADIUS = 2.6
 const BIKE_RADIUS = 1.8
+/** Lateral offset from the road centreline where a freely parked bike stands. */
+const KERB = 2.9
 const TRANSITION_S = 0.55
 const UTURN_RATE = 3.4
 /** Overview of the whole island: orbit centre on the flat map, distance and pitch. */
@@ -97,6 +99,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
   const avatarGroup = useRef<THREE.Group>(null)
   const camTarget = useRef(new THREE.Vector3())
   const [mode, setMode] = useState<'ride' | 'walk'>('ride')
+  const lamp = useDayNight((st) => st.lamp)
 
   const resetCount = useGame((s) => s.resetCount)
   useEffect(() => {
@@ -130,7 +133,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     setMode('ride')
     const g = useGame.getState()
     g.setPlayer('RIDING')
-    g.showToast(`已抵达 ${a.loc.name} · 按 E 停靠`)
+    g.showToast(`已抵达 ${a.loc.name} · 按 E 停车`)
   }, [teleport, anchors])
 
   useEffect(() => {
@@ -207,14 +210,15 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     if (inputLocked() || transition.current > 0) return
     if (g.player === 'RIDING') {
       const spot = nearestParking()
-      if (!spot) {
-        g.showToast('靠近建筑时会出现 P 停靠提示')
-        return
-      }
+      const r = rider.current
       g.setPlayer('PARKING')
       transition.current = PARK_S
       uturn.current = 0
-      const r = rider.current
+      if (!spot) {
+        park.current = { from: { pos: r.pos.clone(), fwd: r.fwd.clone() }, to: { pos: kerbside(r), fwd: r.fwd.clone() } }
+        doorPose.current = null
+        return
+      }
       const tan = routeFrame(nearestOnRoute(spot.parking).s).tan
       if (tan.dot(r.fwd) < 0) tan.negate()
       park.current = { from: { pos: r.pos.clone(), fwd: r.fwd.clone() }, to: { pos: spot.parking.clone(), fwd: flatDir(tan) } }
@@ -231,6 +235,17 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
         transition.current = TRANSITION_S
       }
     }
+  }
+
+  /** Roadside stand for a bike stopped anywhere: pulled over to the nearer kerb, or left where it is off-road. */
+  function kerbside(r: Body) {
+    const hit = nearestOnRoute(r.pos)
+    if (hit.dist > KERB + 0.5) return r.pos.clone()
+    const f = routeFrame(hit.s)
+    const lateral = r.pos.clone().sub(f.at).dot(f.side)
+    const to = f.at.clone().addScaledVector(f.side, (Math.sign(lateral) || 1) * KERB).addScaledVector(r.fwd, 1.2)
+    to.y = 0
+    return walkable(to) ? to : r.pos.clone()
   }
 
   function collide(b: Body) {
@@ -331,7 +346,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
         rider.current.pos.copy(prev)
         speed.current *= 0.3
       }
-      g.setPrompt(spot && !locked ? { key: 'E', label: `E · P 停靠 — ${spot.loc.name}` } : null)
+      g.setPrompt(spot && !locked ? { key: 'E', label: `停车 · ${spot.loc.name}` } : null)
     } else if (player === 'WALKING') {
       // camera-relative WASD: W walks into the screen, A/D strafe, S steps back
       const mz = (fwdKey ? 1 : 0) - (backKey ? 1 : 0)
@@ -352,8 +367,8 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
       collide(walker.current)
       if (!walkable(walker.current.pos)) walker.current.pos.copy(prevW)
       const door = nearestDoor()
-      if (door) g.setPrompt({ key: 'E', label: `E · ${door.loc.action} — ${door.loc.name}` })
-      else if (flatDistance(walker.current.pos, rider.current.pos) < BIKE_RADIUS) g.setPrompt({ key: 'E', label: 'E · RIDE' })
+      if (door) g.setPrompt({ key: 'E', label: `${door.loc.action} · ${door.loc.name}` })
+      else if (flatDistance(walker.current.pos, rider.current.pos) < BIKE_RADIUS) g.setPrompt({ key: 'E', label: '骑车' })
       else g.setPrompt(null)
     } else {
       g.setPrompt(null)
@@ -476,6 +491,7 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     }
     camFocus.copy(camTarget.current)
     playerPos.copy(w.pos)
+    playerFwd.copy(w.fwd)
 
     const now = performance.now()
     if (now - lastLatLon.current > 200) {
@@ -488,10 +504,10 @@ export function Player({ locations }: { locations: WorldLocation[] }) {
     <>
       <group ref={bikeGroup}>
         <Bike speed={speed} steer={steer} crank={crank} kickstand={mode === 'walk'} />
-        <BikeLamp on={mode === 'ride'} />
+        <BikeLamp on={mode === 'ride' && lamp} />
         {mode === 'ride' && <Avatar pose="ride" speed={speed} crank={crank} steer={steer} />}
       </group>
-      <HeadlightPool rider={rider} on={mode === 'ride'} />
+      <HeadlightPool rider={rider} on={mode === 'ride' && lamp} />
       <group ref={avatarGroup} visible={mode === 'walk'}>
         {mode === 'walk' && <Avatar pose="walk" speed={walkSpeed} />}
       </group>

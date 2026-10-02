@@ -20,7 +20,10 @@ import {
   creekEdge,
   deckHeight,
   groundHeight,
-  hillHeight,
+  landmarkColliders,
+  locationAnchors,
+  locationPoint,
+  terrainHeight,
   landValue,
   landmarkBlockers,
   nearestOnRoute,
@@ -83,7 +86,7 @@ function PlanetBody() {
         c.set(SAND)
         y = -0.3 + (land / beachWidth(v)) * 0.3
       } else {
-        const h = hillHeight(v)
+        const h = terrainHeight(v)
         y = h
         c.copy(MEADOW_GROUND)
         const e = creekEdge(v)
@@ -598,6 +601,21 @@ function useProps(locations: WorldLocation[]) {
       push(d, rand() > 0.45 ? 'bush' : 'rock', 0.6 + rand() * 0.7)
       n++
     }
+    // street greenery filling the verges between buildings
+    for (let s = 4, n = 0; s < ROUTE_LEN - 4 && n < 50; s += 4.5) {
+      if (s > ROUTE_S[BRIDGE.a] - 6 && s < ROUTE_S[BRIDGE.b] + 6) continue
+      for (const sign of [-1, 1]) {
+        if (rand() < 0.45) continue
+        const d = routePoint(s, sign * (5.4 + rand() * 1.8))
+        if (nearestOnRoute(d).dist < 4.6) continue
+        if (bl.buildings.some((b) => arc(b, d) < 8) || bl.lots.some((b) => arc(b, d) < 3.4)) continue
+        if (arc(bl.service, d) < 10 || arc(bl.plaza, d) < 7.5 || arc(POND.center, d) < POND.r + 1.5) continue
+        if (onServiceSquare(d, 1) || wildBlocked(d, 1.2) || landValue(d) < 3) continue
+        if (spots.some((p) => arc(p.d, d) < 2.6)) continue
+        push(d, pickKind([['tree', 3], ['poplar', 2], ['bush', 3], ['umbrella', 1]]), 0.7 + rand() * 0.4)
+        n++
+      }
+    }
     return spots
   }, [bl])
 }
@@ -622,11 +640,14 @@ function Plaza() {
 /** Lawn, pond and benches around the lab. */
 function Park() {
   const items = useMemo(() => {
-    const benches = [0.4, 2.1, 3.8, 5.2].map((yaw) => {
+    const lab = locationAnchors(locationPoint({ id: 'experiment-lab', lat: 0, lon: 0 }), 'experiment-lab')
+    const walls = landmarkColliders(lab, 'experiment-lab')
+    const benches = [0.4, 2.1, 3.8, 5.2].flatMap((yaw) => {
       const t = NORTH.clone().applyAxisAngle(UP, yaw)
       const d = POND.center.clone().addScaledVector(t, POND.r + 1.4)
+      if (walls.some((c) => arc(c.at, d) < c.r + 1.2) || nearestOnRoute(d).dist < 3) return []
       const toPond = flatDir(POND.center.clone().sub(d))
-      return { pos: surf(d), q: yawQuaternion(toPond.negate()) }
+      return [{ pos: surf(d), q: yawQuaternion(toPond.negate()) }]
     })
     return { pond: { pos: surf(POND.center, 0.03), q: yawQuaternion(NORTH) }, benches }
   }, [])

@@ -17,6 +17,8 @@ export function QualityToggle() {
   const day = useDayNight((s) => s.mode)
   const setDay = useDayNight((s) => s.setMode)
   const night = nightOf(day)
+  const lamp = useDayNight((s) => s.lamp)
+  const setLamp = useDayNight((s) => s.setLamp)
   const nextDay = DAY_MODES[(DAY_MODES.indexOf(day) + 1) % DAY_MODES.length]
   const next = MODES[(MODES.indexOf(mode) + 1) % MODES.length]
   return (
@@ -36,6 +38,12 @@ export function QualityToggle() {
           {DAY_LABEL[day]}
           {day === 'auto' && `（${night ? '夜' : '日'}）`}
         </small>
+      </button>
+      <button className={`bar-btn${lamp ? '' : ' off'}`} onClick={() => setLamp(!lamp)} aria-label="HEADLAMP">
+        <svg viewBox="0 0 24 24">
+          <path d="M10 6a6 6 0 0 0 0 12z M13 8h8M13 12h8M13 16h8" />
+        </svg>
+        <small>车灯 {lamp ? '开' : '关'} · L</small>
       </button>
       <button className={`bar-btn${grass ? '' : ' off'}`} onClick={() => setGrass(!grass)} aria-label="GRASS">
         <svg viewBox="0 0 24 24">

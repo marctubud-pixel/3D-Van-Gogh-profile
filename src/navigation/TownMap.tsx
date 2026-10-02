@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { planPoint, pointToPlan } from '../world/plane'
+import { playerFwd } from '../world/occlusion'
 import { BRIDGE, PLAZA, ROUTE, ROUTE_ORDER, TITLE_CENTER, landValue, locationPoint } from '../world/island'
 
 interface TownMapProps {
@@ -86,6 +87,40 @@ function useIslandImage() {
     g.stroke()
     return c.toDataURL()
   }, [])
+}
+
+const MINI = { size: 148, reach: 45 }
+
+/** Round corner map centred on the player, turning with their heading arrow; click opens the full map. */
+export function MiniMap({ locations, you, onOpen }: { locations: WorldLocation[]; you: [number, number]; onOpen: () => void }) {
+  const img = useIslandImage()
+  const ppu = MINI.size / (MINI.reach * 2)
+  const half = MINI.size / 2
+  const bx = half - (you[0] - VIEW.x0) * ppu
+  const by = half - (VIEW.y1 - you[1]) * ppu
+  const bearing = Math.atan2(playerFwd.x, -playerFwd.z)
+  return (
+    <button
+      className="minimap"
+      onClick={onOpen}
+      aria-label="MINIMAP"
+      style={{ backgroundImage: `url(${img})`, backgroundSize: `${(VIEW.x1 - VIEW.x0) * ppu}px ${(VIEW.y1 - VIEW.y0) * ppu}px`, backgroundPosition: `${bx}px ${by}px` }}
+    >
+      {locations.map((l) => {
+        const [lx, ly] = pointToPlan(locationPoint(l))
+        const dx = lx - you[0]
+        const dy = ly - you[1]
+        if (Math.hypot(dx, dy) > MINI.reach * 0.92) return null
+        return (
+          <i key={l.id} className="mm-pin" style={{ left: half + dx * ppu, top: half - dy * ppu, ['--pin' as string]: l.color }}>
+            <span>{l.name}</span>
+          </i>
+        )
+      })}
+      <i className="mm-you" style={{ transform: `translate(-50%, -66%) rotate(${bearing}rad)` }} />
+      <b className="mm-n">N</b>
+    </button>
+  )
 }
 
 /** Illustrated island map: the winding road, numbered stops and your position. */

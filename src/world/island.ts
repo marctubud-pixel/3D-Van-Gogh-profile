@@ -263,13 +263,57 @@ export function walkable(d: THREE.Vector3) {
   return landValue(d, hit) > 0.8 || onBridge(d, hit)
 }
 
+interface Pad {
+  c: THREE.Vector3
+  f: THREE.Vector3
+  side: THREE.Vector3
+  hw: number
+  front: number
+  back: number
+  reach: number
+  h: number
+}
+
+const PAD_FEATHER = 3
+let pads: Pad[] | null = null
+
+/** Level building plots for the route landmarks, at the height of the ground outside each door. */
+function landmarkPads() {
+  pads ??= Object.keys(STOPS).map((id) => {
+    const a = locationAnchors(locationPoint({ id, lat: 0, lon: 0 }), id)
+    const fit = LANDMARK_FIT[id]
+    const k = BUILDING_SCALE * (fit?.scale ?? 1)
+    const hw = (fit?.halfWidth ?? 4.2) * k + 0.8
+    const front = flatDistance(a.door, a.building) + 0.6
+    const back = (fit?.back ?? 3.3) * k + landmarkSetback(id) + 0.8
+    return { c: a.building, f: a.facing, side: new THREE.Vector3().crossVectors(UP, a.facing).normalize(), hw, front, back, reach: Math.hypot(hw, Math.max(front, back)) + PAD_FEATHER, h: hillHeight(a.door) }
+  })
+  return pads
+}
+
+/** Terrain with landmark plots levelled so building floors sit flush with the ground around them. */
+export function terrainHeight(d: THREE.Vector3) {
+  let h = hillHeight(d)
+  for (const p of landmarkPads()) {
+    if (flatDistance(d, p.c) > p.reach) continue
+    const dx = d.x - p.c.x
+    const dz = d.z - p.c.z
+    const x = Math.abs(dx * p.side.x + dz * p.side.z)
+    const z = dx * p.f.x + dz * p.f.z
+    const e = Math.max(x - p.hw, z - p.front, -z - p.back, 0)
+    const w = 1 - THREE.MathUtils.smoothstep(e, 0, PAD_FEATHER)
+    h += (p.h - h) * w
+  }
+  return h
+}
+
 /** Ground height at `d` for bodies and props (arched on the bridge deck). */
 export function groundHeight(d: THREE.Vector3) {
   if (flatDistance(d, BRIDGE_MID) < BRIDGE_REACH) {
     const hit = nearestOnRoute(d)
     if (onBridge(d, hit)) return deckAt(projectedS(d, hit))
   }
-  return hillHeight(d)
+  return terrainHeight(d)
 }
 
 /** World-space point on the terrain above ground point `d`, raised by `lift`. */

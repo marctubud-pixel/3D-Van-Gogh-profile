@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { playerPos } from '../world/occlusion'
 import { BUILDING_SCALE, LANDMARK_FIT, UP, flatDistance, landmarkSetback, yawQuaternion } from '../world/plane'
-import { SERVICE_POINT, groundHeight, locationAnchors, locationPoint, surf } from '../world/island'
+import { SERVICE_POINT, locationAnchors, locationPoint, surf } from '../world/island'
 import { Toon, geo, toonMaterial } from '../world/toon'
 import { type Stroke, StrokeBuild, StrokePaint, column, dab, painted, rampFor } from '../world/strokes'
 import { Decal, textTex } from './parts'
@@ -216,18 +216,14 @@ export function Landmark({ loc, active }: LandmarkProps) {
   const fit = LANDMARK_FIT[loc.id]?.scale ?? 1
   const buildingQ = useMemo(() => yawQuaternion(a.facing), [a])
   const parkingQ = useMemo(() => yawQuaternion(a.facing), [a])
-  const bPos = useMemo(() => {
-    const p = surf(a.building)
-    p.y = Math.min(p.y, groundHeight(a.door))
-    return p
-  }, [a])
+  const bPos = useMemo(() => surf(a.building), [a])
   // the sign stands off the building's flank on the parking side, so it never covers the facade
   const pPos = useMemo(() => {
     const across = new THREE.Vector3().crossVectors(UP, a.facing).normalize()
     const side = Math.sign(a.parking.clone().sub(a.door).dot(across)) || 1
-    const half = (LANDMARK_FIT[loc.id]?.halfWidth ?? 3.3) * BUILDING_SCALE * fit
-    const front = (LANDMARK_FIT[loc.id]?.front ?? 2.2) * BUILDING_SCALE
-    return surf(a.building.clone().addScaledVector(across, side * (half * 0.85 + 1.4)).addScaledVector(a.facing, front * 0.6))
+    const half = (LANDMARK_FIT[loc.id]?.halfWidth ?? 4.2) * BUILDING_SCALE * fit
+    const front = flatDistance(a.door, a.building) - 0.8
+    return surf(a.building.clone().addScaledVector(across, side * (half + 1.8)).addScaledVector(a.facing, front))
   }, [a, loc.id, fit])
   return (
     <>

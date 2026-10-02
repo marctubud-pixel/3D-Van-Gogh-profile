@@ -1,14 +1,12 @@
 import { useFrame } from '@react-three/fiber'
-import { useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { WorldLocation } from '../../shared/types'
 import { NORTH, UP, flatDir, flatDistance, yawQuaternion } from './plane'
 import {
-  BRIDGE,
   PLAZA,
   POND,
   ROUTE,
-  ROUTE_LEN,
   ROUTE_S,
   ROUTE_TAN,
   SERVICE_POINT,
@@ -25,10 +23,10 @@ import {
 import { type Ramp, type Stroke, Strokes, blob, column, pick, rng, rotateAbout, shade } from './strokes'
 import { playerPos } from './occlusion'
 import { townLots } from './townLayout'
+import { toonMaterial } from './toon'
 import { QUALITY, type QualityLevel, levelOf, useQuality } from './quality'
 
 
-const ASPHALT: Ramp = { light: ['#8396a0', '#7a8e96'], mid: ['#6f848b', '#667a82', '#748990'], dark: ['#566870', '#5b6e76'] }
 const BUSH: Ramp = { light: ['#9fd48e', '#b7de9c', '#86c784'], mid: ['#5e9d6d', '#4f8f63', '#6aa874', '#3f7a55'], dark: ['#2f6650', '#28584a', '#244c46'] }
 const CANOPY: Ramp = { light: ['#8fcf8a', '#a8d993'], mid: ['#4f8f5f', '#5e9d6d', '#62a06c'], dark: ['#2f6650', '#28584a'] }
 const FOREST_CANOPY: Ramp = { light: ['#7fbf7c', '#93c98a'], mid: ['#3f7f5a', '#4a8a60', '#367352'], dark: ['#21504a', '#1d4540', '#28584a'] }
@@ -109,30 +107,6 @@ function plazaStrokes(out: Stroke[]) {
   }
 }
 
-const onDeck = (i: number) => i >= BRIDGE.a - 2 && i <= BRIDGE.b + 2
-
-/** Sparse dabs over the solid asphalt, with ragged edges that blend into the verge grass. */
-function roadStrokes(out: Stroke[]) {
-  const r = rng(41)
-  const step = ROUTE_LEN / (ROUTE.length - 1)
-  const local: Stroke[] = []
-  for (let i = 0; i < ROUTE.length - 1; i++) {
-    if (onDeck(i) || arc(ROUTE[i], PLAZA) < 7) continue
-    local.length = 0
-    const band = (count: number, a: number, b: number, ramp: Ramp, lift: number, len: number, wid: number) => {
-      for (let k = 0; k < count; k++) {
-        const x = a + r() * (b - a)
-        const p = new THREE.Vector3(x, lift + r() * 0.01, (r() - 0.5) * step)
-        local.push({ p, n: UP, dir: rotateAbout(new THREE.Vector3(0, 0, 1), UP, (r() - 0.5) * 0.2), len: len * (0.7 + r() * 0.6), wid: wid * (0.7 + r() * 0.6), color: shade(r, UP, ramp) })
-      }
-    }
-    band(r() < 0.5 ? 3 : 2, -1.7, 1.7, ASPHALT, 0.1, 1.7, 0.13)
-    for (const sgn of [-1, 1]) {
-      band(1, sgn * 1.75, sgn * 2.15, ASPHALT, 0.1, 1.4, 0.13)
-    }
-    place(out, local, ROUTE[i], ROUTE_TAN[i], 1, true)
-  }
-}
 
 const DASH = ['#eef1ea', '#f4f5ef', '#e3e7df']
 const DASH_ON = 1.6
@@ -224,9 +198,11 @@ interface PathSeg {
   a: THREE.Vector3
   b: THREE.Vector3
   half: number
+  /** Landmark the path leads to; set on the main approach only, which gets the building's railing. */
+  railing?: string
 }
 
-const PATH: Ramp = { light: ['#ece2c6', '#e6dbbd'], mid: ['#d9cca9', '#d2c4a0', '#ddd1b0'], dark: ['#bfb08c', '#b8a985'] }
+const SLAB = ['#d9d2bf', '#cfc8b4', '#e2dccb', '#c6c0ad', '#d6cdb6']
 
 /** Footpaths from the road to entrances set well back from it, with a cross path halfway along long ones. */
 function footpaths(locations: WorldLocation[]): PathSeg[] {
@@ -237,7 +213,7 @@ function footpaths(locations: WorldLocation[]): PathSeg[] {
     const start = a.road.clone().addScaledVector(dir, ROAD_EDGE)
     const len = flatDistance(start, a.door)
     if (len < 2.5) continue
-    out.push({ a: start, b: a.door.clone(), half: 0.75 })
+    out.push({ a: start, b: a.door.clone(), half: 0.75, railing: l.id })
     if (len < 5) continue
     const mid = start.clone().lerp(a.door, 0.5)
     const across = new THREE.Vector3().crossVectors(UP, dir)
@@ -248,20 +224,107 @@ function footpaths(locations: WorldLocation[]): PathSeg[] {
 
 const onPath = (d: THREE.Vector3, paths: PathSeg[], pad = 0) => paths.some((s) => segmentDistance(d, s.a, s.b) < s.half + pad)
 
-/** Sandy dabs laid along each footpath, ragged at the edges. */
-function pathStrokes(out: Stroke[], paths: PathSeg[]) {
+type Railing = 'stanchion' | 'barrier' | 'picket'
+
+/** Approach railing per landmark: velvet-rope stanchions, crowd barriers or a painted picket fence. */
+const RAILING: Record<string, { kind: Railing; post: string; rail: string }> = {
+  cinema: { kind: 'stanchion', post: '#d6a63c', rail: '#a8323a' },
+  'experiment-lab': { kind: 'barrier', post: '#c9d0d4', rail: '#e0573a' },
+  arcade: { kind: 'stanchion', post: '#3fb7c4', rail: '#6d3a96' },
+  'brand-museum': { kind: 'picket', post: '#f1ece0', rail: '#e5ddcb' },
+  'print-house': { kind: 'picket', post: '#a07a45', rail: '#8c6a3c' },
+  'my-studio': { kind: 'picket', post: '#e2b13c', rail: '#d39a2c' },
+  observatory: { kind: 'barrier', post: '#2f3a56', rail: '#46557a' },
+}
+
+interface Block {
+  p: THREE.Vector3
+  yaw: number
+  s: [number, number, number]
+  c: string
+}
+
+/** Separate stepping slabs down each footpath plus the landmark's own railing along the main approach. */
+function pathBlocks(paths: PathSeg[]) {
   const r = rng(61)
-  for (const s of paths) {
-    const dir = flatDir(s.b.clone().sub(s.a))
+  const out: Block[] = []
+  const put = (p: THREE.Vector3, yaw: number, s: [number, number, number], c: string, lift = 0) =>
+    out.push({ p: new THREE.Vector3(p.x, groundHeight(p) + lift + s[1] / 2, p.z), yaw, s, c })
+  for (const seg of paths) {
+    const dir = flatDir(seg.b.clone().sub(seg.a))
     const across = new THREE.Vector3().crossVectors(UP, dir)
-    const len = flatDistance(s.a, s.b)
-    const n = Math.round(len * s.half * 2 * 12)
-    for (let k = 0; k < n; k++) {
-      const p = s.a.clone().addScaledVector(dir, r() * len).addScaledVector(across, (r() * 2 - 1) * s.half)
-      p.y = groundHeight(p) + 0.06 + r() * 0.01
-      out.push(conformToSlope({ p, n: UP, dir: rotateAbout(dir, UP, (r() - 0.5) * 0.4), len: 0.5 + r() * 0.3, wid: 0.24 + r() * 0.1, color: shade(r, UP, PATH) }))
+    const yaw = Math.atan2(dir.x, dir.z)
+    const len = flatDistance(seg.a, seg.b)
+    const rows = Math.floor(len / 0.78)
+    for (let k = 0; k < rows; k++) {
+      const at = seg.a.clone().addScaledVector(dir, (k + 0.5) * (len / rows))
+      const two = seg.half > 0.6 && k % 2 === 0
+      const pieces = two ? [-0.5, 0.5] : [0]
+      for (const o of pieces) {
+        const w = two ? seg.half * 0.92 : seg.half * 1.6
+        const p = at.clone().addScaledVector(across, o * seg.half * 1.02 + (r() - 0.5) * 0.06)
+        put(p, yaw + (r() - 0.5) * 0.12, [w, 0.07, 0.56 + r() * 0.08], pick(r, SLAB), -0.015)
+      }
+    }
+    const style = seg.railing ? RAILING[seg.railing] : undefined
+    if (!style) continue
+    const from = 0.6
+    const to = len - 1.4
+    const n = Math.max(1, Math.round((to - from) / 1.4))
+    const step = (to - from) / n
+    for (const sgn of [-1, 1]) {
+      for (let k = 0; k <= n; k++) {
+        const at = seg.a.clone().addScaledVector(dir, from + k * step).addScaledVector(across, sgn * (seg.half + 0.45))
+        if (style.kind === 'stanchion') {
+          put(at, yaw, [0.1, 0.85, 0.1], style.post)
+          put(at, yaw, [0.26, 0.05, 0.26], style.post)
+        } else if (style.kind === 'barrier') {
+          put(at, yaw, [0.07, 0.95, 0.07], style.post)
+          put(at, yaw, [0.07, 0.05, 0.5], style.post)
+        } else put(at, yaw, [0.11, 0.7, 0.11], style.post)
+        if (k === n) continue
+        const mid = at.clone().addScaledVector(dir, step / 2)
+        if (style.kind === 'stanchion') put(mid, yaw, [0.05, 0.06, step], style.rail, 0.66)
+        else if (style.kind === 'barrier') {
+          put(mid, yaw, [0.05, 0.06, step], style.post, 0.86)
+          put(mid, yaw, [0.05, 0.06, step], style.post, 0.2)
+          put(mid, yaw, [0.035, 0.22, step * 0.9], style.rail, 0.55)
+          for (const f of [-0.25, 0, 0.25]) put(mid.clone().addScaledVector(dir, f * step), yaw, [0.03, 0.62, 0.03], style.post, 0.24)
+        } else {
+          put(mid, yaw, [0.06, 0.08, step], style.rail, 0.5)
+          put(mid, yaw, [0.06, 0.08, step], style.rail, 0.22)
+        }
+      }
     }
   }
+  return out
+}
+
+/** All footpath slabs and railings in one instanced draw. */
+function PathStones({ paths }: { paths: PathSeg[] }) {
+  const blocks = useMemo(() => pathBlocks(paths), [paths])
+  const geom = useMemo(() => new THREE.BoxGeometry(1, 1, 1), [])
+  const mat = useMemo(() => new THREE.MeshToonMaterial({ color: '#ffffff', gradientMap: toonMaterial('#fff').gradientMap }), [])
+  const ref = useRef<THREE.InstancedMesh>(null)
+  useLayoutEffect(() => {
+    const m = ref.current
+    if (!m) return
+    const o = new THREE.Object3D()
+    const c = new THREE.Color()
+    blocks.forEach((b, i) => {
+      o.position.copy(b.p)
+      o.rotation.set(0, b.yaw, 0)
+      o.scale.set(...b.s)
+      o.updateMatrix()
+      m.setMatrixAt(i, o.matrix)
+      m.setColorAt(i, c.set(b.c))
+    })
+    m.instanceMatrix.needsUpdate = true
+    if (m.instanceColor) m.instanceColor.needsUpdate = true
+    m.computeBoundingSphere()
+  }, [blocks])
+  if (!blocks.length) return null
+  return <instancedMesh key={blocks.length} ref={ref} args={[geom, mat, blocks.length]} castShadow receiveShadow />
 }
 
 function paved(d: THREE.Vector3, pad: number) {
@@ -524,18 +587,17 @@ export function GroundPaint({ locations, scenery }: { locations: WorldLocation[]
   const grass = useQuality((s) => s.grass)
   const strokes = useMemo(() => {
     const out: Stroke[] = []
-    roadStrokes(out)
     plazaStrokes(out)
     dashStrokes(out)
-    pathStrokes(out, clear.paths)
     sceneryStrokes(out, scenery)
     seaStrokes(out)
     foamStrokes(out)
     return out
-  }, [scenery, clear])
+  }, [scenery])
   return (
     <>
       <Strokes key={strokes.length} strokes={strokes} />
+      <PathStones paths={clear.paths} />
       {grass ? <Meadow clear={clear} /> : <FlatMeadow clear={clear} />}
     </>
   )
